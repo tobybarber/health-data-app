@@ -39,7 +39,8 @@ export default function Signup() {
       setLoading(true);
       
       // Create user in Firebase Auth
-      const user = await signup(email, password);
+      const userCredential = await signup(email, password);
+      const user = userCredential.user;
       
       // Create user profile document
       await setDoc(doc(db, 'users', user.uid), {
