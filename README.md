@@ -2,6 +2,7 @@
 
 A personal health data prototype that allows you to upload medical records (PDFs, images, etc.) and analyze them using AI. The app provides a holistic analysis of your health records and allows you to ask follow-up questions.
 
+
 ## Features
 
 - Upload medical records (PDF, JPG, PNG)
