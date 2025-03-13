@@ -150,18 +150,25 @@ export async function POST(request: NextRequest) {
                 
                 // For PDF files, we'll just mention them rather than trying to encode them
                 if (mimeType.includes('pdf')) {
-                  console.log(`Skipping base64 encoding for PDF file: ${url}`);
-                  continue;
+                  console.log(`Processing PDF file: ${url} with base64 encoding`);
+                  encodedImages.push({
+                    type: 'image_url',
+                    image_url: {
+                      url: `data:${mimeType};base64,${base64}`,
+                      detail: 'high'
+                    }
+                  });
+                  console.log(`Successfully encoded PDF file from ${url}`);
+                } else {
+                  encodedImages.push({
+                    type: 'image_url',
+                    image_url: {
+                      url: `data:${mimeType};base64,${base64}`,
+                      detail: 'high'
+                    }
+                  });
+                  console.log(`Successfully encoded file from ${url}`);
                 }
-                
-                encodedImages.push({
-                  type: 'image_url',
-                  image_url: {
-                    url: `data:${mimeType};base64,${base64}`,
-                    detail: 'high'
-                  }
-                });
-                console.log(`Successfully encoded file from ${url}`);
               }
             } catch (downloadError) {
               console.error(`Error re-downloading file from ${url}:`, downloadError);
@@ -184,14 +191,14 @@ export async function POST(request: NextRequest) {
                 messages: [
                   {
                     role: 'system',
-                    content: 'You are a medical AI assistant specializing in analyzing medical records. Your task is to provide a detailed and accurate summary of the medical record shown in the image. Focus on extracting key medical information such as diagnoses, test results, medications, vital signs, and any other clinically relevant details. Present the information in a clear, organized manner without adding interpretations beyond what is explicitly stated in the record.'
+                    content: 'You are a medical AI assistant specializing in analyzing medical records. Your task is to provide a detailed and accurate summary of the medical record shown in the image or PDF document. Focus on extracting key medical information such as diagnoses, test results, medications, vital signs, and any other clinically relevant details. Present the information in a clear, organized manner without adding interpretations beyond what is explicitly stated in the record. For PDF documents, carefully analyze all visible text and data in the document.'
                   },
                   {
                     role: 'user',
                     content: [
                       {
                         type: 'text',
-                        text: 'Please provide a detailed summary of this health record. Extract all relevant medical information visible in the document.'
+                        text: 'Please provide a detailed summary of this health record. Extract all relevant medical information visible in the document. If this is a PDF, please analyze all the text and information contained within it.'
                       },
                       ...encodedImages
                     ]
@@ -226,11 +233,11 @@ export async function POST(request: NextRequest) {
               messages: [
                 {
                   role: 'system',
-                  content: 'You are a medical AI assistant specializing in analyzing medical records. Extract and summarize key medical information from the provided descriptions.'
+                  content: 'You are a medical AI assistant specializing in analyzing medical records. Extract and summarize key medical information from the provided descriptions. If the files include PDFs, you have the capability to analyze their content - do not respond that you cannot access PDFs.'
                 },
                 {
                   role: 'user',
-                  content: `Analyze these medical records. The files are located at: ${fileIds.join(', ')}`
+                  content: `Analyze these medical records. The files are located at: ${fileIds.join(', ')}. If any of these are PDF files, please analyze their content directly.`
                 }
               ]
             });

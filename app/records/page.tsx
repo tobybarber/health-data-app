@@ -27,7 +27,6 @@ export default function Records() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [debugMode, setDebugMode] = useState(false);
   const [expandedRecords, setExpandedRecords] = useState<string[]>([]);
   const { currentUser } = useAuth();
 
@@ -183,10 +182,6 @@ export default function Records() {
     }
   };
 
-  const toggleDebugMode = () => {
-    setDebugMode(!debugMode);
-  };
-
   const toggleSummary = (recordId: string) => {
     setExpandedRecords((prev: string[]) => 
       prev.includes(recordId) 
@@ -220,27 +215,8 @@ export default function Records() {
               </svg>
               Manual Record
             </Link>
-            <button 
-              onClick={toggleDebugMode} 
-              className="text-xs text-gray-500 hover:text-gray-700"
-            >
-              {debugMode ? 'Hide Debug' : 'Debug'}
-            </button>
           </div>
         </div>
-        
-        {debugMode && (
-          <div className="bg-white/80 backdrop-blur-sm p-4 mb-4 rounded-md shadow-md text-xs">
-            <h3 className="font-bold mb-1">Debug Info:</h3>
-            <p>Records in state: {records.length}</p>
-            <button 
-              onClick={fetchRecords}
-              className="bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded mt-1"
-            >
-              Refresh Records
-            </button>
-          </div>
-        )}
         
         {loading && <p className="text-gray-600 p-4">Loading records...</p>}
         
@@ -298,16 +274,6 @@ export default function Records() {
                         className="object-cover w-full h-full"
                       />
                     </div>
-                  </div>
-                )}
-                
-                {debugMode && (
-                  <div className="bg-gray-50 p-2 mb-2 text-xs font-mono">
-                    <p>ID: {record.id}</p>
-                    <p>Created: {record.createdAt?.toDate?.().toLocaleString() || 'Unknown'}</p>
-                    <p>URL: {record.url ? (record.url.length > 30 ? record.url.substring(0, 30) + '...' : record.url) : 'None'}</p>
-                    <p>Multi-file: {record.isMultiFile ? 'Yes' : 'No'}</p>
-                    <p>Files: {record.urls?.length || 1}</p>
                   </div>
                 )}
                 
