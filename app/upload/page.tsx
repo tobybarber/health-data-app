@@ -1,23 +1,53 @@
 'use client';
 
-import { useState, FormEvent, ChangeEvent, useEffect } from 'react';
+import { useState, FormEvent, ChangeEvent, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { doc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { storage, db } from '../lib/firebase';
 import { isApiKeyValid } from '../lib/openai';
+import { useAuth } from '../lib/AuthContext';
+import ProtectedRoute from '../components/ProtectedRoute';
+import HomeNavigation from '../components/HomeNavigation';
+
+interface ErrorResponse {
+  message?: string;
+  error?: string;
+  details?: string;
+  recordId?: string;
+}
 
 export default function Upload() {
   const [files, setFiles] = useState<File[]>([]);
   const [recordName, setRecordName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'analyzing' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [apiKeyValid, setApiKeyValid] = useState<boolean | null>(null);
   const [apiKeyChecked, setApiKeyChecked] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const { currentUser } = useAuth();
+
+  // Check if device is mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
 
   useEffect(() => {
     // Check if OpenAI API key is valid
@@ -31,9 +61,9 @@ export default function Upload() {
             'OpenAI API Key Issue\n\n' +
             'The OpenAI API key is missing or invalid. Files will be uploaded but analysis will be skipped.\n\n' +
             'How to fix this\n' +
-            '1. Create or edit the .env.local file in the project root\n' +
-            '2. Add your OpenAI API key: OPENAI_API_KEY=your_api_key_here\n' +
-            '3. Restart the development server.'
+            '1. Check the .env.local file in the project root\n' +
+            '2. Ensure your OpenAI API key is correctly configured\n' +
+            '3. Restart the development server if you make changes'
           );
         }
       } catch (err) {
@@ -56,7 +86,8 @@ export default function Upload() {
       // If no record name set yet, use the first file name as default
       if (!recordName && fileArray.length > 0) {
         // Remove extension from filename
-        const fileName = fileArray[0].name.split('.').slice(0, -1).join('.');
+        const firstFile = fileArray[0] as File;
+        const fileName = firstFile.name.split('.').slice(0, -1).join('.');
         setRecordName(fileName || 'Medical Record');
       }
       
@@ -65,8 +96,25 @@ export default function Upload() {
     }
   };
 
+  const handleCameraCapture = () => {
+    if (cameraInputRef.current) {
+      cameraInputRef.current.click();
+    }
+  };
+
+  const handleFileUpload = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    
+    if (!currentUser) {
+      setError('You must be logged in to upload files');
+      return;
+    }
     
     if (files.length === 0) {
       setError('Please select at least one file to upload');
@@ -78,7 +126,14 @@ export default function Upload() {
       return;
     }
 
+    const supportedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+    if (!files.every((file: File) => supportedTypes.includes(file.type))) {
+      setError('Only PDF, JPG, and PNG files are supported.');
+      return;
+    }
+
     try {
+      setIsLoading(true);
       setIsUploading(true);
       setError(null);
       setUploadProgress(0);
@@ -95,13 +150,18 @@ export default function Upload() {
         
         const timestamp = Date.now();
         const safeRecordName = recordName.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const filePath = `records/${safeRecordName}_${timestamp}_${i}_${file.name}`;
+        const filePath = `users/${currentUser.uid}/records/${safeRecordName}_${timestamp}_${i}_${file.name}`;
         console.log(`🔄 Creating storage reference: ${filePath}`);
         
         const storageRef = ref(storage, filePath);
         
         console.log(`📤 Uploading to Firebase Storage...`);
-        await uploadBytes(storageRef, file);
+        try {
+          await uploadBytes(storageRef, file);
+        } catch (uploadError) {
+          console.error(`❌ Firebase upload failed for ${file.name}:`, uploadError);
+          throw uploadError; // Re-throw to trigger outer catch
+        }
         console.log(`✅ Upload successful, getting download URL...`);
         
         const fileUrl = await getDownloadURL(storageRef);
@@ -118,211 +178,357 @@ export default function Upload() {
       if (apiKeyValid === true) {
         setUploadStatus('analyzing');
         setUploadProgress(100);
+        setAnalysisProgress(0);
         console.log(`🧠 Starting analysis with OpenAI...`);
+
+        // Simulate analysis progress
+        const analysisProgressInterval = setInterval(() => {
+          setAnalysisProgress((prev: number) => {
+            const newProgress = prev + 5;
+            if (newProgress >= 90) {
+              clearInterval(analysisProgressInterval);
+              return 90; // Cap at 90% until we get the actual response
+            }
+            return newProgress;
+          });
+        }, 500);
 
         // Call API to analyze the files
         try {
           const requestBody = { 
             fileName: recordName,
             fileUrls: fileUrls,
-            isMultiFile: files.length > 1
+            isMultiFile: files.length > 1,
+            userId: currentUser.uid
           };
           console.log(`📦 Sending to /api/analyze:`, requestBody);
           
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout (2 minutes)
+
           const response = await fetch('/api/analyze', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody),
+            signal: controller.signal,
           });
 
+          clearTimeout(timeoutId); // Clear timeout if request completes
+          clearInterval(analysisProgressInterval); // Clear the interval
+
           console.log(`📊 API response status: ${response.status}`);
-          
+          console.log(`📋 Response headers:`, Object.fromEntries(response.headers.entries()));
+
           if (!response.ok) {
-            const errorData = await response.json();
-            console.error('❌ API error:', errorData);
+            const errorMsg = await response.text();
+            console.error('Upload failed:', errorMsg);
             
-            // Check if the API created a record despite the error
-            if (errorData.recordId) {
-              console.log(`ℹ️ API created record with ID: ${errorData.recordId} despite error`);
-              setError(`Files were uploaded successfully, but analysis failed: ${errorData.message || errorData.error || 'Unknown error'}. You can still view them in Records.`);
-              setUploadStatus('error');
-              
-              // Redirect to records page after a delay
-              setTimeout(() => {
-                router.push('/records');
-              }, 3000);
-              return;
+            // Try to parse the error message if it's JSON
+            let parsedError = errorMsg;
+            try {
+              const errorJson = JSON.parse(errorMsg);
+              parsedError = errorJson.message || errorJson.error || errorMsg;
+            } catch (e) {
+              // If parsing fails, use the original error message
             }
             
-            // Store the record ourselves if the API didn't create one
-            console.log(`💾 Storing record in Firestore (with error)`);
-            await addDoc(collection(db, 'records'), {
-              name: recordName,
-              url: fileUrls[0],
-              urls: fileUrls,
-              isMultiFile: files.length > 1,
-              fileCount: files.length,
-              analysis: "Error analyzing files. The files were uploaded successfully, but analysis failed.",
-              createdAt: serverTimestamp(),
-              analysisError: true,
-              errorDetails: errorData.message || errorData.error || errorData.details || 'Unknown error'
-            });
-            
-            throw new Error(errorData.message || errorData.error || errorData.details || 'Failed to analyze files');
+            setError(`Upload failed: ${parsedError}. Please try again.`);
+            setUploadStatus('error');
+            return;
           }
 
-          const responseData = await response.json();
-          console.log(`✅ Analysis successful:`, responseData);
-          
+          setAnalysisProgress(100); // Set to 100% when complete
+          const data = await response.json();
+          console.log('Upload successful:', data);
           setUploadStatus('success');
-          
-          // Redirect to records page after a short delay to show success message
-          setTimeout(() => {
-            router.push('/records');
-          }, 1500);
+          setTimeout(() => router.push('/records'), 1500);
         } catch (err) {
-          console.error('❌ Error analyzing files:', err);
-          setError(`Files were uploaded successfully, but analysis failed: ${err instanceof Error ? err.message : 'Unknown error'}. You can still view them in Records.`);
-          setUploadStatus('error');
+          clearInterval(analysisProgressInterval); // Clear the interval on error
           
-          // Redirect to records page after a delay even if analysis failed
-          setTimeout(() => {
-            router.push('/records');
-          }, 3000);
+          // Check if this is an AbortError (timeout)
+          if (err instanceof Error && err.name === 'AbortError') {
+            console.log('Request timed out, but analysis might still be processing in the background');
+            // Don't treat timeout as an error since the analysis might still be processing
+            setAnalysisProgress(100);
+            setUploadStatus('success');
+            setTimeout(() => router.push('/records'), 1500);
+          } else {
+            console.error('❌ Error analyzing files:', err);
+            setError(`Files were uploaded successfully, but analysis failed: ${err instanceof Error ? err.message : 'Unknown error'}. You can still view them in Records.`);
+            setUploadStatus('error');
+            
+            // Redirect to records page after a delay even if analysis failed
+            setTimeout(() => {
+              router.push('/records');
+            }, 3000);
+          }
         }
       } else {
         // Skip analysis if API key is invalid
         // Just save the record with a note
-        await addDoc(collection(db, 'records'), {
+        await addDoc(collection(db, `users/${currentUser.uid}/records`), {
           name: recordName,
           url: fileUrls[0],
           urls: fileUrls,
           isMultiFile: files.length > 1,
           fileCount: files.length,
-          analysis: "Files uploaded successfully. Analysis skipped due to missing or invalid OpenAI API key.",
+          analysis: "Error analyzing files. The files were uploaded successfully, but analysis failed.",
           createdAt: serverTimestamp(),
-          analysisSkipped: true
+          analysisError: true,
+          errorDetails: error
         });
-        
-        setUploadStatus('success');
-        setError('Files uploaded successfully, but analysis was skipped due to API key issues.');
-        
-        // Redirect to records page after a delay
-        setTimeout(() => {
-          router.push('/records');
-        }, 3000);
       }
     } catch (err) {
-      console.error('Error uploading files:', err);
-      setError(`Error uploading files: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`);
+      console.error('❌ Error uploading files:', err);
+      setError('An error occurred while uploading files. Please try again later.');
       setUploadStatus('error');
+      
+      // Redirect to records page after a delay even if upload failed
+      setTimeout(() => {
+        router.push('/records');
+      }, 3000);
     } finally {
+      setIsLoading(false);
       setIsUploading(false);
     }
   };
 
   return (
-    <div className="flex flex-col items-center">
-      <h1 className="text-2xl font-bold text-blue-600 mb-6">Upload Records</h1>
-      
-      {!apiKeyValid && apiKeyChecked && (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-          <h3 className="font-bold text-yellow-800 mb-1">OpenAI API Key Issue</h3>
-          <p className="mb-2">
-            The OpenAI API key is missing or invalid. Files will be uploaded but analysis will be skipped.
-          </p>
-          <details className="text-sm">
-            <summary className="cursor-pointer font-medium">How to fix this</summary>
-            <ol className="list-decimal ml-5 mt-2">
-              <li className="mb-1">Create or edit the <code className="bg-yellow-100 px-1 rounded">.env.local</code> file in the project root</li>
-              <li className="mb-1">Add your OpenAI API key: <code className="bg-yellow-100 px-1 rounded">OPENAI_API_KEY=your_api_key_here</code></li>
-              <li className="mb-1">Restart the development server</li>
-            </ol>
-          </details>
-        </div>
-      )}
-      
-      <form onSubmit={handleSubmit} className="w-full">
-        <div className="mb-4">
-          <label className="block text-gray-700 mb-2">Record Name:</label>
-          <input
-            type="text"
-            value={recordName}
-            onChange={(e) => setRecordName(e.target.value)}
-            placeholder="Enter a name for this record"
-            className="w-full border border-gray-300 p-2 rounded mb-4"
-            disabled={isUploading}
-            required
-          />
-          
-          <label className="block text-gray-700 mb-2">
-            Select file(s) - you can select multiple files for multi-page documents:
-          </label>
-          <input
-            type="file"
-            onChange={handleFileChange}
-            className="w-full border border-gray-300 p-2 rounded"
-            accept=".pdf,.jpg,.jpeg,.png"
-            disabled={isUploading}
-            multiple
-          />
-          <p className="text-xs text-gray-500 mt-1">Accepted formats: PDF, JPG, PNG</p>
-          
-          {files.length > 0 && (
-            <div className="mt-3">
-              <p className="text-sm font-medium text-gray-700">Selected files ({files.length}):</p>
-              <ul className="text-xs text-gray-600 mt-1 ml-4 list-disc">
-                {files.map((file, index) => (
-                  <li key={index}>{file.name}</li>
-                ))}
-              </ul>
+    <ProtectedRoute>
+      <div className="p-6 pt-20">
+        <HomeNavigation />
+        <h1 className="text-2xl font-bold text-primary-blue mb-6">Upload Health Records</h1>
+        
+        {apiKeyValid === false && !isLoading && (
+          <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-md shadow-md">
+            <p className="font-medium">OpenAI API Key Issue</p>
+            <p>The OpenAI API key is invalid or not configured properly. You can still upload files, but analysis may not work correctly.</p>
+          </div>
+        )}
+        
+        {error && (
+          <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-md shadow-md">
+            <p className="font-medium">Error</p>
+            <p>{error}</p>
+          </div>
+        )}
+        
+        {uploadStatus === 'success' ? (
+          <div className="bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md text-center">
+            <div className="mb-4 text-primary-blue">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </div>
-          )}
-        </div>
-
-        {error && <p className="text-red-500 mb-4">{error}</p>}
-        
-        {isUploading && (
-          <div className="mb-4">
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div 
-                className="bg-primary-green h-2.5 rounded-full" 
-                style={{ width: `${uploadProgress}%` }}
-              ></div>
+            <h2 className="text-xl font-bold text-primary-blue mb-2">Upload Complete!</h2>
+            <p className="mb-6 text-gray-700">Your health records have been uploaded and analyzed successfully.</p>
+            <div className="flex justify-center space-x-4">
+              <Link 
+                href="/records" 
+                className="bg-primary-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+              >
+                View Records
+              </Link>
+              <button 
+                onClick={() => {
+                  setFiles([]);
+                  setRecordName('');
+                  setUploadStatus('idle');
+                  setUploadProgress(0);
+                  setAnalysisProgress(0);
+                }}
+                className="bg-white text-primary-blue px-4 py-2 rounded-md border border-primary-blue hover:bg-gray-100 transition-colors"
+              >
+                Upload Another
+              </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1 text-center">
-              {uploadStatus === 'uploading' && `Uploading... ${uploadProgress}%`}
-              {uploadStatus === 'analyzing' && 'Analyzing files with AI...'}
-            </p>
           </div>
-        )}
-        
-        {uploadStatus === 'success' && (
-          <div className="mb-4 p-3 bg-green-100 text-green-700 rounded">
-            Files uploaded successfully! {apiKeyValid === false && 'Analysis was skipped due to API key issues.'} Redirecting to Records...
-          </div>
-        )}
-        
-        {uploadStatus === 'error' && !isUploading && (
-          <div className="mb-4 p-3 bg-yellow-100 text-yellow-700 rounded">
-            {error || 'There was an issue with the upload. Redirecting to Records...'}
-          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md">
+            <div className="mb-6">
+              <label htmlFor="recordName" className="block text-sm font-medium text-gray-700 mb-1">
+                Record Name
+              </label>
+              <input
+                type="text"
+                id="recordName"
+                value={recordName}
+                onChange={(e) => setRecordName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="e.g., Annual Checkup 2023"
+                required
+              />
+            </div>
+
+            <div className="mb-6">
+              <label htmlFor="files" className="block text-sm font-medium text-gray-700 mb-1">
+                Upload Files (PDF, JPG, PNG)
+              </label>
+              <div className="mt-1">
+                <div className="flex flex-wrap gap-3 mb-3">
+                  <button
+                    type="button"
+                    onClick={handleFileUpload}
+                    className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center"
+                    disabled={isUploading}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Upload Photos/Files
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={handleCameraCapture}
+                    className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center"
+                    disabled={isUploading}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Take Photo
+                  </button>
+                </div>
+                
+                {/* File input for gallery photos/files */}
+                <input
+                  id="file-upload"
+                  name="file-upload"
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  multiple
+                  onChange={handleFileChange}
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  disabled={isUploading}
+                />
+                
+                {/* Camera input for mobile devices */}
+                <input
+                  type="file"
+                  ref={cameraInputRef}
+                  accept="image/*"
+                  capture={isMobile ? "environment" : undefined}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  disabled={isUploading}
+                />
+                
+                <p className="text-xs text-gray-500 mt-1">PDF, JPG, PNG up to 10MB each</p>
+              </div>
+              {files.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-sm text-gray-500">
+                    {files.length} {files.length === 1 ? 'file' : 'files'} selected:
+                  </p>
+                  <ul className="mt-1 text-sm text-gray-500 list-disc list-inside">
+                    {files.map((file: File, index: number) => (
+                      <li key={index}>
+                        {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Link
+                href="/records"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                disabled={isUploading || files.length === 0}
+                className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
+                  (isUploading || files.length === 0) ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {isUploading ? 'Uploading...' : 'Upload'}
+              </button>
+            </div>
+          </form>
         )}
 
-        <button
-          type="submit"
-          disabled={files.length === 0 || !recordName.trim() || isUploading}
-          className={`w-full bg-primary-green hover:bg-green-600 text-white py-2 px-4 rounded ${
-            (files.length === 0 || !recordName.trim() || isUploading) ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-        >
-          {isUploading ? (
-            uploadStatus === 'analyzing' ? 'Analyzing...' : 'Uploading...'
-          ) : 'Upload'}
-        </button>
-      </form>
-    </div>
+        {uploadStatus !== 'idle' && (
+          <div className="bg-white shadow-md rounded-lg p-6">
+            <h2 className="text-lg font-medium mb-4">Upload Status</h2>
+            
+            {/* Upload Progress Bar */}
+            <div className="mb-4">
+              <div className="relative pt-1">
+                <div className="flex mb-2 items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-indigo-600 bg-indigo-200">
+                      Uploading Files
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-semibold inline-block text-indigo-600">
+                      {uploadProgress}%
+                    </span>
+                  </div>
+                </div>
+                <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-200">
+                  <div
+                    style={{ width: `${uploadProgress}%` }}
+                    className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${
+                      uploadStatus === 'error' ? 'bg-red-500' : 'bg-indigo-500'
+                    }`}
+                  ></div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Analysis Progress Bar - Only show when analyzing or complete */}
+            {(uploadStatus === 'analyzing' || uploadStatus === 'success') && (
+              <div className="mb-4">
+                <div className="relative pt-1">
+                  <div className="flex mb-2 items-center justify-between">
+                    <div>
+                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-purple-600 bg-purple-200">
+                        Analyzing Documents
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-semibold inline-block text-purple-600">
+                        {analysisProgress}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-purple-200">
+                    <div
+                      style={{ width: `${analysisProgress}%` }}
+                      className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${
+                        uploadStatus === 'error' ? 'bg-red-500' : 'bg-purple-500'
+                      }`}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Overall Status */}
+            <div className="text-center">
+              <span className={`inline-block px-3 py-1 text-sm font-semibold rounded-full ${
+                uploadStatus === 'uploading' ? 'bg-blue-100 text-blue-800' :
+                uploadStatus === 'analyzing' ? 'bg-purple-100 text-purple-800' :
+                uploadStatus === 'success' ? 'bg-green-100 text-green-800' :
+                'bg-red-100 text-red-800'
+              }`}>
+                {uploadStatus === 'uploading' && 'Uploading Files...'}
+                {uploadStatus === 'analyzing' && 'Analyzing Documents...'}
+                {uploadStatus === 'success' && 'Complete!'}
+                {uploadStatus === 'error' && 'Error'}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    </ProtectedRoute>
   );
-} 
+}

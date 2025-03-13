@@ -2,52 +2,141 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '../lib/AuthContext';
+import { useState, useRef, useEffect } from 'react';
+import { FaUser, FaBars } from 'react-icons/fa';
 
 export default function Navigation() {
   const pathname = usePathname();
+  const { currentUser } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   
   const isActive = (path: string) => {
-    return pathname === path ? 'bg-blue-700' : '';
+    return pathname === path ? 'bg-white/20' : '';
   };
 
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   return (
-    <nav className="bg-primary-blue text-white p-3 mb-6 rounded-md shadow-md">
+    <nav className="bg-white/80 backdrop-blur-sm p-4 mb-6 shadow-md">
       <div className="flex justify-between items-center">
-        <ul className="flex flex-wrap justify-center gap-2 sm:gap-4">
-          <li>
-            <Link 
-              href="/" 
-              className={`px-3 py-2 rounded hover:bg-blue-700 transition-colors ${isActive('/')}`}
-            >
-              Home
-            </Link>
-          </li>
-          <li>
-            <Link 
-              href="/records" 
-              className={`px-3 py-2 rounded hover:bg-blue-700 transition-colors ${isActive('/records')}`}
-            >
-              Records
-            </Link>
-          </li>
-          <li>
-            <Link 
-              href="/analysis" 
-              className={`px-3 py-2 rounded hover:bg-blue-700 transition-colors ${isActive('/analysis')}`}
-            >
-              Analysis
-            </Link>
-          </li>
-        </ul>
-        <Link 
-          href="/profile" 
-          className={`px-2 py-2 rounded hover:bg-blue-700 transition-colors ${isActive('/profile')}`}
-          title="Profile"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-        </Link>
+        {currentUser ? (
+          // Authenticated navigation
+          <>
+            <Link href="/" className="text-2xl font-bold text-primary-blue hover:text-blue-700 transition-colors">Wattle</Link>
+            <div className="flex items-center space-x-4">
+              <Link 
+                href="/profile" 
+                className="text-primary-blue"
+                title="Profile"
+              >
+                <FaUser size={24} />
+              </Link>
+              <div className="relative" ref={menuRef}>
+                <button 
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className={`text-primary-blue focus:outline-none transition-transform duration-200 ${menuOpen ? 'rotate-90' : ''}`}
+                  aria-label="Menu"
+                >
+                  <FaBars size={24} />
+                </button>
+                
+                {menuOpen && (
+                  <div className="bg-white/90 backdrop-blur-sm shadow-md absolute right-0 top-10 w-48 rounded-md z-20 py-2 px-3">
+                    <ul>
+                      <li className="py-2 border-b border-gray-200">
+                        <Link 
+                          href="/" 
+                          className="block text-primary-blue hover:text-blue-700 transition-colors"
+                          onClick={() => setMenuOpen(false)}
+                        >
+                          Home
+                        </Link>
+                      </li>
+                      <li className="py-2 border-b border-gray-200">
+                        <Link 
+                          href="/upload" 
+                          className="block text-primary-blue hover:text-blue-700 transition-colors"
+                          onClick={() => setMenuOpen(false)}
+                        >
+                          Upload Records
+                        </Link>
+                      </li>
+                      <li className="py-2 border-b border-gray-200">
+                        <Link 
+                          href="/records" 
+                          className="block text-primary-blue hover:text-blue-700 transition-colors"
+                          onClick={() => setMenuOpen(false)}
+                        >
+                          View Records
+                        </Link>
+                      </li>
+                      <li className="py-2 border-b border-gray-200">
+                        <Link 
+                          href="/analysis" 
+                          className="block text-primary-blue hover:text-blue-700 transition-colors"
+                          onClick={() => setMenuOpen(false)}
+                        >
+                          Analysis
+                        </Link>
+                      </li>
+                      <li className="py-2 border-b border-gray-200">
+                        <Link 
+                          href="/wearables" 
+                          className="block text-primary-blue hover:text-blue-700 transition-colors"
+                          onClick={() => setMenuOpen(false)}
+                        >
+                          Wearables
+                        </Link>
+                      </li>
+                      <li className="py-2">
+                        <Link 
+                          href="/profile" 
+                          className="block text-primary-blue hover:text-blue-700 transition-colors"
+                          onClick={() => setMenuOpen(false)}
+                        >
+                          Profile
+                        </Link>
+                      </li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          // Unauthenticated navigation
+          <div className="w-full flex justify-between items-center">
+            <Link href="/" className="text-2xl font-bold text-primary-blue">Wattle</Link>
+            <div className="flex gap-4">
+              <Link 
+                href="/login" 
+                className="text-primary-blue hover:text-blue-700 transition-colors"
+              >
+                Log In
+              </Link>
+              <Link 
+                href="/signup" 
+                className="text-primary-blue hover:text-blue-700 transition-colors"
+              >
+                Sign Up
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
     </nav>
   );

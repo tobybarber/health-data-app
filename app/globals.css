@@ -5,10 +5,51 @@
 :root {
   --foreground-rgb: 0, 0, 0;
   --background-rgb: 255, 255, 255;
+  --primary-blue: 59, 130, 246;
+  --primary-green: 16, 185, 129;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-rgb));
   font-family: 'Roboto', sans-serif;
+}
+
+/* Custom utility classes */
+.text-primary-blue {
+  color: rgb(var(--primary-blue));
+}
+
+.bg-primary-blue {
+  background-color: rgb(var(--primary-blue));
+}
+
+.text-primary-green {
+  color: rgb(var(--primary-green));
+}
+
+.bg-primary-green {
+  background-color: rgb(var(--primary-green));
+}
+
+.border-primary-blue {
+  border-color: rgb(var(--primary-blue));
+}
+
+.border-primary-green {
+  border-color: rgb(var(--primary-green));
+}
+
+/* Custom animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 } 

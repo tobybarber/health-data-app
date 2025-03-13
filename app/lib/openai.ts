@@ -1,3 +1,5 @@
+'use client';
+
 import OpenAI from 'openai';
 
 // Initialize OpenAI client with proper configuration

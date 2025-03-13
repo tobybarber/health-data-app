@@ -8,8 +8,8 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'primary-green': '#4CAF50',
-        'primary-blue': '#2196F3',
+        'primary-green': 'rgb(var(--primary-green) / <alpha-value>)',
+        'primary-blue': 'rgb(var(--primary-blue) / <alpha-value>)',
       },
       fontFamily: {
         'roboto': ['Roboto', 'sans-serif'],

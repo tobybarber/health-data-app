@@ -1,27 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { doc, setDoc, collection, addDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
-import OpenAI from 'openai';
-
-// Initialize OpenAI client
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// Helper function to check if OpenAI API key is valid
-async function isOpenAIKeyValid() {
-  if (!process.env.OPENAI_API_KEY) {
-    console.error('No OpenAI API key found in environment');
-    return false;
-  }
-  
-  try {
-    // Make a simple API call to test the key
-    await openai.models.list();
-    return true;
-  } catch (error) {
-    console.error('OpenAI API key validation failed:', error);
-    return false;
-  }
-}
+import { db } from '../../lib/firebase-admin';
+import openai, { isApiKeyValid } from '../../lib/openai-server';
 
 // Helper function to get detailed diet description
 function getDietDescription(dietValue: string): string {
@@ -42,13 +22,13 @@ function getDietDescription(dietValue: string): string {
 export async function POST(request: NextRequest) {
   try {
     // Check for API key
-    const isKeyValid = await isOpenAIKeyValid();
-    if (!isKeyValid) {
-      console.error('Invalid or missing OpenAI API key');
+    const keyStatus = await isApiKeyValid();
+    if (!keyStatus.valid) {
+      console.error('Invalid or missing OpenAI API key:', keyStatus.message);
       return NextResponse.json(
         { 
           success: false, 
-          message: 'OpenAI API key is missing or invalid. Please add a valid API key to your .env.local file and restart the server.',
+          message: `OpenAI API key is invalid or has insufficient permissions: ${keyStatus.message}. Please check your API key configuration.`,
           error: 'OPENAI_API_KEY_INVALID'
         },
         { status: 500 }
@@ -57,10 +37,22 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { fileName, fileUrl, fileUrls, isMultiFile, question } = body;
+    const { fileName, fileUrl, fileUrls, isMultiFile, question, userId } = body;
     const urls = fileUrls || (fileUrl ? [fileUrl] : []);
 
-    console.log('Request body:', { fileName, urlCount: urls.length });
+    console.log('Request body:', { fileName, urlCount: urls.length, userId });
+
+    if (!userId) {
+      console.error('No userId provided in request');
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: 'User ID is required',
+          error: 'USER_ID_MISSING'
+        },
+        { status: 400 }
+      );
+    }
 
     if (fileName && urls.length) {
       // Process files
@@ -102,18 +94,11 @@ export async function POST(request: NextRequest) {
           const safeFileName = `${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}.${fileExt}`;
           console.log(`Creating file: ${safeFileName}, type: ${fileType}`);
           
-          const file = new File([buffer], safeFileName, { type: fileType });
-          console.log(`File created: ${file.size} bytes`);
-
-          // Upload to OpenAI
-          console.log(`Uploading to OpenAI...`);
-          const openaiFile = await openai.files.create({ 
-            file, 
-            purpose: 'assistants' 
-          });
+          // Skip file upload to OpenAI and use base64 encoding approach directly
+          console.log(`Skipping direct file upload to OpenAI, will use base64 encoding instead`);
           
-          console.log(`Successfully uploaded to OpenAI: ${openaiFile.id}`);
-          fileIds.push(openaiFile.id);
+          // Add the URL to fileUrls for later processing
+          fileIds.push(url); // Store the URL instead of an OpenAI file ID
         } catch (error: any) {
           console.error(`Error processing ${url}:`, error);
           errors.push(`Error with ${url}: ${error.message || String(error)}`);
@@ -162,6 +147,12 @@ export async function POST(request: NextRequest) {
                 const buffer = await blob.arrayBuffer();
                 const base64 = Buffer.from(buffer).toString('base64');
                 const mimeType = blob.type || 'image/jpeg';
+                
+                // For PDF files, we'll just mention them rather than trying to encode them
+                if (mimeType.includes('pdf')) {
+                  console.log(`Skipping base64 encoding for PDF file: ${url}`);
+                  continue;
+                }
                 
                 encodedImages.push({
                   type: 'image_url',
@@ -228,18 +219,18 @@ export async function POST(request: NextRequest) {
           // Fallback to traditional approach with file references
           try {
             console.log('Falling back to traditional file reference approach');
-            const fileReferences = fileIds.map(id => `file-${id}`).join(', ');
             
+            // Since we're now storing URLs in fileIds, we need to use them directly
             const fallbackResponse = await openai.chat.completions.create({
               model: 'gpt-4o',
               messages: [
                 {
                   role: 'system',
-                  content: 'You are a medical AI assistant specializing in analyzing medical records. Extract and summarize key medical information from the provided images or documents.'
+                  content: 'You are a medical AI assistant specializing in analyzing medical records. Extract and summarize key medical information from the provided descriptions.'
                 },
                 {
                   role: 'user',
-                  content: `Analyze these medical records: ${fileReferences}`
+                  content: `Analyze these medical records. The files are located at: ${fileIds.join(', ')}`
                 }
               ]
             });
@@ -254,8 +245,8 @@ export async function POST(request: NextRequest) {
       }
 
       // Save record to Firestore
-      console.log('Saving record to Firestore');
-      const docRef = await addDoc(collection(db, 'records'), {
+      console.log(`Saving record to Firestore for user ${userId}`);
+      const docRef = await addDoc(collection(db, `users/${userId}/records`), {
         name: fileName,
         url: urls[0],
         urls: urls,
@@ -268,8 +259,8 @@ export async function POST(request: NextRequest) {
       console.log(`Record saved with ID: ${docRef.id}`);
 
       // Perform holistic analysis
-      console.log('Fetching all records for holistic analysis');
-      const recordsCollection = collection(db, 'records');
+      console.log(`Fetching all records for user ${userId} for holistic analysis`);
+      const recordsCollection = collection(db, `users/${userId}/records`);
       const recordsSnapshot = await getDocs(recordsCollection);
       
       // Get summaries from all records
@@ -287,9 +278,10 @@ Analysis: ${data.analysis || 'No analysis available'}`;
       // Get user profile information
       let profileInfo = 'User Profile: Not available';
       try {
-        const profileDoc = await getDoc(doc(db, 'profile', 'user'));
-        if (profileDoc.exists()) {
-          const profile = profileDoc.data();
+        // Try the correct path first - this is where the profile is actually stored
+        const userProfileDoc = await getDoc(doc(db, 'profile', 'user'));
+        if (userProfileDoc.exists()) {
+          const profile = userProfileDoc.data();
           
           // Create a detailed profile string with all available information
           profileInfo = `User Profile:
@@ -305,6 +297,48 @@ Lifestyle Factors:
 - Exercise: ${profile?.exercise || 'Not specified'}
 Family Medical History:
 ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
+        } else {
+          // Try alternative paths if the main path doesn't work
+          const profileDoc = await getDoc(doc(db, 'users', userId, 'profile', 'data'));
+          if (profileDoc.exists()) {
+            const profile = profileDoc.data();
+            
+            // Create a detailed profile string with all available information
+            profileInfo = `User Profile:
+Name: ${profile?.name || 'Not specified'}
+Age: ${profile?.age || 'Not specified'}
+Gender: ${profile?.gender || 'Not specified'}
+Height: ${profile?.height || 'Not specified'} cm
+Weight: ${profile?.weight || 'Not specified'} kg
+Lifestyle Factors:
+- Smoking: ${profile?.smoking || 'Not specified'}
+- Alcohol: ${profile?.alcohol || 'Not specified'}
+- Diet: ${getDietDescription(profile?.diet)}
+- Exercise: ${profile?.exercise || 'Not specified'}
+Family Medical History:
+${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
+          } else {
+            // Try one more path
+            const altProfileDoc = await getDoc(doc(db, 'profile', userId));
+            if (altProfileDoc.exists()) {
+              const profile = altProfileDoc.data();
+              
+              // Create a detailed profile string with all available information
+              profileInfo = `User Profile:
+Name: ${profile?.name || 'Not specified'}
+Age: ${profile?.age || 'Not specified'}
+Gender: ${profile?.gender || 'Not specified'}
+Height: ${profile?.height || 'Not specified'} cm
+Weight: ${profile?.weight || 'Not specified'} kg
+Lifestyle Factors:
+- Smoking: ${profile?.smoking || 'Not specified'}
+- Alcohol: ${profile?.alcohol || 'Not specified'}
+- Diet: ${getDietDescription(profile?.diet)}
+- Exercise: ${profile?.exercise || 'Not specified'}
+Family Medical History:
+${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
+            }
+          }
         }
       } catch (profileError) {
         console.error('Error fetching user profile:', profileError);
@@ -326,7 +360,7 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
       
       const holisticText = holistic.choices[0]?.message?.content || 'No holistic analysis available';
       
-      await setDoc(doc(db, 'analysis', 'holistic'), { 
+      await setDoc(doc(db, `users/${userId}/analysis`, 'holistic'), { 
         text: holisticText, 
         updatedAt: serverTimestamp() 
       });
@@ -359,17 +393,18 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
   }
 }
 
-// Update the answerQuestion function to use summaries instead of original files
-async function answerQuestion(question: string, fileIds: string[], summaries: string[]) {
+// Update the answerQuestion function to use the correct profile path
+async function answerQuestion(question: string, fileIds: string[], summaries: string[], userId?: string) {
   try {
     console.log(`Answering question with ${summaries.length} health record summaries`);
     
     // Get user profile information
     let profileInfo = "No profile information available.";
     try {
-      const profileDoc = await getDoc(doc(db, 'profile', 'user'));
-      if (profileDoc.exists()) {
-        const profile = profileDoc.data();
+      // Try the correct path first - this is where the profile is actually stored
+      const userProfileDoc = await getDoc(doc(db, 'profile', 'user'));
+      if (userProfileDoc.exists()) {
+        const profile = userProfileDoc.data();
         
         // Create a detailed profile string with all available information
         profileInfo = `User Profile:
@@ -385,6 +420,27 @@ Lifestyle Factors:
 - Exercise: ${profile?.exercise || 'Not specified'}
 Family Medical History:
 ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
+      } else if (userId) {
+        // Try alternative paths if the main path doesn't work
+        const profileDoc = await getDoc(doc(db, 'profile', userId));
+        if (profileDoc.exists()) {
+          const profile = profileDoc.data();
+          
+          // Create a detailed profile string with all available information
+          profileInfo = `User Profile:
+Name: ${profile?.name || 'Not specified'}
+Age: ${profile?.age || 'Not specified'}
+Gender: ${profile?.gender || 'Not specified'}
+Height: ${profile?.height || 'Not specified'} cm
+Weight: ${profile?.weight || 'Not specified'} kg
+Lifestyle Factors:
+- Smoking: ${profile?.smoking || 'Not specified'}
+- Alcohol: ${profile?.alcohol || 'Not specified'}
+- Diet: ${getDietDescription(profile?.diet)}
+- Exercise: ${profile?.exercise || 'Not specified'}
+Family Medical History:
+${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
+        }
       }
     } catch (profileError) {
       console.error('Error fetching user profile:', profileError);

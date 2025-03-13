@@ -1,7 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import Navigation from './components/Navigation';
-import ErrorBoundary from './components/ErrorBoundary';
+import ClientWrapper from './components/ClientWrapper';
+import Image from 'next/image';
 
 export const metadata: Metadata = {
   title: 'My Health Data',
@@ -22,11 +22,26 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-white min-h-screen">
-        <main className="container mx-auto max-w-md p-4">
-          <ErrorBoundary>
-            <Navigation />
-            {children}
-          </ErrorBoundary>
+        <main className="min-h-screen">
+          <div className="relative min-h-screen">
+            {/* Background Image with increased opacity */}
+            <div className="absolute inset-0 z-0 bg-black/40">
+              <Image
+                src="/images/logo.jpg"
+                alt="Wattle Health Logo"
+                fill
+                className="object-cover opacity-60"
+                priority
+              />
+            </div>
+            
+            {/* Content */}
+            <div className="relative z-10">
+              <ClientWrapper>
+                {children}
+              </ClientWrapper>
+            </div>
+          </div>
         </main>
       </body>
     </html>

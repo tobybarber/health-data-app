@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useEffect, FormEvent } from 'react';
+import React, { useState, useEffect, FormEvent } from 'react';
 import Link from 'next/link';
-import { doc, getDoc, collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, getDocs, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { isApiKeyValid } from '../lib/openai';
+import { useAuth } from '../lib/AuthContext';
+import ProtectedRoute from '../components/ProtectedRoute';
+import HomeNavigation from '../components/HomeNavigation';
 
 interface Question {
   id: string;
@@ -14,14 +17,13 @@ interface Question {
 }
 
 interface Record {
-  id: string;
+  id?: string;
   name: string;
-  url: string;
+  url?: string;
   urls?: string[];
   isMultiFile?: boolean;
-  fileCount?: number;
-  analysis: string;
-  createdAt?: any;
+  isManual?: boolean;
+  hasPhoto?: boolean;
 }
 
 export default function Analysis() {
@@ -32,6 +34,8 @@ export default function Analysis() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [apiKeyValid, setApiKeyValid] = useState<boolean | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     // Check if OpenAI API key is valid
@@ -53,9 +57,11 @@ export default function Analysis() {
 
   useEffect(() => {
     async function fetchAnalysis() {
+      if (!currentUser) return;
+      
       try {
         // Fetch holistic analysis
-        const analysisDoc = await getDoc(doc(db, 'analysis', 'holistic'));
+        const analysisDoc = await getDoc(doc(db, `users/${currentUser.uid}/analysis`, 'holistic'));
         if (analysisDoc.exists()) {
           setHolisticAnalysis(analysisDoc.data().text || 'No analysis available yet.');
         } else {
@@ -63,7 +69,7 @@ export default function Analysis() {
         }
 
         // Fetch previous questions
-        const questionsCollection = collection(db, 'analysis', 'questions', 'items');
+        const questionsCollection = collection(db, `users/${currentUser.uid}/analysis/questions/items`);
         const questionsSnapshot = await getDocs(questionsCollection);
         
         const questionsList = questionsSnapshot.docs.map(doc => ({
@@ -89,12 +95,17 @@ export default function Analysis() {
     }
 
     fetchAnalysis();
-  }, []);
+  }, [currentUser]);
 
   const handleSubmitQuestion = async (e: FormEvent) => {
     e.preventDefault();
     
     if (!question.trim()) return;
+    
+    if (!currentUser) {
+      setError('You must be logged in to ask questions');
+      return;
+    }
     
     // Check if API key is valid before proceeding
     if (apiKeyValid === false) {
@@ -106,55 +117,27 @@ export default function Analysis() {
       setSubmitting(true);
       setError(null);
 
-      // Get all record URLs
-      const recordsCollection = collection(db, 'records');
-      const recordsSnapshot = await getDocs(recordsCollection);
-      
-      // Collect all file IDs and URLs from records
-      const fileIds: string[] = [];
-      const fileUrls: string[] = [];
-      
-      recordsSnapshot.docs.forEach(doc => {
-        const record = doc.data() as Record;
-        
-        // Add the record ID to fileIds
-        fileIds.push(doc.id);
-        
-        // Handle multi-file records
-        if (record.isMultiFile && record.urls && record.urls.length > 0) {
-          fileUrls.push(...record.urls.filter(url => url && typeof url === 'string' && url.startsWith('http')));
-        } 
-        // Handle single file records
-        else if (record.url && typeof record.url === 'string' && record.url.startsWith('http')) {
-          fileUrls.push(record.url);
-        }
-      });
-      
-      if (fileIds.length === 0) {
-        throw new Error('No valid medical records found to analyze.');
-      }
-
       // Call API to analyze the question
-      const response = await fetch('/api/analyze', {
+      const response = await fetch('/api/question', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
           question,
-          fileIds
+          userId: currentUser.uid
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.details || 'Failed to analyze question');
+        throw new Error(errorData.message || errorData.error || 'Failed to analyze question');
       }
 
       const data = await response.json();
       
       // Add question and answer to Firestore
-      const questionsCollection = collection(db, 'analysis', 'questions', 'items');
+      const questionsCollection = collection(db, `users/${currentUser.uid}/analysis/questions/items`);
       await addDoc(questionsCollection, {
         question,
         answer: data.answer,
@@ -186,76 +169,97 @@ export default function Analysis() {
     }
   };
 
-  return (
-    <div>
-      <h1 className="text-2xl font-bold text-blue-600 mb-6">Health Analysis</h1>
-      
-      {apiKeyValid === false && (
-        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
-          Warning: OpenAI API key is invalid or not configured properly. Analysis features may not work correctly.
-        </div>
-      )}
-      
-      {loading ? (
-        <p className="text-gray-600">Loading analysis...</p>
-      ) : (
-        <>
-          <div className="bg-gray-50 p-4 rounded-lg mb-6">
-            <h2 className="text-lg font-medium text-gray-800 mb-2">Holistic Analysis</h2>
-            <p className="text-gray-800 whitespace-pre-line">{holisticAnalysis}</p>
-          </div>
+  const handleDeleteQuestion = async (questionId: string) => {
+    if (!currentUser) return;
+    if (!confirm('Are you sure you want to delete this question?')) {
+      return;
+    }
 
-          <div className="mb-8">
-            <h2 className="text-lg font-medium text-gray-800 mb-4">Ask Follow-up Questions</h2>
-            
-            <form onSubmit={handleSubmitQuestion} className="mb-6">
-              <div className="mb-4">
-                <input
-                  type="text"
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="Ask a question about your health records..."
-                  className="w-full border border-gray-300 p-2 rounded"
-                  disabled={submitting || apiKeyValid === false}
-                />
-              </div>
+    try {
+      setDeleting(questionId);
+      const questionRef = doc(db, `users/${currentUser.uid}/analysis/questions/items`, questionId);
+      await deleteDoc(questionRef);
+      
+      // Update the questions list
+      setQuestions(questions.filter(q => q.id !== questionId));
+    } catch (err) {
+      console.error('Error deleting question:', err);
+      setError('Failed to delete question. Please try again.');
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  return (
+    <ProtectedRoute>
+      <div className="p-6 pt-20">
+        <HomeNavigation />
+        <h1 className="text-2xl font-bold text-primary-blue mb-6">Health Analysis</h1>
+        
+        {apiKeyValid === false && (
+          <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-md shadow-md">
+            Warning: OpenAI API key is invalid or not configured properly. Analysis features may not work correctly.
+          </div>
+        )}
+        
+        {loading ? (
+          <p className="text-gray-600 p-4">Loading analysis...</p>
+        ) : (
+          <>
+            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md mb-6">
+              <h2 className="text-lg font-medium text-primary-blue mb-2">Holistic Analysis</h2>
+              <p className="text-gray-800 whitespace-pre-line">{holisticAnalysis}</p>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-lg font-medium text-primary-blue mb-4">Ask Follow-up Questions</h2>
+              
+              <form onSubmit={handleSubmitQuestion} className="mb-6">
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    placeholder="Ask a question about your health records..."
+                    className="w-full border border-gray-300 p-3 rounded-md"
+                    disabled={submitting}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="bg-primary-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                  disabled={submitting || !question.trim()}
+                >
+                  {submitting ? 'Submitting...' : 'Ask Question'}
+                </button>
+              </form>
               
               {error && <p className="text-red-500 mb-4">{error}</p>}
               
-              <button
-                type="submit"
-                disabled={!question.trim() || submitting || apiKeyValid === false}
-                className={`w-full bg-primary-green hover:bg-green-600 text-white py-2 px-4 rounded ${
-                  (!question.trim() || submitting || apiKeyValid === false) ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {submitting ? 'Processing...' : 'Ask'}
-              </button>
-            </form>
-            
-            <div>
-              <h3 className="text-md font-medium text-gray-700 mb-3">Previous Questions</h3>
-              
-              {questions.length === 0 ? (
-                <p className="text-gray-600 italic">No questions asked yet.</p>
-              ) : (
-                questions.map(q => (
-                  <div key={q.id} className="border-b border-gray-200 py-3 last:border-b-0">
-                    <p className="font-medium text-blue-600 mb-1">Q: {q.question}</p>
-                    <p className="text-gray-800">A: {q.answer}</p>
+              <div className="space-y-4">
+                {questions.map((q) => (
+                  <div key={q.id} className="bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md">
+                    <div className="flex justify-between items-start">
+                      <p className="font-medium text-primary-blue mb-2">{q.question}</p>
+                      <button 
+                        onClick={() => handleDeleteQuestion(q.id)}
+                        disabled={deleting === q.id}
+                        className={`text-red-500 hover:text-red-700 text-sm ${deleting === q.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {deleting === q.id ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </div>
+                    <p className="text-gray-800 whitespace-pre-line">{q.answer}</p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {q.timestamp && new Date(q.timestamp.seconds * 1000).toLocaleString()}
+                    </p>
                   </div>
-                ))
-              )}
+                ))}
+              </div>
             </div>
-          </div>
-          
-          <div className="mt-6 flex justify-center">
-            <Link href="/records" className="bg-primary-blue hover:bg-blue-600 text-white px-4 py-2 rounded inline-block">
-              Back to Records
-            </Link>
-          </div>
-        </>
-      )}
-    </div>
+          </>
+        )}
+      </div>
+    </ProtectedRoute>
   );
 } 
