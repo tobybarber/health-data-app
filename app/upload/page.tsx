@@ -313,7 +313,7 @@ export default function Upload() {
           </div>
         )}
         
-        {uploadStatus === 'success' ? (
+        {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'success' ? (
           <div className="bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md text-center">
             <div className="mb-4 text-primary-blue">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -454,7 +454,7 @@ export default function Upload() {
           </form>
         )}
 
-        {uploadStatus !== 'idle' && (
+        {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') !== 'idle' && (
           <div className="bg-white shadow-md rounded-lg p-6">
             <h2 className="text-lg font-medium mb-4">Upload Status</h2>
             
@@ -477,7 +477,7 @@ export default function Upload() {
                   <div
                     style={{ width: `${uploadProgress}%` }}
                     className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${
-                      uploadStatus === 'error' ? 'bg-red-500' : 'bg-indigo-500'
+                      (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-indigo-500'
                     }`}
                   ></div>
                 </div>
@@ -485,7 +485,8 @@ export default function Upload() {
             </div>
             
             {/* Analysis Progress Bar - Only show when analyzing or complete */}
-            {(uploadStatus === 'analyzing' || uploadStatus === 'success') && (
+            {((uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'analyzing' || 
+              (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'success') && (
               <div className="mb-4">
                 <div className="relative pt-1">
                   <div className="flex mb-2 items-center justify-between">
@@ -495,7 +496,9 @@ export default function Upload() {
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-semibold inline-block text-purple-600">
+                      <span className={`text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full ${
+                        (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-indigo-500'
+                      } text-white`}>
                         {analysisProgress}%
                       </span>
                     </div>
@@ -504,7 +507,7 @@ export default function Upload() {
                     <div
                       style={{ width: `${analysisProgress}%` }}
                       className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${
-                        uploadStatus === 'error' ? 'bg-red-500' : 'bg-purple-500'
+                        (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-purple-500'
                       }`}
                     ></div>
                   </div>
@@ -515,15 +518,15 @@ export default function Upload() {
             {/* Overall Status */}
             <div className="text-center">
               <span className={`inline-block px-3 py-1 text-sm font-semibold rounded-full ${
-                uploadStatus === 'uploading' ? 'bg-blue-100 text-blue-800' :
-                uploadStatus === 'analyzing' ? 'bg-purple-100 text-purple-800' :
-                uploadStatus === 'success' ? 'bg-green-100 text-green-800' :
+                (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'uploading' ? 'bg-blue-100 text-blue-800' :
+                (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'analyzing' ? 'bg-purple-100 text-purple-800' :
+                (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'success' ? 'bg-green-100 text-green-800' :
                 'bg-red-100 text-red-800'
               }`}>
-                {uploadStatus === 'uploading' && 'Uploading Files...'}
-                {uploadStatus === 'analyzing' && 'Analyzing Documents...'}
-                {uploadStatus === 'success' && 'Complete!'}
-                {uploadStatus === 'error' && 'Error'}
+                {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'uploading' && 'Uploading Files...'}
+                {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'analyzing' && 'Analyzing Documents...'}
+                {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'success' && 'Complete!'}
+                {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' && 'Error'}
               </span>
             </div>
           </div>
