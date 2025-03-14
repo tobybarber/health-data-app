@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { collection, getDocs, getDoc, doc } from 'firebase/firestore';
+import admin from 'firebase-admin';
 import { db } from '../../lib/firebase-admin';
 import openai, { isApiKeyValid } from '../../lib/openai-server';
 
@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
 
     // Fetch all records for the user
     console.log(`Fetching all records for user ${userId}`);
-    const recordsCollection = collection(db, `users/${userId}/records`);
-    const recordsSnapshot = await getDocs(recordsCollection);
+    const recordsCollection = db.collection(`users/${userId}/records`);
+    const recordsSnapshot = await recordsCollection.get();
     
     // Get summaries from all records
     const summaries = recordsSnapshot.docs.map(doc => {
@@ -88,8 +88,8 @@ Analysis: ${data.analysis || 'No analysis available'}`;
     let profileInfo = 'User Profile: Not available';
     try {
       // Try the correct path first - this is where the profile is actually stored
-      const userProfileDoc = await getDoc(doc(db, 'profile', 'user'));
-      if (userProfileDoc.exists()) {
+      const userProfileDoc = await db.collection('profile').doc('user').get();
+      if (userProfileDoc.exists) {
         const profile = userProfileDoc.data();
         
         // Create a detailed profile string with all available information
@@ -108,8 +108,8 @@ Family Medical History:
 ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
       } else if (userId) {
         // Try alternative paths if the main path doesn't work
-        const profileDoc = await getDoc(doc(db, 'users', userId, 'profile', 'data'));
-        if (profileDoc.exists()) {
+        const profileDoc = await db.collection('users').doc(userId).collection('profile').doc('data').get();
+        if (profileDoc.exists) {
           const profile = profileDoc.data();
           
           // Create a detailed profile string with all available information
@@ -128,8 +128,8 @@ Family Medical History:
 ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
         } else {
           // Try one more path
-          const altProfileDoc = await getDoc(doc(db, 'profile', userId));
-          if (altProfileDoc.exists()) {
+          const altProfileDoc = await db.collection('profile').doc(userId).get();
+          if (altProfileDoc.exists) {
             const profile = altProfileDoc.data();
             
             // Create a detailed profile string with all available information
