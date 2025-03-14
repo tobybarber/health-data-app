@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '../../lib/firebase-admin';
 import admin from 'firebase-admin';
 import openai, { isApiKeyValid } from '../../lib/openai-server';
-import pdfParse from 'pdf-parse';
 
 // Helper function to get detailed diet description
 function getDietDescription(dietValue: string): string {
@@ -17,17 +16,6 @@ function getDietDescription(dietValue: string): string {
       return 'Irregular eating (skipping meals, heavy snacking, little variety) - inconsistent nutrition with poor diversity';
     default:
       return dietValue || 'Not specified';
-  }
-}
-
-// Helper function to extract text from PDF
-async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  try {
-    const data = await pdfParse(buffer);
-    return data.text || 'No text could be extracted from the PDF.';
-  } catch (error) {
-    console.error('Error extracting text from PDF:', error);
-    return 'Error extracting text from PDF.';
   }
 }
 
