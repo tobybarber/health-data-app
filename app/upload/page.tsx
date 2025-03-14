@@ -4,12 +4,16 @@ import { useState, FormEvent, ChangeEvent, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { doc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { storage, db } from '../lib/firebase';
+import { doc, setDoc, collection, addDoc, serverTimestamp, getDocs, query, limit } from 'firebase/firestore';
+import { storage, db, getFirebaseConfig } from '../lib/firebase';
 import { isApiKeyValid } from '../lib/openai';
 import { useAuth } from '../lib/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import HomeNavigation from '../components/HomeNavigation';
+
+// Log Firebase configuration for debugging
+console.log('🔥 Firebase Project ID:', process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
+console.log('🔥 Firebase Storage Bucket:', process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
 
 interface ErrorResponse {
   message?: string;
@@ -21,6 +25,7 @@ interface ErrorResponse {
 export default function Upload() {
   const [files, setFiles] = useState<File[]>([]);
   const [recordName, setRecordName] = useState('');
+  const [comment, setComment] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [analysisProgress, setAnalysisProgress] = useState(0);
@@ -75,17 +80,37 @@ export default function Upload() {
     }
     
     checkApiKey();
-  }, []);
+    
+    // Test Firestore write access
+    async function testFirestoreWrite() {
+      if (!currentUser) return;
+      
+      try {
+        console.log('🧪 Testing Firestore write access...');
+        const testDocRef = doc(db, `users/${currentUser.uid}/test/firestore-test`);
+        await setDoc(testDocRef, {
+          timestamp: serverTimestamp(),
+          message: 'This is a test document to verify Firestore write access',
+          browser: navigator.userAgent,
+          testId: Date.now().toString()
+        });
+        console.log('✅ Test document written successfully to Firestore');
+      } catch (err) {
+        console.error('❌ Error writing test document to Firestore:', err);
+      }
+    }
+    
+    if (currentUser) {
+      testFirestoreWrite();
+    }
+  }, [currentUser]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      // Convert FileList to array
       const fileArray = Array.from(e.target.files);
       setFiles(fileArray);
       
-      // If no record name set yet, use the first file name as default
       if (!recordName && fileArray.length > 0) {
-        // Remove extension from filename
         const firstFile = fileArray[0] as File;
         const fileName = firstFile.name.split('.').slice(0, -1).join('.');
         setRecordName(fileName || 'Medical Record');
@@ -116,8 +141,8 @@ export default function Upload() {
       return;
     }
     
-    if (files.length === 0) {
-      setError('Please select at least one file to upload');
+    if (files.length === 0 && !comment.trim()) {
+      setError('Please select at least one file to upload or provide a comment.');
       return;
     }
 
@@ -140,7 +165,6 @@ export default function Upload() {
       setUploadStatus('uploading');
       console.log(`📤 Starting upload of ${files.length} files with name: ${recordName}`);
 
-      // Upload all files to Firebase Storage and get URLs
       const fileUrls: string[] = [];
       const totalFiles = files.length;
       
@@ -174,110 +198,42 @@ export default function Upload() {
 
       console.log(`✅ All files uploaded successfully. Total URLs: ${fileUrls.length}`);
 
-      // Files are uploaded, now analyzing (if API key is valid)
-      if (apiKeyValid === true) {
-        setUploadStatus('analyzing');
-        setUploadProgress(100);
-        setAnalysisProgress(0);
-        console.log(`🧠 Starting analysis with OpenAI...`);
-
-        // Simulate analysis progress
-        const analysisProgressInterval = setInterval(() => {
-          setAnalysisProgress((prev: number) => {
-            const newProgress = prev + 5;
-            if (newProgress >= 90) {
-              clearInterval(analysisProgressInterval);
-              return 90; // Cap at 90% until we get the actual response
-            }
-            return newProgress;
-          });
-        }, 500);
-
-        // Call API to analyze the files
+      // If files are uploaded, send them to AI for analysis
+      if (fileUrls.length > 0) {
+        // Create a record in Firestore for the uploaded files
+        console.log(`📝 Creating Firestore record for user: ${currentUser.uid}`);
+        console.log(`📝 Record data: name=${recordName}, files=${fileUrls.length}, comment=${comment ? 'provided' : 'none'}`);
+        
         try {
-          const requestBody = { 
-            fileName: recordName,
-            fileUrls: fileUrls,
-            isMultiFile: files.length > 1,
-            userId: currentUser.uid
-          };
-          console.log(`📦 Sending to /api/analyze:`, requestBody);
-          
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout (2 minutes)
-
-          const response = await fetch('/api/analyze', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody),
-            signal: controller.signal,
+          const docRef = await addDoc(collection(db, `users/${currentUser.uid}/records`), {
+            name: recordName,
+            comment: comment,
+            urls: fileUrls,
+            fileCount: fileUrls.length,
+            isMultiFile: fileUrls.length > 1,
+            createdAt: serverTimestamp(),
+            analysis: "This record has not been analyzed yet.",
           });
-
-          clearTimeout(timeoutId); // Clear timeout if request completes
-          clearInterval(analysisProgressInterval); // Clear the interval
-
-          console.log(`📊 API response status: ${response.status}`);
-          console.log(`📋 Response headers:`, Object.fromEntries(response.headers.entries()));
-
-          if (!response.ok) {
-            const errorMsg = await response.text();
-            console.error('Upload failed:', errorMsg);
-            
-            // Try to parse the error message if it's JSON
-            let parsedError = errorMsg;
-            try {
-              const errorJson = JSON.parse(errorMsg);
-              parsedError = errorJson.message || errorJson.error || errorMsg;
-            } catch (e) {
-              // If parsing fails, use the original error message
-            }
-            
-            setError(`Upload failed: ${parsedError}. Please try again.`);
-            setUploadStatus('error');
-            return;
-          }
-
-          setAnalysisProgress(100); // Set to 100% when complete
-          const data = await response.json();
-          console.log('Upload successful:', data);
-          setUploadStatus('success');
-          setTimeout(() => router.push('/records'), 1500);
-        } catch (err) {
-          clearInterval(analysisProgressInterval); // Clear the interval on error
-          
-          // Check if this is an AbortError (timeout)
-          if (err instanceof Error && err.name === 'AbortError') {
-            console.log('Request timed out, but analysis might still be processing in the background');
-            // Don't treat timeout as an error since the analysis might still be processing
-            setAnalysisProgress(100);
-            setUploadStatus('success');
-            setTimeout(() => router.push('/records'), 1500);
-          } else {
-            console.error('❌ Error analyzing files:', err);
-            setError(`Files were uploaded successfully, but analysis failed: ${err instanceof Error ? err.message : 'Unknown error'}. You can still view them in Records.`);
-            setUploadStatus('error');
-            
-            // Redirect to records page after a delay even if analysis failed
-            setTimeout(() => {
-              router.push('/records');
-            }, 3000);
-          }
+          console.log(`✅ Firestore record created successfully with ID: ${docRef.id}`);
+        } catch (firestoreError) {
+          console.error('❌ Error creating Firestore record:', firestoreError);
+          throw firestoreError; // Re-throw to trigger outer catch
         }
-      } else {
-        // Skip analysis if API key is invalid
-        // Just save the record with a note
+        
+        // Call your AI analysis function here, passing the comment and fileUrls
+        // Example: await analyzeFiles(fileUrls, comment);
+      } else if (comment.trim()) {
+        // Handle manual record case
         await addDoc(collection(db, `users/${currentUser.uid}/records`), {
           name: recordName,
-          url: fileUrls[0],
-          urls: fileUrls,
-          isMultiFile: files.length > 1,
-          fileCount: files.length,
-          analysis: "Error analyzing files. The files were uploaded successfully, but analysis failed.",
+          comment: comment,
           createdAt: serverTimestamp(),
-          analysisError: true,
-          errorDetails: error
+          isManualRecord: true,
         });
       }
+
+      setUploadStatus('success');
+      setTimeout(() => router.push('/records'), 1500);
     } catch (err) {
       console.error('❌ Error uploading files:', err);
       setError('An error occurred while uploading files. Please try again later.');
@@ -292,6 +248,9 @@ export default function Upload() {
       setIsUploading(false);
     }
   };
+
+  // Update the button's disabled state
+  const isUploadDisabled = !(recordName.trim() || comment.trim() || files.length > 0);
 
   return (
     <ProtectedRoute>
@@ -333,6 +292,7 @@ export default function Upload() {
                 onClick={() => {
                   setFiles([]);
                   setRecordName('');
+                  setComment('');
                   setUploadStatus('idle');
                   setUploadProgress(0);
                   setAnalysisProgress(0);
@@ -357,6 +317,19 @@ export default function Upload() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="e.g., Annual Checkup 2023"
                 required
+              />
+            </div>
+
+            <div className="mb-6">
+              <label htmlFor="comment" className="block text-sm font-medium text-gray-700 mb-1">
+                Comment (optional)
+              </label>
+              <textarea
+                id="comment"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Add any comments here..."
               />
             </div>
 
@@ -443,10 +416,10 @@ export default function Upload() {
               </Link>
               <button
                 type="submit"
-                disabled={isUploading || files.length === 0}
                 className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
-                  (isUploading || files.length === 0) ? 'opacity-50 cursor-not-allowed' : ''
+                  isUploadDisabled ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
+                disabled={isUploadDisabled}
               >
                 {isUploading ? 'Uploading...' : 'Upload'}
               </button>

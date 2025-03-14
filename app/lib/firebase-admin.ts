@@ -1,22 +1,20 @@
-import { initializeApp } from 'firebase/app';
-import { getStorage } from 'firebase/storage';
-import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import admin from 'firebase-admin';
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "YOUR_API_KEY",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "YOUR_AUTH_DOMAIN",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "YOUR_STORAGE_BUCKET",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "YOUR_APP_ID"
-};
+// Check if Firebase Admin has already been initialized
+if (!admin.apps.length) {
+  // Initialize Firebase Admin SDK
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL || 'dummy@example.com',
+      // Replace newlines in the private key
+      privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    } as admin.ServiceAccount),
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+  });
+}
 
-// Initialize Firebase for server-side usage
-const app = initializeApp(firebaseConfig, 'server');
-const storage = getStorage(app);
-const db = getFirestore(app);
-const auth = getAuth(app);
+const db = admin.firestore();
+const storage = admin.storage();
 
-export { storage, db, auth }; 
+export { db, storage }; 

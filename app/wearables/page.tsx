@@ -59,7 +59,7 @@ export default function WearablesPage() {
     <ProtectedRoute>
       <div className="p-6 pt-20">
         <HomeNavigation />
-        <h1 className="text-2xl font-bold text-primary-blue mb-6">Connect Wearable Devices</h1>
+        <h1 className="text-2xl font-bold text-primary-blue mb-6">My Wearables</h1>
         
         <p className="mb-6 text-gray-700">
           Connect your wearable devices to automatically import health data.
@@ -94,18 +94,16 @@ export default function WearablesPage() {
           ))}
         </div>
         
-        <div className="mt-8 bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md">
-          <h2 className="text-lg font-medium text-primary-blue mb-2">Manual Data Entry</h2>
-          <p className="text-gray-700 mb-4">
-            Don't have a wearable device? You can still track your health data manually.
-          </p>
-          <Link 
-            href="/manual-record" 
-            className="bg-primary-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors inline-block"
-          >
-            Enter Data Manually
-          </Link>
-        </div>
+        <h2 className="text-lg font-medium text-primary-blue mb-2">Manual Data Entry</h2>
+        <p className="text-gray-700 mb-4">
+          Don't have a wearable device? You can still track your health data manually.
+        </p>
+        <Link 
+          href="/manual-record" 
+          className="bg-primary-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors inline-block"
+        >
+          Enter Data Manually
+        </Link>
       </div>
     </ProtectedRoute>
   );

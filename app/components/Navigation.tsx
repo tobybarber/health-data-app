@@ -11,6 +11,7 @@ export default function Navigation() {
   const { currentUser } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   
   const isActive = (path: string) => {
     return pathname === path ? 'bg-white/20' : '';
@@ -19,7 +20,12 @@ export default function Navigation() {
   // Close menu when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (
+        menuRef.current && 
+        buttonRef.current && 
+        !menuRef.current.contains(event.target as Node) && 
+        !buttonRef.current.contains(event.target as Node)
+      ) {
         setMenuOpen(false);
       }
     }
@@ -29,6 +35,15 @@ export default function Navigation() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  // For testing - log when component renders
+  useEffect(() => {
+    console.log('Navigation component rendered, menuOpen:', menuOpen);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    console.log('Current User:', currentUser); // Log current user state
+  }, [currentUser]);
 
   return (
     <nav className="bg-white/80 backdrop-blur-sm p-4 mb-6 shadow-md">
@@ -47,6 +62,7 @@ export default function Navigation() {
               </Link>
               <div className="relative" ref={menuRef}>
                 <button 
+                  ref={buttonRef}
                   onClick={() => setMenuOpen(!menuOpen)}
                   className={`text-primary-blue focus:outline-none transition-transform duration-200 ${menuOpen ? 'rotate-90' : ''}`}
                   aria-label="Menu"
@@ -102,6 +118,17 @@ export default function Navigation() {
                           Wearables
                         </Link>
                       </li>
+                      <li className="py-2 border-b border-gray-200">
+                        <Link 
+                          href="/about" 
+                          className="block text-primary-blue hover:text-blue-700 transition-colors"
+                          onClick={() => {
+                            setMenuOpen(false);
+                          }}
+                        >
+                          About
+                        </Link>
+                      </li>
                       <li className="py-2">
                         <Link 
                           href="/profile" 
@@ -133,6 +160,12 @@ export default function Navigation() {
                 className="text-primary-blue hover:text-blue-700 transition-colors"
               >
                 Sign Up
+              </Link>
+              <Link 
+                href="/about" 
+                className="text-primary-blue hover:text-blue-700 transition-colors font-bold"
+              >
+                About
               </Link>
             </div>
           </div>

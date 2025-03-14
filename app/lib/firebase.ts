@@ -2,7 +2,7 @@
 
 import { initializeApp } from 'firebase/app';
 import { getStorage } from 'firebase/storage';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 // Your web app's Firebase configuration
@@ -16,10 +16,36 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "YOUR_APP_ID"
 };
 
+// Log Firebase configuration
+console.log('🔥 Initializing Firebase with project ID:', firebaseConfig.projectId);
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-export { storage, db, auth }; 
+// Function to get Firebase config for debugging
+const getFirebaseConfig = () => {
+  return {
+    projectId: firebaseConfig.projectId,
+    authDomain: firebaseConfig.authDomain,
+    storageBucket: firebaseConfig.storageBucket
+  };
+};
+
+// Enable offline persistence with unlimited cache size
+enableIndexedDbPersistence(db)
+  .then(() => {
+    console.log('✅ Firestore persistence enabled successfully');
+  })
+  .catch((err) => {
+    console.error('❌ Error enabling Firestore persistence:', err);
+    if (err.code === 'failed-precondition') {
+      console.warn('⚠️ Multiple tabs open, persistence can only be enabled in one tab at a time.');
+    } else if (err.code === 'unimplemented') {
+      console.warn('⚠️ The current browser does not support all of the features required to enable persistence');
+    }
+  });
+
+export { storage, db, auth, getFirebaseConfig }; 

@@ -31,6 +31,8 @@ export default function RootLayout({
                 alt="Wattle Health Logo"
                 fill
                 className="object-cover opacity-60"
+                sizes="100vw"
+                style={{ objectPosition: 'center' }}
                 priority
               />
             </div>

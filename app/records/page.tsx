@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { collection, getDocs, doc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
@@ -20,6 +20,7 @@ interface Record {
   createdAt?: any;
   isManual?: boolean;
   hasPhoto?: boolean;
+  comment?: string;
 }
 
 export default function Records() {
@@ -156,13 +157,36 @@ export default function Records() {
       
       // Check if we need to update the holistic analysis
       const remainingRecords = await getDocs(collection(db, 'users', currentUser.uid, 'records'));
+      console.log(`📊 Remaining records after deletion: ${remainingRecords.docs.length}`);
+      
       if (remainingRecords.docs.length === 0) {
         // If no records left, clear the holistic analysis
         try {
-          await deleteDoc(doc(db, 'users', currentUser.uid, 'analysis', 'holistic'));
-          console.log(`✅ Deleted holistic analysis`);
+          console.log(`🗑️ No records left, clearing holistic analysis`);
+          await setDoc(doc(db, 'users', currentUser.uid, 'analysis', 'holistic'), {
+            text: 'No health records found. Please upload some medical records first.',
+            updatedAt: serverTimestamp()
+          });
+          console.log(`✅ Updated holistic analysis to indicate no records`);
         } catch (err) {
-          console.error('❌ Error deleting holistic analysis:', err);
+          console.error('❌ Error updating holistic analysis:', err);
+          // Continue even if this fails
+        }
+      } else {
+        // If records remain, add a flag to indicate analysis needs update
+        try {
+          console.log(`🔄 Setting flag to indicate analysis needs update`);
+          const analysisDoc = await getDoc(doc(db, 'users', currentUser.uid, 'analysis', 'holistic'));
+          if (analysisDoc.exists()) {
+            await setDoc(doc(db, 'users', currentUser.uid, 'analysis', 'holistic'), {
+              ...analysisDoc.data(),
+              needsUpdate: true,
+              updatedAt: serverTimestamp()
+            });
+            console.log(`✅ Set flag to indicate analysis needs update`);
+          }
+        } catch (err) {
+          console.error('❌ Error setting update flag:', err);
           // Continue even if this fails
         }
       }
@@ -204,16 +228,7 @@ export default function Records() {
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              Upload
-            </Link>
-            <Link 
-              href="/manual-record" 
-              className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-md text-primary-blue border border-primary-blue hover:bg-white/90 transition-colors flex items-center"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              Manual Record
+              Upload new
             </Link>
           </div>
         </div>
@@ -243,24 +258,11 @@ export default function Records() {
               <div key={record.id} className="bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md">
                 <div className="flex justify-between items-start mb-2">
                   <h2 className="text-lg font-medium text-blue-600">{record.name || 'Unnamed Record'}</h2>
-                  <div className="flex gap-2">
-                    {record.isManual && (
-                      <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded">
-                        Manual
-                      </span>
-                    )}
-                    {record.hasPhoto && (
-                      <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        Photo
-                      </span>
-                    )}
-                    {record.isMultiFile && record.fileCount && (
-                      <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
-                        {record.fileCount} pages
-                      </span>
+                  <div className="text-sm text-blue-600">
+                    {record.createdAt && record.createdAt.seconds ? (
+                      new Date(record.createdAt.seconds * 1000).toLocaleString('default', { month: 'short', year: 'numeric' })
+                    ) : (
+                      'Date Unknown'
                     )}
                   </div>
                 </div>
@@ -298,10 +300,44 @@ export default function Records() {
                   >
                     {deleting === record.id ? 'Deleting...' : 'Delete'}
                   </button>
-                  <Link href="/analysis" className="text-primary-blue hover:underline text-sm">
-                    View Analysis
-                  </Link>
+                  
+                  <div className="flex items-center">
+                    <button 
+                      onClick={() => {
+                        // Toggle the visibility of files or comment without affecting the summary
+                        setExpandedRecords((prev) => 
+                          prev.includes(record.id) ? prev.filter((id) => id !== record.id) : [...prev, record.id]
+                        );
+                      }}
+                      className={`text-sm font-medium px-2 py-1 rounded-md ${
+                        record.isMultiFile ? 'bg-blue-200 text-blue-800' : 'bg-green-200 text-green-800'
+                      } hover:bg-opacity-80`}
+                    >
+                      {record.isMultiFile ? `${record.fileCount} pages` : 'Comment'}
+                    </button>
+                  </div>
                 </div>
+                
+                {expandedRecords.includes(record.id) && (
+                  <div className="mt-2">
+                    {record.isMultiFile ? (
+                      <div>
+                        <h3 className="font-semibold">Files:</h3>
+                        <ul>
+                          {record.urls && record.urls.map((url, index) => (
+                            <li key={index}>
+                              <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                File {index + 1}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <div className="text-gray-800 text-sm mt-2">{record.comment || 'No comment available'}</div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
