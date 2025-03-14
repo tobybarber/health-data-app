@@ -4,9 +4,7 @@ import { db } from '../../lib/firebase-admin';
 import openai, { isApiKeyValid } from '../../lib/openai-server';
 
 // Use Node.js runtime for this API route
-export const config = {
-  runtime: 'nodejs',
-};
+export const runtime = "nodejs";
 
 // Simple GET handler to check if the API is accessible
 export async function GET() {
