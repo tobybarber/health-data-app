@@ -176,12 +176,12 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <div className="p-6 pb-safe">
+          <div className="p-2 pb-safe">
             {/* Remove the bottom navigation from here since it's now in the ClientWrapper */}
             
             {/* AI Chat Section - Adjusted to account for bottom navigation */}
-            <div className="mt-8 bg-black/80 backdrop-blur-sm p-5 rounded-lg shadow-md">
-              <div className="bg-black rounded-lg p-4">
+            <div className="mt-6 bg-black/80 backdrop-blur-sm p-3 rounded-lg shadow-md w-full">
+              <div className="bg-black rounded-lg p-3">
                 <div className="flex justify-end items-center mb-2">
                   <button
                     onClick={handleNewChat}
@@ -191,7 +191,7 @@ export default function Home() {
                     New Chat
                   </button>
                 </div>
-                <div className="h-96 overflow-y-auto mb-4 bg-gray-800 rounded-lg p-3">
+                <div className="h-80 overflow-y-auto mb-3 bg-gray-800 rounded-lg p-2">
                   {messages.length === 0 ? (
                     <div className="text-gray-200 text-center py-4">
                       Ask questions about your health records.
@@ -224,7 +224,7 @@ export default function Home() {
                   <div ref={messagesEndRef} /> {/* Scroll anchor */}
                 </div>
                 
-                <form onSubmit={handleSendMessage} className="flex">
+                <form onSubmit={handleSendMessage} className="flex w-full">
                   <input
                     type="text"
                     value={userInput}
@@ -235,7 +235,7 @@ export default function Home() {
                   />
                   <button 
                     type="submit" 
-                    className={`bg-gray-500 text-white rounded-r-xl p-2 ${isAiResponding ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-400'}`}
+                    className={`bg-gray-500 text-white rounded-r-xl p-2 px-4 ${isAiResponding ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-400'}`}
                     disabled={isAiResponding}
                   >
                     Send

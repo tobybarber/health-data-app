@@ -18,6 +18,16 @@ export default function SwipeNavigation({ children }: { children: React.ReactNod
   // Minimum swipe distance to trigger navigation (in pixels)
   const minSwipeDistance = 50;
 
+  // Function to navigate without triggering Safari bars
+  const navigateWithoutBars = (path: string) => {
+    // Use replaceState to change the URL without triggering a full navigation
+    // This helps prevent Safari from showing the navigation bars
+    window.history.replaceState(null, '', path);
+    
+    // Then use Next.js router to update the UI
+    router.push(path);
+  };
+
   useEffect(() => {
     const handleTouchStart = (e: TouchEvent) => {
       setTouchStartX(e.touches[0].clientX);
@@ -64,7 +74,7 @@ export default function SwipeNavigation({ children }: { children: React.ReactNod
             
             // Navigate after animation completes
             setTimeout(() => {
-              router.push(routes[nextIndex]);
+              navigateWithoutBars(routes[nextIndex]);
               
               // Reset animation after navigation
               setTimeout(() => {
@@ -83,7 +93,7 @@ export default function SwipeNavigation({ children }: { children: React.ReactNod
             
             // Navigate after animation completes
             setTimeout(() => {
-              router.push(routes[prevIndex]);
+              navigateWithoutBars(routes[prevIndex]);
               
               // Reset animation after navigation
               setTimeout(() => {

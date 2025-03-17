@@ -495,6 +495,7 @@ export default function Records() {
                       onClick={() => handleDelete(record)}
                       disabled={deleting === record.id}
                       className={`text-red-500 hover:text-red-700 text-sm ${deleting === record.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      style={{ touchAction: 'manipulation' }}
                     >
                       {deleting === record.id ? 'Deleting...' : 'Delete'}
                     </button>
