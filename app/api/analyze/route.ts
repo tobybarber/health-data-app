@@ -354,54 +354,13 @@ Additional Comments: ${record.comments}`;
         let analysisPrompt = '';
         let systemPrompt = '';
         
-        if (mode === 'simple') {
-          // Simple mode - just basic analysis
-          systemPrompt = 'You are a medical AI assistant. Provide a brief, high-level analysis of the health records using XML-like tags for structured output.';
-          analysisPrompt = `Please provide a brief analysis of these health records. Focus on the most important findings and potential concerns. Format your response using these XML-like tags:
+        // Standard mode - balanced analysis
+        systemPrompt = 'You are a medical AI assistant. Analyze the provided health records and provide balanced insights using XML-like tags for structured output. Do not use any personal identifiers and avoid phrases like "the patient" or similar.';
+        analysisPrompt = `Please analyze these health records and provide your insights using these XML-like tags:
 
-<KEY_FINDINGS>
-List the most important findings here.
-</KEY_FINDINGS>
-
-<POTENTIAL_CONCERNS>
-List any potential health concerns here.
-</POTENTIAL_CONCERNS>
-
-<RECOMMENDATIONS>
-Provide basic recommendations here.
-</RECOMMENDATIONS>
-
-It is CRITICAL that you use these exact XML-like tags in your response to ensure proper formatting.`;
-        } else if (mode === 'detailed') {
-          // Detailed mode - comprehensive analysis
-          systemPrompt = 'You are a medical AI assistant with expertise in analyzing health records. Provide a comprehensive analysis with detailed insights and recommendations using XML-like tags for structured output.';
-          analysisPrompt = `Please provide a detailed analysis of these health records. Format your response using these XML-like tags:
-
-<KEY_FINDINGS>
-Provide a summary of key findings here.
-</KEY_FINDINGS>
-
-<HEALTH_CONCERNS>
-List potential health concerns here.
-</HEALTH_CONCERNS>
-
-<PATTERNS>
-Describe any patterns or trends across records here.
-</PATTERNS>
-
-<FOLLOW_UP>
-List recommendations for follow-up here.
-</FOLLOW_UP>
-
-<QUESTIONS>
-Suggest questions the patient should ask their healthcare provider here.
-</QUESTIONS>
-
-It is CRITICAL that you use these exact XML-like tags in your response to ensure proper formatting.`;
-        } else {
-          // Standard mode - balanced analysis
-          systemPrompt = 'You are a medical AI assistant. Analyze the provided health records and provide balanced insights using XML-like tags for structured output.';
-          analysisPrompt = `Please analyze these health records and provide your insights using these XML-like tags:
+<OVERVIEW>
+Provide a high level overview here.
+</OVERVIEW>
 
 <KEY_FINDINGS>
 Provide a summary of key findings here.
@@ -411,12 +370,7 @@ Provide a summary of key findings here.
 List any potential health concerns here.
 </HEALTH_CONCERNS>
 
-<RECOMMENDATIONS>
-Provide basic recommendations here.
-</RECOMMENDATIONS>
-
-It is CRITICAL that you use these exact XML-like tags in your response to ensure proper formatting.`;
-        }
+It is CRITICAL that you use these exact XML-like tags in your response to ensure proper formatting. Do not use any personal identifiers and avoid phrases like "the patient" or similar.`;
         
         // Call OpenAI for analysis
         const chatResponse = await fetch('https://api.openai.com/v1/chat/completions', {

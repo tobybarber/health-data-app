@@ -11,16 +11,25 @@ export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { signup } = useAuth();
 
+  // The required verification code
+  const REQUIRED_CODE = '78435';
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     
-    if (!email || !password || !confirmPassword) {
+    if (!email || !password || !confirmPassword || !verificationCode) {
       setError('Please fill in all fields');
+      return;
+    }
+    
+    if (verificationCode !== REQUIRED_CODE) {
+      setError('Invalid verification code');
       return;
     }
     
@@ -42,10 +51,12 @@ export default function Signup() {
       const userCredential = await signup(email, password);
       const user = userCredential.user;
       
-      // Create user profile document
+      // Create user profile document with approved status
       await setDoc(doc(db, 'users', user.uid), {
         email: user.email,
         createdAt: new Date().toISOString(),
+        status: 'approved',
+        approved: true
       });
       
       // Create empty profile document
@@ -62,6 +73,7 @@ export default function Signup() {
         familyHistory: ''
       });
       
+      // Redirect to home page
       router.push('/');
     } catch (err: any) {
       console.error('Signup error:', err);
@@ -119,6 +131,21 @@ export default function Signup() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Confirm your password"
+                disabled={loading}
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="verificationCode" className="block text-sm font-medium text-gray-700 mb-1">
+                Verification Code
+              </label>
+              <input
+                type="text"
+                id="verificationCode"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter verification code"
                 disabled={loading}
               />
             </div>

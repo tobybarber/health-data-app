@@ -9,12 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@types/nodemailer": "^6.4.17",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.16",
     "axios": "^1.8.3",
     "firebase": "^10.7.0",
     "firebase-admin": "^13.2.0",
     "next": "^14.0.3",
+    "nodemailer": "^6.10.0",
     "openai": "^4.87.3",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",

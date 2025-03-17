@@ -214,6 +214,44 @@ export default function Analysis() {
     setIsChatOpen(!isChatOpen);
   };
 
+  // Function to process AI chat responses and remove XML tags
+  const processChatResponse = (response: string) => {
+    if (!response) return '';
+    
+    // Extract content from XML-like tags
+    const extractTagContent = (text: string, tagName: string) => {
+      const regex = new RegExp(`<${tagName}>\\s*([\\s\\S]*?)\\s*<\\/${tagName}>`, 'i');
+      const match = text.match(regex);
+      return match ? match[1].trim() : null;
+    };
+
+    // Check if the text contains XML-like tags
+    const hasXmlTags = /<[A-Z_]+>[\s\S]*?<\/[A-Z_]+>/i.test(response);
+    
+    if (hasXmlTags) {
+      // Extract content from each section
+      const answer = extractTagContent(response, 'ANSWER') || '';
+      const relevantRecords = extractTagContent(response, 'RELEVANT_RECORDS');
+      const additionalContext = extractTagContent(response, 'ADDITIONAL_CONTEXT');
+      
+      // Combine sections with proper formatting
+      let formattedResponse = answer;
+      
+      if (relevantRecords) {
+        formattedResponse += '\n\nRelevant Records:\n' + relevantRecords;
+      }
+      
+      if (additionalContext) {
+        formattedResponse += '\n\nAdditional Context:\n' + additionalContext;
+      }
+      
+      return formattedResponse;
+    }
+    
+    // If no XML tags, return the original response
+    return response;
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userInput.trim() || !currentUser || isAiResponding) return;
@@ -242,10 +280,13 @@ export default function Analysis() {
       const data = await response.json();
       const aiResponse = data.answer || 'No response from AI';
 
-      // Update the last message with AI response
+      // Process the AI response to remove XML tags
+      const processedResponse = processChatResponse(aiResponse);
+
+      // Update the last message with processed AI response
       setMessages((prev) => {
         const newMessages = [...prev];
-        newMessages[newMessages.length - 1].ai = aiResponse;
+        newMessages[newMessages.length - 1].ai = processedResponse;
         return newMessages;
       });
     } catch (error) {
@@ -585,6 +626,11 @@ export default function Analysis() {
       return match ? match[1].trim() : null;
     };
 
+    // Function to clean bullet points (remove dashes and dots at the beginning of lines)
+    const cleanBulletPoints = (line: string) => {
+      return line.replace(/^[\s]*[-•·.]+[\s]+/, '');
+    };
+
     // Check if the text contains XML-like tags
     const hasXmlTags = /<[A-Z_]+>[\s\S]*?<\/[A-Z_]+>/i.test(text);
 
@@ -593,6 +639,19 @@ export default function Analysis() {
       const sections = [];
       let sectionIndex = 0;
 
+      // Check for OVERVIEW
+      const overview = extractTagContent(text, 'OVERVIEW');
+      if (overview) {
+        sections.push(
+          <div key={`section-${sectionIndex++}`}>
+            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Overview</h3>
+            {overview.split('\n').map((line, idx) => 
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
+            )}
+          </div>
+        );
+      }
+
       // Check for KEY_FINDINGS
       const keyFindings = extractTagContent(text, 'KEY_FINDINGS');
       if (keyFindings) {
@@ -600,7 +659,7 @@ export default function Analysis() {
           <div key={`section-${sectionIndex++}`}>
             <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Key Findings</h3>
             {keyFindings.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -613,7 +672,7 @@ export default function Analysis() {
           <div key={`section-${sectionIndex++}`}>
             <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Health Concerns</h3>
             {healthConcerns.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -626,7 +685,7 @@ export default function Analysis() {
           <div key={`section-${sectionIndex++}`}>
             <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Patterns & Trends</h3>
             {patterns.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -639,7 +698,7 @@ export default function Analysis() {
           <div key={`section-${sectionIndex++}`}>
             <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Recommendations</h3>
             {recommendations.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -652,7 +711,7 @@ export default function Analysis() {
           <div key={`section-${sectionIndex++}`}>
             <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Questions to Ask Your Doctor</h3>
             {questions.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -664,7 +723,7 @@ export default function Analysis() {
         sections.push(
           <div key={`section-${sectionIndex++}`}>
             {answer.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -677,7 +736,7 @@ export default function Analysis() {
           <div key={`section-${sectionIndex++}`}>
             <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Relevant Records</h3>
             {relevantRecords.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -690,7 +749,7 @@ export default function Analysis() {
           <div key={`section-${sectionIndex++}`}>
             <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Additional Context</h3>
             {additionalContext.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -731,7 +790,7 @@ export default function Analysis() {
       else if (line.trim()) {
         return (
           <p key={index} className="text-gray-800 mb-2">
-            {line}
+            {cleanBulletPoints(line)}
           </p>
         );
       }
@@ -864,7 +923,7 @@ export default function Analysis() {
         {isChatOpen && (
           <div ref={chatRef} className="fixed bottom-16 right-4 bg-white shadow-lg rounded-lg p-4 w-80">
             <h3 className="font-bold mb-2">Chat with AI</h3>
-            <div className="overflow-y-auto h-60 mb-2">
+            <div className="overflow-y-auto h-96 mb-2">
               {messages.map((msg, index) => (
                 <div key={index} className="mb-2">
                   <div className="font-semibold">You:</div>
@@ -872,7 +931,7 @@ export default function Analysis() {
                   {msg.ai ? (
                     <>
                       <div className="font-semibold">AI:</div>
-                      <div>{msg.ai}</div>
+                      <div className="whitespace-pre-line">{msg.ai}</div>
                     </>
                   ) : (
                     <>

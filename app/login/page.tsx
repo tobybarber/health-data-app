@@ -24,7 +24,11 @@ export default function Login() {
     try {
       setError(null);
       setLoading(true);
+      
+      // Login with Firebase Auth
       await login(email, password);
+      
+      // Redirect to home page
       router.push('/');
     } catch (err: any) {
       console.error('Login error:', err);
