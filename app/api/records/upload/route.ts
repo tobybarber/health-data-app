@@ -8,35 +8,83 @@ import { verifyAuthToken } from '../../../lib/auth-middleware';
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify authentication and get user ID
-    const authRequest = await verifyAuthToken(request);
-    
-    // If authRequest is a NextResponse, it means there was an auth error
-    if (authRequest instanceof NextResponse) {
-      return authRequest;
-    }
-    
-    // Get the authenticated user ID from the request headers
-    const userId = authRequest.headers.get('x-user-id');
-    
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized: User ID not found' },
-        { status: 401 }
-      );
-    }
-    
-    // Parse the form data
+    // Parse the form data first, before any other operations
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
     const recordName = formData.get('recordName') as string || 'Medical Record';
     const comment = formData.get('comment') as string || '';
+    
+    // Verify authentication and get user ID
+    // We need to pass the auth token manually since we've already consumed the request body
+    const authHeader = request.headers.get('authorization') || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.split('Bearer ')[1] : '';
+    
+    if (!token) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Missing token' },
+        { status: 401 }
+      );
+    }
+    
+    // Call verifyAuthToken with the token
+    const userId = await verifyIdToken(token);
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Invalid token' },
+        { status: 401 }
+      );
+    }
+    
+    // Log for debugging
+    console.log('Upload request received:', {
+      userId,
+      filesCount: files.length,
+      hasComment: !!comment.trim(),
+      recordName
+    });
     
     if (files.length === 0 && !comment.trim()) {
       return NextResponse.json(
         { error: 'Please select at least one file to upload or provide a comment' },
         { status: 400 }
       );
+    }
+    
+    // Handle comment-only uploads
+    if (files.length === 0 && comment.trim()) {
+      console.log('Processing comment-only upload');
+      
+      // Create record in Firestore for comment-only upload
+      const recordData = {
+        name: recordName.trim() || 'Medical Record',
+        comment: comment,
+        urls: [],
+        fileCount: 0,
+        isMultiFile: false,
+        createdAt: new Date(),
+        analysis: "This is a comment-only record.",
+        briefSummary: "Comment-only record",
+        detailedAnalysis: "This record contains only a comment without any attached files.",
+        recordType: "Comment",
+        recordDate: "",
+        fileTypes: [],
+      };
+      
+      const docRef = await db.collection('users').doc(userId).collection('records').add(recordData);
+      
+      // Update the analysis document to indicate that an update is needed
+      const analysisRef = db.collection('users').doc(userId).collection('analysis').doc('holistic');
+      await analysisRef.set({
+        needsUpdate: true,
+        lastRecordAdded: new Date()
+      }, { merge: true });
+      
+      return NextResponse.json({
+        success: true,
+        recordId: docRef.id,
+        fileUrls: []
+      });
     }
     
     // Check file types
@@ -98,19 +146,49 @@ export async function POST(request: NextRequest) {
     
     const docRef = await db.collection('users').doc(userId).collection('records').add(recordData);
     
+    // Update the analysis document to indicate that an update is needed
+    const analysisRef = db.collection('users').doc(userId).collection('analysis').doc('holistic');
+    await analysisRef.set({
+      needsUpdate: true,
+      lastRecordAdded: new Date()
+    }, { merge: true });
+    
     return NextResponse.json({
       success: true,
       recordId: docRef.id,
       fileUrls
     });
   } catch (error) {
-    // Only log errors in development mode
+    // Enhanced error logging
+    console.error('Error uploading files:', error);
+    
+    // Return a more detailed error response in development mode
     if (process.env.NODE_ENV === 'development') {
-      console.error('Error uploading files:', error);
+      return NextResponse.json(
+        { 
+          error: 'Internal server error', 
+          details: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        },
+        { status: 500 }
+      );
     }
+    
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
     );
+  }
+}
+
+// Helper function to verify Firebase ID token
+async function verifyIdToken(token: string): Promise<string | null> {
+  try {
+    const { getAuth } = require('firebase-admin/auth');
+    const decodedToken = await getAuth().verifyIdToken(token);
+    return decodedToken.uid;
+  } catch (error) {
+    console.error('Error verifying token:', error);
+    return null;
   }
 } 

@@ -9,7 +9,7 @@ module.exports = {
     extend: {
       colors: {
         'primary-green': 'rgb(var(--primary-green) / <alpha-value>)',
-        'primary-blue': 'rgb(var(--primary-blue) / <alpha-value>)',
+        'primary-blue': 'white',
       },
       fontFamily: {
         'roboto': ['Roboto', 'sans-serif'],

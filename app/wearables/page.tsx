@@ -57,53 +57,55 @@ export default function WearablesPage() {
 
   return (
     <ProtectedRoute>
-      <div className="p-6 pt-20">
+      <div className="pb-safe">
         <Navigation isHomePage={true} />
-        <h1 className="text-2xl font-bold text-primary-blue mb-6">My Wearables</h1>
-        
-        <p className="mb-6 text-gray-700">
-          Connect your wearable devices to automatically import health data.
-        </p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {devices.map(device => (
-            <div key={device.id} className="bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mr-4">
-                  {/* Placeholder for device logo */}
-                  <span className="text-xl font-bold text-gray-400">{device.name.charAt(0)}</span>
+        <div className="container mx-auto px-4 py-8">
+          <h1 className="text-2xl font-bold text-primary-blue mb-6">My Wearables</h1>
+          
+          <p className="mb-6 text-gray-300">
+            Connect your wearable devices to automatically import health data.
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {devices.map(device => (
+              <div key={device.id} className="bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md flex items-center justify-between border border-gray-800">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-gray-900 rounded-full flex items-center justify-center mr-4">
+                    {/* Placeholder for device logo */}
+                    <span className="text-xl font-bold text-gray-400">{device.name.charAt(0)}</span>
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-primary-blue">{device.name}</h3>
+                    <p className="text-sm text-gray-400">
+                      {device.connected ? 'Connected' : 'Not connected'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-medium text-primary-blue">{device.name}</h3>
-                  <p className="text-sm text-gray-500">
-                    {device.connected ? 'Connected' : 'Not connected'}
-                  </p>
-                </div>
+                <button
+                  onClick={() => handleConnectDevice(device.id)}
+                  className={`px-4 py-2 rounded-md transition-colors ${
+                    device.connected 
+                      ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' 
+                      : 'text-white border border-primary-blue hover:bg-black/20'
+                  }`}
+                >
+                  {device.connected ? 'Disconnect' : 'Connect'}
+                </button>
               </div>
-              <button
-                onClick={() => handleConnectDevice(device.id)}
-                className={`px-4 py-2 rounded-md transition-colors ${
-                  device.connected 
-                    ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' 
-                    : 'bg-primary-blue text-white hover:bg-blue-700'
-                }`}
-              >
-                {device.connected ? 'Disconnect' : 'Connect'}
-              </button>
-            </div>
-          ))}
+            ))}
+          </div>
+          
+          <h2 className="text-lg font-medium text-primary-blue mb-2">Manual Data Entry</h2>
+          <p className="text-gray-700 mb-4">
+            Don't have a wearable device? You can still track your health data manually.
+          </p>
+          <Link 
+            href="/manual-record" 
+            className="text-white px-4 py-2 rounded-md border border-primary-blue hover:bg-black/20 transition-colors inline-block"
+          >
+            Enter Data Manually
+          </Link>
         </div>
-        
-        <h2 className="text-lg font-medium text-primary-blue mb-2">Manual Data Entry</h2>
-        <p className="text-gray-700 mb-4">
-          Don't have a wearable device? You can still track your health data manually.
-        </p>
-        <Link 
-          href="/manual-record" 
-          className="bg-primary-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors inline-block"
-        >
-          Enter Data Manually
-        </Link>
       </div>
     </ProtectedRoute>
   );

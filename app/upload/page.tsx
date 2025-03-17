@@ -35,6 +35,8 @@ export default function Upload() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { currentUser } = useAuth();
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Check if device is mobile
   useEffect(() => {
@@ -200,59 +202,74 @@ export default function Upload() {
 
   return (
     <ProtectedRoute>
-      <div className="p-6 pt-20">
-        <Navigation isHomePage={true} />
-        <h1 className="text-2xl font-bold text-primary-blue mb-6">Upload Health Records</h1>
-        
-        {apiKeyValid === false && !isLoading && (
-          <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-md shadow-md">
-            <p className="font-medium">OpenAI API Key Issue</p>
-            <p>The OpenAI API key is invalid or not configured properly. You can still upload files, but analysis may not work correctly.</p>
-          </div>
-        )}
-        
-        {error && (
-          <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-md shadow-md">
-            <p className="font-medium">Error</p>
-            <p>{error}</p>
-          </div>
-        )}
-        
-        {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'success' ? (
-          <div className="bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md text-center">
-            <div className="mb-4 text-primary-blue">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+      <div className="pb-safe">
+        <Navigation />
+        <div className="container mx-auto px-4 py-8">
+          <h1 className="text-2xl font-bold text-primary-blue mb-6">Upload Health Records</h1>
+          
+          {apiKeyValid === false && !isLoading && (
+            <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-md shadow-md">
+              <p className="font-medium">OpenAI API Key Issue</p>
+              <p>The OpenAI API key is invalid or not configured properly. You can still upload files, but analysis may not work correctly.</p>
             </div>
-            <h2 className="text-xl font-bold text-primary-blue mb-2">Upload Complete!</h2>
-            <p className="mb-6 text-gray-700">Your health records have been uploaded and analyzed successfully.</p>
-            <div className="flex justify-center space-x-4">
-              <Link 
-                href="/records" 
-                className="bg-primary-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+          )}
+          
+          {error && (
+            <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-md shadow-md">
+              <p className="font-medium">Error</p>
+              <p>{error}</p>
+            </div>
+          )}
+          
+          {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'success' ? (
+            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md text-center">
+              <div className="mb-4 text-primary-blue">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-primary-blue mb-2">Upload Complete!</h2>
+              <p className="mb-6 text-gray-700">Your health records have been uploaded and analyzed successfully.</p>
+              <div className="flex justify-center space-x-4">
+                <Link 
+                  href="/records" 
+                  className="text-white px-4 py-2 rounded-md border border-primary-blue hover:bg-black/20 transition-colors"
+                >
+                  View Records
+                </Link>
+                <button 
+                  onClick={() => {
+                    setFiles([]);
+                    setRecordName('');
+                    setComment('');
+                    setUploadStatus('idle');
+                    setUploadProgress(0);
+                    setAnalysisProgress(0);
+                  }}
+                  className="text-white px-4 py-2 rounded-md border border-primary-blue hover:bg-black/20 transition-colors"
+                >
+                  Upload Another
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md text-left">
+              <button
+                onClick={handleFileUpload}
+                className="text-white px-4 py-2 rounded-md border border-primary-blue hover:bg-black/20 transition-colors"
               >
-                View Records
-              </Link>
-              <button 
-                onClick={() => {
-                  setFiles([]);
-                  setRecordName('');
-                  setComment('');
-                  setUploadStatus('idle');
-                  setUploadProgress(0);
-                  setAnalysisProgress(0);
-                }}
-                className="bg-white text-primary-blue px-4 py-2 rounded-md border border-primary-blue hover:bg-gray-100 transition-colors"
-              >
-                Upload Another
+                Upload Files/Photos
               </button>
+              <p className="mt-2 text-sm text-gray-400">
+                Supported formats: PDF, JPG, PNG (Max 10MB per file)
+              </p>
             </div>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md">
+          )}
+
+          {/* Upload Form */}
+          <form onSubmit={handleSubmit} className="bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md border border-gray-800 mt-4">
             <div className="mb-6">
-              <label htmlFor="recordName" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="recordName" className="block text-sm font-medium text-gray-300 mb-1">
                 Record Name (optional)
               </label>
               <input
@@ -260,41 +277,27 @@ export default function Upload() {
                 id="recordName"
                 value={recordName}
                 onChange={(e) => setRecordName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
                 placeholder="e.g., Annual Checkup 2023"
               />
             </div>
 
             <div className="mb-6">
-              <label htmlFor="comment" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="comment" className="block text-sm font-medium text-gray-300 mb-1">
                 Comment (optional)
               </label>
               <textarea
                 id="comment"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
                 placeholder="Add any comments here..."
               />
             </div>
 
             <div className="mb-6">
-              <label htmlFor="files" className="block text-sm font-medium text-gray-700 mb-1">
-                Upload Files (PDF, JPG, PNG)
-              </label>
               <div className="mt-1">
                 <div className="flex flex-wrap gap-3 mb-3">
-                  <button
-                    type="button"
-                    onClick={handleFileUpload}
-                    className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center"
-                    disabled={isUploading}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    Upload Photos/Files
-                  </button>
                 </div>
                 
                 {/* File input for gallery photos/files */}
@@ -309,8 +312,6 @@ export default function Upload() {
                   accept=".pdf,.jpg,.jpeg,.png"
                   disabled={isUploading}
                 />
-                
-                <p className="text-xs text-gray-500 mt-1">PDF, JPG, PNG up to 10MB each</p>
               </div>
               {files.length > 0 && (
                 <div className="mt-2">
@@ -331,13 +332,13 @@ export default function Upload() {
             <div className="flex items-center justify-between">
               <Link
                 href="/records"
-                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                className="inline-flex items-center px-4 py-2 border border-gray-700 text-sm font-medium rounded-md text-gray-300 bg-black hover:bg-gray-900"
               >
                 Cancel
               </Link>
               <button
                 type="submit"
-                className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
+                className={`inline-flex items-center px-4 py-2 rounded-md text-white border border-primary-blue hover:bg-black/20 transition-colors ${
                   isUploadDisabled ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
                 disabled={isUploadDisabled}
@@ -346,67 +347,67 @@ export default function Upload() {
               </button>
             </div>
           </form>
-        )}
 
-        {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') !== 'idle' && uploadStatus !== 'success' && (
-          <div className="bg-white shadow-md rounded-lg p-6">
-            <h2 className="text-lg font-medium mb-4">Upload Status</h2>
-            
-            {/* Upload Progress Bar */}
-            <div className="mb-4">
-              <div className="relative pt-1">
-                <div className="flex mb-2 items-center justify-between">
-                  <div>
-                    <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-indigo-600 bg-indigo-200">
-                      Uploading Files
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-semibold inline-block text-indigo-600">
-                      {uploadProgress}%
-                    </span>
-                  </div>
-                </div>
-                <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-200">
-                  <div
-                    style={{ width: `${uploadProgress}%` }}
-                    className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${
-                      (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-indigo-500'
-                    }`}
-                  ></div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Analysis Progress Bar - Only show when analyzing */}
-            {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'analyzing' && (
+          {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') !== 'idle' && uploadStatus !== 'success' && (
+            <div className="bg-black shadow-md rounded-lg p-6 border border-gray-800">
+              <h2 className="text-lg font-medium mb-4">Upload Status</h2>
+              
+              {/* Upload Progress Bar */}
               <div className="mb-4">
                 <div className="relative pt-1">
                   <div className="flex mb-2 items-center justify-between">
                     <div>
-                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-purple-600 bg-purple-200">
-                        Analyzing Documents
+                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-indigo-600 bg-indigo-200">
+                        Uploading Files
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-semibold inline-block text-purple-600">
-                        {analysisProgress}%
+                      <span className="text-xs font-semibold inline-block text-indigo-600">
+                        {uploadProgress}%
                       </span>
                     </div>
                   </div>
-                  <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-purple-200">
+                  <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-200">
                     <div
-                      style={{ width: `${analysisProgress}%` }}
+                      style={{ width: `${uploadProgress}%` }}
                       className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${
-                        (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-purple-500'
+                        (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-indigo-500'
                       }`}
                     ></div>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-        )}
+              
+              {/* Analysis Progress Bar - Only show when analyzing */}
+              {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'analyzing' && (
+                <div className="mb-4">
+                  <div className="relative pt-1">
+                    <div className="flex mb-2 items-center justify-between">
+                      <div>
+                        <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-purple-600 bg-purple-200">
+                          Analyzing Documents
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-semibold inline-block text-purple-600">
+                          {analysisProgress}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-purple-200">
+                      <div
+                        style={{ width: `${analysisProgress}%` }}
+                        className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${
+                          (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-purple-500'
+                        }`}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </ProtectedRoute>
   );

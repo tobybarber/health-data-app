@@ -92,31 +92,11 @@ export async function POST(request: NextRequest) {
     let profileInfo = "No profile information available.";
     const profileStartTime = Date.now();
     try {
-      // Try the correct path first - this is where the profile is actually stored
-      const userProfileDoc = await db.collection('profile').doc('user').get();
-      if (userProfileDoc.exists) {
-        const profile = userProfileDoc.data();
-        debugInfo.profileFetched = true;
-        
-        // Create a detailed profile string with all available information
-        profileInfo = `User Profile:
-Name: ${profile?.name || 'Not specified'}
-Age: ${profile?.age || 'Not specified'}
-Gender: ${profile?.gender || 'Not specified'}
-Height: ${profile?.height || 'Not specified'} cm
-Weight: ${profile?.weight || 'Not specified'} kg
-Lifestyle Factors:
-- Smoking: ${profile?.smoking || 'Not specified'}
-- Alcohol: ${profile?.alcohol || 'Not specified'}
-- Diet: ${getDietDescription(profile?.diet)}
-- Exercise: ${profile?.exercise || 'Not specified'}
-Family Medical History:
-${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
-      } else if (userId) {
-        // Try alternative paths if the main path doesn't work
-        const profileDoc = await db.collection('users').doc(userId).collection('profile').doc('data').get();
-        if (profileDoc.exists) {
-          const profile = profileDoc.data();
+      if (userId) {
+        // Try to get the profile using the user's ID
+        const userProfileDoc = await db.collection('profile').doc(userId).get();
+        if (userProfileDoc.exists) {
+          const profile = userProfileDoc.data();
           debugInfo.profileFetched = true;
           
           // Create a detailed profile string with all available information
@@ -133,6 +113,28 @@ Lifestyle Factors:
 - Exercise: ${profile?.exercise || 'Not specified'}
 Family Medical History:
 ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
+        } else {
+          // Try alternative paths if the main path doesn't work
+          const profileDoc = await db.collection('users').doc(userId).collection('profile').doc('data').get();
+          if (profileDoc.exists) {
+            const profile = profileDoc.data();
+            debugInfo.profileFetched = true;
+            
+            // Create a detailed profile string with all available information
+            profileInfo = `User Profile:
+Name: ${profile?.name || 'Not specified'}
+Age: ${profile?.age || 'Not specified'}
+Gender: ${profile?.gender || 'Not specified'}
+Height: ${profile?.height || 'Not specified'} cm
+Weight: ${profile?.weight || 'Not specified'} kg
+Lifestyle Factors:
+- Smoking: ${profile?.smoking || 'Not specified'}
+- Alcohol: ${profile?.alcohol || 'Not specified'}
+- Diet: ${getDietDescription(profile?.diet)}
+- Exercise: ${profile?.exercise || 'Not specified'}
+Family Medical History:
+${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
+          }
         }
       }
     } catch (profileError) {
@@ -478,30 +480,11 @@ async function answerQuestion(question: string, fileIds: string[], summaries: st
     // Get user profile information
     let profileInfo = "No profile information available.";
     try {
-      // Try the correct path first - this is where the profile is actually stored
-      const userProfileDoc = await db.collection('profile').doc('user').get();
-      if (userProfileDoc.exists) {
-        const profile = userProfileDoc.data();
-        
-        // Create a detailed profile string with all available information
-        profileInfo = `User Profile:
-Name: ${profile?.name || 'Not specified'}
-Age: ${profile?.age || 'Not specified'}
-Gender: ${profile?.gender || 'Not specified'}
-Height: ${profile?.height || 'Not specified'} cm
-Weight: ${profile?.weight || 'Not specified'} kg
-Lifestyle Factors:
-- Smoking: ${profile?.smoking || 'Not specified'}
-- Alcohol: ${profile?.alcohol || 'Not specified'}
-- Diet: ${getDietDescription(profile?.diet)}
-- Exercise: ${profile?.exercise || 'Not specified'}
-Family Medical History:
-${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
-      } else if (userId) {
-        // Try alternative paths if the main path doesn't work
-        const profileDoc = await db.collection('users').doc(userId).collection('profile').doc('data').get();
-        if (profileDoc.exists) {
-          const profile = profileDoc.data();
+      if (userId) {
+        // Try to get the profile using the user's ID
+        const userProfileDoc = await db.collection('profile').doc(userId).get();
+        if (userProfileDoc.exists) {
+          const profile = userProfileDoc.data();
           
           // Create a detailed profile string with all available information
           profileInfo = `User Profile:
@@ -517,6 +500,27 @@ Lifestyle Factors:
 - Exercise: ${profile?.exercise || 'Not specified'}
 Family Medical History:
 ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
+        } else {
+          // Try alternative paths if the main path doesn't work
+          const profileDoc = await db.collection('users').doc(userId).collection('profile').doc('data').get();
+          if (profileDoc.exists) {
+            const profile = profileDoc.data();
+            
+            // Create a detailed profile string with all available information
+            profileInfo = `User Profile:
+Name: ${profile?.name || 'Not specified'}
+Age: ${profile?.age || 'Not specified'}
+Gender: ${profile?.gender || 'Not specified'}
+Height: ${profile?.height || 'Not specified'} cm
+Weight: ${profile?.weight || 'Not specified'} kg
+Lifestyle Factors:
+- Smoking: ${profile?.smoking || 'Not specified'}
+- Alcohol: ${profile?.alcohol || 'Not specified'}
+- Diet: ${getDietDescription(profile?.diet)}
+- Exercise: ${profile?.exercise || 'Not specified'}
+Family Medical History:
+${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
+          }
         }
       }
     } catch (profileError) {

@@ -88,7 +88,7 @@ export default function ErrorBoundary({ children }: ErrorBoundaryProps) {
         )}
         
         <div className="flex space-x-3">
-          <Link href="/" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+          <Link href="/" className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded">
             Go to Home Page
           </Link>
           

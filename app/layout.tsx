@@ -4,8 +4,13 @@ import ClientWrapper from './components/ClientWrapper';
 import Image from 'next/image';
 
 export const metadata: Metadata = {
-  title: 'My Health Data',
+  title: 'Fox Health Vault',
   description: 'Upload and analyze your medical records with AI',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Fox Health Vault',
+  },
 };
 
 export default function RootLayout({
@@ -16,25 +21,19 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
         <link
           href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="bg-white min-h-screen">
+      <body className="bg-black min-h-screen">
         <main className="min-h-screen">
           <div className="relative min-h-screen">
-            {/* Background Image with increased opacity */}
-            <div className="absolute inset-0 z-0 bg-black/40 fixed">
-              <Image
-                src="/images/logo.jpg"
-                alt="Wattle Health Logo"
-                fill
-                className="object-cover opacity-60"
-                sizes="100vw"
-                style={{ objectPosition: 'center' }}
-                priority
-              />
+            {/* Plain black background */}
+            <div className="absolute inset-0 z-0 bg-black fixed" style={{ touchAction: 'none' }}>
+              {/* Background image removed */}
             </div>
             
             {/* Content */}

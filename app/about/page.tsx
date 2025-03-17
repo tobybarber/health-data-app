@@ -14,17 +14,17 @@ export default function AboutPage() {
       <div className="p-6 pt-20">
         <Navigation isHomePage={true} />
         
-        <div className="bg-white/90 backdrop-blur-sm p-6 rounded-md shadow-md mb-6">
-          <h1 className="text-3xl font-bold text-primary-blue mb-6">About Wattle</h1>
+        <div className="bg-black/90 backdrop-blur-sm p-6 rounded-md shadow-md mb-6 border border-gray-800">
+          <h1 className="text-3xl font-bold text-primary-blue mb-6">About Fox Health Vault</h1>
           
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-primary-blue mb-4">Our Mission</h2>
-            <p className="mb-4 text-gray-800">
-              Wattle is dedicated to empowering individuals to take control of their health data. 
+            <p className="mb-4 text-gray-300">
+              Fox Health Vault is dedicated to empowering individuals to take control of their health data. 
               We provide a secure platform for storing, managing, and analyzing your health records, 
               enabling you to make informed decisions about your healthcare journey.
             </p>
-            <p className="text-gray-800">
+            <p className="text-gray-300">
               Our goal is to bridge the gap between various healthcare providers and systems, 
               creating a unified view of your health information that is accessible whenever you need it.
             </p>
@@ -32,13 +32,13 @@ export default function AboutPage() {
 
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-primary-blue mb-4">Privacy Commitment</h2>
-            <p className="mb-4 text-gray-800">
-              At Wattle, we understand that your health data is extremely personal and sensitive. 
+            <p className="mb-4 text-gray-300">
+              At Fox Health Vault, we understand that your health data is extremely personal and sensitive. 
               We are committed to maintaining the highest standards of privacy and confidentiality.
             </p>
-            <div className="bg-blue-50 p-4 rounded-lg mb-4">
-              <h3 className="font-semibold mb-2 text-gray-800">Our Privacy Principles:</h3>
-              <ul className="list-disc pl-5 space-y-2 text-gray-800">
+            <div className="bg-gray-900 p-4 rounded-lg mb-4">
+              <h3 className="font-semibold mb-2 text-gray-300">Our Privacy Principles:</h3>
+              <ul className="list-disc pl-5 space-y-2 text-gray-300">
                 <li>Your data belongs to you. You maintain ownership and control of your health information at all times.</li>
                 <li>We never sell or share your personal health information with third parties without your explicit consent.</li>
                 <li>You can delete your data at any time.</li>
@@ -92,7 +92,7 @@ export default function AboutPage() {
               please don't hesitate to contact our support team.
             </p>
             <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="font-semibold text-gray-800">Email: support@wattle-health.com</p>
+              <p className="font-semibold text-gray-800">Email: support@wombat-health.com</p>
               <p className="font-semibold text-gray-800">Phone: +61 421 479 656</p>
             </div>
           </section>

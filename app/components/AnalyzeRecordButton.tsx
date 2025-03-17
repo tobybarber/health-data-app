@@ -125,7 +125,7 @@ export default function AnalyzeRecordButton({
         onClick={handleAnalyze}
         disabled={isAnalyzing}
         className={`px-4 py-2 rounded-md text-white font-medium ${
-          isAnalyzing ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+          isAnalyzing ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-600 hover:bg-gray-700'
         }`}
       >
         {isAnalyzing ? 'Analyzing...' : 'Analyze with AI'}

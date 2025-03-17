@@ -337,6 +337,13 @@ export default function Analysis() {
       console.log('Updating holistic analysis...');
       console.log('Current user:', currentUser.uid);
       
+      // Reset the needsUpdate flag in the analysis document
+      const analysisRef = doc(db, 'users', currentUser.uid, 'analysis', 'holistic');
+      await setDoc(analysisRef, {
+        needsUpdate: false,
+        lastUpdated: serverTimestamp()
+      }, { merge: true });
+      
       // Fetch all records for the user to get their names
       const recordsCollection = collection(db, 'users', currentUser.uid, 'records');
       const recordsSnapshot = await getDocs(recordsCollection);
@@ -644,9 +651,9 @@ export default function Analysis() {
       if (overview) {
         sections.push(
           <div key={`section-${sectionIndex++}`}>
-            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Overview</h3>
+            <h3 className="text-xl font-semibold text-white mt-4 mb-2">Overview</h3>
             {overview.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-white font-normal mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -657,9 +664,9 @@ export default function Analysis() {
       if (keyFindings) {
         sections.push(
           <div key={`section-${sectionIndex++}`}>
-            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Key Findings</h3>
+            <h3 className="text-xl font-semibold text-white mt-4 mb-2">Key Findings</h3>
             {keyFindings.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-white font-normal mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -670,9 +677,9 @@ export default function Analysis() {
       if (healthConcerns) {
         sections.push(
           <div key={`section-${sectionIndex++}`}>
-            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Health Concerns</h3>
+            <h3 className="text-xl font-semibold text-white mt-4 mb-2">Health Concerns</h3>
             {healthConcerns.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-white font-normal mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -683,9 +690,9 @@ export default function Analysis() {
       if (patterns) {
         sections.push(
           <div key={`section-${sectionIndex++}`}>
-            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Patterns & Trends</h3>
+            <h3 className="text-xl font-semibold text-white mt-4 mb-2">Patterns & Trends</h3>
             {patterns.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-white font-normal mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -696,9 +703,9 @@ export default function Analysis() {
       if (recommendations) {
         sections.push(
           <div key={`section-${sectionIndex++}`}>
-            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Recommendations</h3>
+            <h3 className="text-xl font-semibold text-white mt-4 mb-2">Recommendations</h3>
             {recommendations.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-white font-normal mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -709,9 +716,9 @@ export default function Analysis() {
       if (questions) {
         sections.push(
           <div key={`section-${sectionIndex++}`}>
-            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Questions to Ask Your Doctor</h3>
+            <h3 className="text-xl font-semibold text-white mt-4 mb-2">Questions to Ask Your Doctor</h3>
             {questions.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-white font-normal mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -723,7 +730,7 @@ export default function Analysis() {
         sections.push(
           <div key={`section-${sectionIndex++}`}>
             {answer.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-white font-normal mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -734,9 +741,9 @@ export default function Analysis() {
       if (relevantRecords) {
         sections.push(
           <div key={`section-${sectionIndex++}`}>
-            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Relevant Records</h3>
+            <h3 className="text-xl font-semibold text-white mt-4 mb-2">Relevant Records</h3>
             {relevantRecords.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-white font-normal mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -747,9 +754,9 @@ export default function Analysis() {
       if (additionalContext) {
         sections.push(
           <div key={`section-${sectionIndex++}`}>
-            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Additional Context</h3>
+            <h3 className="text-xl font-semibold text-white mt-4 mb-2">Additional Context</h3>
             {additionalContext.split('\n').map((line, idx) => 
-              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
+              line.trim() ? <p key={idx} className="text-white font-normal mb-2">{cleanBulletPoints(line)}</p> : <br key={idx} />
             )}
           </div>
         );
@@ -771,7 +778,7 @@ export default function Analysis() {
         // Remove the stars and create a heading
         const headingText = line.trim().replace(/^\*\*|\*\*$/g, '');
         return (
-          <h3 key={index} className="text-xl font-semibold text-primary-blue mt-4 mb-2">
+          <h3 key={index} className="text-xl font-semibold text-white mt-4 mb-2">
             {headingText}
           </h3>
         );
@@ -781,7 +788,7 @@ export default function Analysis() {
         // Remove the stars and create a subheading
         const subheadingText = line.trim().replace(/^\*|\*$/g, '');
         return (
-          <h4 key={index} className="text-lg font-medium text-primary-blue mt-3 mb-1">
+          <h4 key={index} className="text-lg font-medium text-white mt-3 mb-1">
             {subheadingText}
           </h4>
         );
@@ -789,7 +796,7 @@ export default function Analysis() {
       // Regular paragraph
       else if (line.trim()) {
         return (
-          <p key={index} className="text-gray-800 mb-2">
+          <p key={index} className="text-white font-normal mb-2">
             {cleanBulletPoints(line)}
           </p>
         );
@@ -803,171 +810,176 @@ export default function Analysis() {
 
   return (
     <ProtectedRoute>
-      <div className="p-6 pt-20">
-        <Navigation isHomePage={true} />
-        
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold text-primary-blue">My Health Analysis</h1>
-          {/* Update Button positioned on the right side */}
-          <div className="flex space-x-2">
-            <button
-              onClick={handleUpdate}
-              disabled={isUpdating}
-              className="bg-white text-primary-blue border border-primary-blue rounded-md p-2 hover:bg-blue-100 transition"
-              title="Refresh data and generate a new analysis based on your current records"
-            >
-              {isUpdating ? (
-                <span className="flex items-center">
-                  <svg className="animate-spin h-5 w-5 mr-2 text-primary-blue" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 100 12v2a8 8 0 01-8-8z"></path>
-                  </svg>
-                  Updating...
-                </span>
-              ) : (
-                <span className="flex items-center">
-                  <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Refresh
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Add this after the Update button */}
-        {updateError && (
-          <div className="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-md">
-            <p className="flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              {updateError}
-            </p>
-          </div>
-        )}
-
-        {/* Debug Information */}
-        {showDebug && (
-          <div className="mt-4 p-4 bg-gray-100 border border-gray-300 rounded-md">
-            <h3 className="text-lg font-semibold mb-2">Debug Information</h3>
-            
-            <div className="mb-2">
-              <p><strong>Analysis Source:</strong> {analysisSource || 'None'}</p>
-              <p><strong>Record Count:</strong> {recordCount}</p>
-              <p><strong>Last Updated:</strong> {lastUpdated || 'Never'}</p>
-              <p><strong>Needs Update:</strong> {needsUpdate ? 'Yes' : 'No'}</p>
-            </div>
-            
-            {performanceMetrics && (
-              <div className="mb-2">
-                <h4 className="font-medium mb-1">Performance Metrics:</h4>
-                <p><strong>Total Time:</strong> {performanceMetrics.totalTime}ms</p>
-                <p><strong>Records Fetched:</strong> {performanceMetrics.recordsFetched}</p>
-              </div>
-            )}
-            
-            {updateError && (
-              <div className="mb-2">
-                <h4 className="font-medium mb-1">Error:</h4>
-                <p className="text-red-600">{updateError}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="bg-white/90 backdrop-blur-sm p-6 rounded-md shadow-md mb-6">
-          {isLoading ? (
-            <div className="flex justify-center items-center py-8">
-              <svg className="animate-spin h-8 w-8 text-primary-blue" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 100 12v2a8 8 0 01-8-8z"></path>
-              </svg>
-              <span className="ml-2 text-gray-600">Loading your health analysis...</span>
-            </div>
-          ) : holisticAnalysis === 'No analysis available yet. Please upload some medical records first.' || 
-             holisticAnalysis === 'No health records found. Please upload some medical records first.' ? (
-            <p className="text-gray-800 text-lg">{holisticAnalysis}</p>
-          ) : (
-            <div className="text-gray-800">
-              <div className="mb-4 text-sm text-gray-500 flex justify-between">
-                <div>
-                  Analysis generated by: <span className="font-semibold">{analysisSource === 'openai' ? 'OpenAI' : 'Health App'}</span>
-                  {recordCount > 0 && <span className="ml-2">| Based on {recordCount} health records</span>}
-                </div>
-                {lastUpdated && (
-                  <div>
-                    Last updated: <span className="font-semibold">{lastUpdated.split(',')[0]}</span>
-                  </div>
+      <div className="pb-safe">
+        <Navigation />
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold text-primary-blue">My Health Analysis</h1>
+            {/* Update Button positioned on the right side */}
+            <div className="flex space-x-2">
+              <button
+                onClick={handleUpdate}
+                disabled={isUpdating}
+                className={`${
+                  needsUpdate 
+                    ? "bg-yellow-100 text-yellow-700 border border-yellow-500" 
+                    : "bg-black text-white border border-primary-blue"
+                } rounded-md p-2 hover:bg-gray-800 transition`}
+                title="Refresh data and generate a new analysis based on your current records"
+              >
+                {isUpdating ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin h-5 w-5 mr-2 text-primary-blue" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 100 12v2a8 8 0 01-8-8z"></path>
+                    </svg>
+                    Updating...
+                  </span>
+                ) : (
+                  <span className="flex items-center">
+                    <svg className={`h-5 w-5 mr-1 ${needsUpdate ? "text-yellow-500" : ""}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {needsUpdate ? "Update required" : "Refresh"}
+                  </span>
                 )}
+              </button>
+            </div>
+          </div>
+
+          {/* Add this after the Update button */}
+          {updateError && (
+            <div className="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-md">
+              <p className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                {updateError}
+              </p>
+            </div>
+          )}
+
+          {/* Debug Information */}
+          {showDebug && (
+            <div className="mt-4 p-4 bg-gray-100 border border-gray-300 rounded-md">
+              <h3 className="text-lg font-semibold mb-2">Debug Information</h3>
+              
+              <div className="mb-2">
+                <p><strong>Analysis Source:</strong> {analysisSource || 'None'}</p>
+                <p><strong>Record Count:</strong> {recordCount}</p>
+                <p><strong>Last Updated:</strong> {lastUpdated || 'Never'}</p>
+                <p><strong>Needs Update:</strong> {needsUpdate ? 'Yes' : 'No'}</p>
               </div>
-              {formatAnalysisText(holisticAnalysis)}
+              
+              {performanceMetrics && (
+                <div className="mb-2">
+                  <h4 className="font-medium mb-1">Performance Metrics:</h4>
+                  <p><strong>Total Time:</strong> {performanceMetrics.totalTime}ms</p>
+                  <p><strong>Records Fetched:</strong> {performanceMetrics.recordsFetched}</p>
+                </div>
+              )}
+              
+              {updateError && (
+                <div className="mb-2">
+                  <h4 className="font-medium mb-1">Error:</h4>
+                  <p className="text-red-600">{updateError}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="bg-gray-800 p-6 rounded-md shadow-md mb-6 border border-gray-700">
+            {isLoading ? (
+              <div className="flex justify-center items-center py-8">
+                <svg className="animate-spin h-8 w-8 text-primary-blue" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 100 12v2a8 8 0 01-8-8z"></path>
+                </svg>
+                <span className="ml-2 text-gray-600">Loading your health analysis...</span>
+              </div>
+            ) : holisticAnalysis === 'No analysis available yet. Please upload some medical records first.' || 
+               holisticAnalysis === 'No health records found. Please upload some medical records first.' ? (
+              <p className="text-white text-lg font-normal">{holisticAnalysis}</p>
+            ) : (
+              <div className="text-white">
+                <div className="mb-4 text-sm text-gray-500 flex justify-between">
+                  <div>
+                    Analysis generated by: <span className="font-semibold">{analysisSource === 'openai' ? 'OpenAI' : 'Health App'}</span>
+                    {recordCount > 0 && <span className="ml-2">| Based on {recordCount} health records</span>}
+                  </div>
+                  {lastUpdated && (
+                    <div>
+                      Last updated: <span className="font-semibold">{lastUpdated.split(',')[0]}</span>
+                    </div>
+                  )}
+                </div>
+                {formatAnalysisText(holisticAnalysis)}
+              </div>
+            )}
+          </div>
+
+          {/* Floating Chat Button */}
+          <button
+            onClick={handleChatToggle}
+            className="fixed bottom-4 right-4 bg-primary-blue text-white rounded-full p-3 shadow-lg hover:bg-gray-700 transition"
+            aria-label="Chat with AI"
+          >
+            <span className="flex items-center">
+              <span className="mr-1">💬</span>
+              <span>Chat</span>
+            </span>
+          </button>
+
+          {/* Chat Window */}
+          {isChatOpen && (
+            <div ref={chatRef} className="fixed bottom-16 right-4 bg-black shadow-lg rounded-lg p-4 w-80 border border-gray-800">
+              <h3 className="font-bold mb-2">Chat with AI</h3>
+              <div className="overflow-y-auto h-96 mb-2">
+                {messages.map((msg, index) => (
+                  <div key={index} className="mb-2">
+                    <div className="font-semibold">You:</div>
+                    <div>{msg.user}</div>
+                    {msg.ai ? (
+                      <>
+                        <div className="font-semibold">AI:</div>
+                        <div className="whitespace-pre-line bg-pink-600 border-2 border-pink-400 p-2 rounded-lg text-white">{msg.ai}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-semibold">AI:</div>
+                        <div className="flex items-center text-white bg-pink-600 border-2 border-pink-400 p-2 rounded-lg">
+                          <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 100 12v2a8 8 0 01-8-8z"></path>
+                          </svg>
+                          Thinking...
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+                <div ref={messagesEndRef} /> {/* Scroll anchor */}
+              </div>
+              <form onSubmit={handleSendMessage} className="flex">
+                <input
+                  type="text"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  className="border border-gray-300 rounded-l-md p-2 flex-grow"
+                  placeholder="Type your message..."
+                  disabled={isAiResponding}
+                />
+                <button 
+                  type="submit" 
+                  className={`bg-primary-blue text-white rounded-r-md p-2 ${isAiResponding ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-700'}`}
+                  disabled={isAiResponding}
+                >
+                  Send
+                </button>
+              </form>
             </div>
           )}
         </div>
-
-        {/* Floating Chat Button */}
-        <button
-          onClick={handleChatToggle}
-          className="fixed bottom-4 right-4 bg-primary-blue text-white rounded-full p-3 shadow-lg hover:bg-blue-700 transition"
-          aria-label="Chat with AI"
-        >
-          <span className="flex items-center">
-            <span className="mr-1">💬</span>
-            <span>Chat</span>
-          </span>
-        </button>
-
-        {/* Chat Window */}
-        {isChatOpen && (
-          <div ref={chatRef} className="fixed bottom-16 right-4 bg-white shadow-lg rounded-lg p-4 w-80">
-            <h3 className="font-bold mb-2">Chat with AI</h3>
-            <div className="overflow-y-auto h-96 mb-2">
-              {messages.map((msg, index) => (
-                <div key={index} className="mb-2">
-                  <div className="font-semibold">You:</div>
-                  <div>{msg.user}</div>
-                  {msg.ai ? (
-                    <>
-                      <div className="font-semibold">AI:</div>
-                      <div className="whitespace-pre-line">{msg.ai}</div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="font-semibold">AI:</div>
-                      <div className="flex items-center text-gray-500">
-                        <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 100 12v2a8 8 0 01-8-8z"></path>
-                        </svg>
-                        Thinking...
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-              <div ref={messagesEndRef} /> {/* Scroll anchor */}
-            </div>
-            <form onSubmit={handleSendMessage} className="flex">
-              <input
-                type="text"
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                className="border border-gray-300 rounded-l-md p-2 flex-grow"
-                placeholder="Type your message..."
-                disabled={isAiResponding}
-              />
-              <button 
-                type="submit" 
-                className={`bg-primary-blue text-white rounded-r-md p-2 ${isAiResponding ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}`}
-                disabled={isAiResponding}
-              >
-                Send
-              </button>
-            </form>
-          </div>
-        )}
       </div>
     </ProtectedRoute>
   );

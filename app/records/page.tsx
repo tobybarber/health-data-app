@@ -8,6 +8,7 @@ import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Navigation from '../components/Navigation';
+import { FaPlus, FaFileAlt } from 'react-icons/fa';
 
 interface Record {
   id: string;
@@ -384,205 +385,173 @@ export default function Records() {
 
   return (
     <ProtectedRoute>
-      <div className="p-6 pt-20">
-        <Navigation isHomePage={true} />
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-primary-blue">My Records</h1>
-          <div className="flex items-center gap-3">
+      <div className="pb-safe">
+        <Navigation />
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold text-primary-blue">Your Health Records</h1>
             <Link 
               href="/upload" 
-              className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-md text-primary-blue border border-primary-blue hover:bg-white/90 transition-colors flex items-center"
+              className="bg-black/80 backdrop-blur-sm px-4 py-2 rounded-md text-primary-blue border border-primary-blue hover:bg-black/90 transition-colors flex items-center"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              Upload new
+              <FaPlus className="mr-2" /> Add Record
             </Link>
           </div>
-        </div>
-        
-        {loading && <p className="text-gray-600 p-4">Loading records...</p>}
-        
-        {error && <p className="text-red-500 mb-4 p-4">{error}</p>}
-        
-        {!loading && records.length === 0 && (
-          <div className="text-center py-8 bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md">
-            <p className="text-gray-600 mb-4">No records found.</p>
-            <Link 
-              href="/upload" 
-              className="bg-primary-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors inline-flex items-center"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              Upload Your First Record
-            </Link>
-          </div>
-        )}
-        
-        {!loading && records.length > 0 && (
-          <div className="space-y-4">
-            {records.map(record => (
-              <div key={record.id} className="bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md">
-                <div className="flex justify-between items-start mb-2">
-                  <h2 className="text-lg font-medium text-blue-600">
-                    {record.recordType ? 
-                      record.recordType.replace(/##/g, '').replace(/\*\*/g, '') : 
-                      (record.name || 'Medical Record')}
-                  </h2>
-                  <div className="text-sm text-blue-600">
-                    {/* Display only the date in mmm yyyy format */}
-                    {record.recordDate ? (
-                      formatDateToMonthYear(record.recordDate)
-                    ) : record.createdAt && record.createdAt.seconds ? (
-                      new Date(record.createdAt.seconds * 1000).toLocaleString('default', { month: 'short', year: 'numeric' })
-                    ) : (
-                      'Date Unknown'
-                    )}
-                  </div>
-                </div>
-                
-                {record.hasPhoto && record.url && (
-                  <div className="mb-3 mt-2">
-                    <div className="h-32 w-32 relative overflow-hidden rounded border border-gray-300">
-                      <img 
-                        src={record.url} 
-                        alt={`Photo for ${record.name}`} 
-                        className="object-cover w-full h-full"
-                      />
+          
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-blue"></div>
+              <p className="mt-2 text-gray-300">Loading your records...</p>
+            </div>
+          ) : records.length === 0 ? (
+            <div className="text-center py-8 bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md border border-gray-800">
+              <FaFileAlt className="mx-auto text-4xl text-gray-400 mb-2" />
+              <h2 className="text-xl font-semibold text-gray-300 mb-2">No Records Found</h2>
+              <p className="text-gray-400 mb-4">You haven't uploaded any health records yet.</p>
+              <Link 
+                href="/upload" 
+                className="inline-flex items-center px-4 py-2 bg-primary-blue text-white rounded-md hover:bg-gray-700 transition-colors"
+              >
+                <FaPlus className="mr-2" /> Upload Your First Record
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {records.map(record => (
+                <div key={record.id} className="bg-gray-800 p-3 rounded-md shadow-md border border-gray-700">
+                  <div className="flex justify-between items-start mb-1">
+                    <h2 className="text-lg font-medium text-white">
+                      {record.recordType ? 
+                        record.recordType.replace(/##/g, '').replace(/\*\*/g, '') : 
+                        (record.name || 'Medical Record')}
+                    </h2>
+                    <div className="text-sm text-white">
+                      {/* Display only the date in mmm yyyy format */}
+                      {record.recordDate ? (
+                        formatDateToMonthYear(record.recordDate)
+                      ) : record.createdAt && record.createdAt.seconds ? (
+                        new Date(record.createdAt.seconds * 1000).toLocaleString('default', { month: 'short', year: 'numeric' })
+                      ) : (
+                        'Date Unknown'
+                      )}
                     </div>
                   </div>
-                )}
-                
-                <div className="mb-3">
-                  <button 
-                    onClick={() => toggleSummary(record.id)}
-                    className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-2"
-                  >
-                    {expandedRecords.includes(record.id) ? 'Hide Summary' : 'Show Summary'}
-                  </button>
+                  
+                  {record.hasPhoto && record.url && (
+                    <div className="mb-2 mt-1">
+                      <div className="h-32 w-32 relative overflow-hidden rounded border border-gray-300">
+                        <img 
+                          src={record.url} 
+                          alt={`Photo for ${record.name}`} 
+                          className="object-cover w-full h-full"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="mb-2">
+                    <button 
+                      onClick={() => toggleSummary(record.id)}
+                      className="text-white hover:text-white text-sm font-medium mb-2"
+                    >
+                      {expandedRecords.includes(record.id) ? 'Hide Summary' : 'Show Summary'}
+                    </button>
+                    
+                    {expandedRecords.includes(record.id) && (
+                      <div className="mt-2">
+                        <div className="flex justify-end items-center mb-1">
+                          {viewDetailedAnalysis.includes(record.id) && (
+                            <h3 className="text-sm font-medium text-white mr-auto">
+                              Detailed Analysis
+                            </h3>
+                          )}
+                          <button 
+                            onClick={() => toggleDetailedView(record.id)}
+                            className="text-xs text-blue-400 hover:text-blue-300"
+                          >
+                            {viewDetailedAnalysis.includes(record.id) ? 'View Brief Summary' : 'View Detailed Analysis'}
+                          </button>
+                        </div>
+                        
+                        <p className="text-gray-300 text-sm">
+                          {viewDetailedAnalysis.includes(record.id) 
+                            ? (record.detailedAnalysis || extractDetailedAnalysis(record.analysis) || 'No detailed analysis available')
+                            : (record.briefSummary || 'No brief summary available')}
+                        </p>
+                        
+                        {/* Display comment directly under summary if this is a comment-only record */}
+                        {record.comment && !(record.urls && record.urls.length > 0) && !record.url && (
+                          <div className="mt-2 p-2 bg-gray-700 rounded-md border border-gray-600">
+                            <h3 className="text-sm font-medium text-white mb-1">Comment:</h3>
+                            <p className="text-gray-300 text-sm">{record.comment}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <button 
+                      onClick={() => handleDelete(record)}
+                      disabled={deleting === record.id}
+                      className={`text-red-500 hover:text-red-700 text-sm ${deleting === record.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      {deleting === record.id ? 'Deleting...' : 'Delete'}
+                    </button>
+                    
+                    {(record.isMultiFile || record.url || record.comment) && (
+                      <button 
+                        onClick={() => {
+                          setExpandedRecords((prev) => 
+                            prev.includes(record.id) ? prev.filter((id) => id !== record.id) : [...prev, record.id]
+                          );
+                        }}
+                        className="text-white hover:text-gray-300 text-sm ml-2"
+                      >
+                        {expandedRecords.includes(record.id) ? '▲' : '▼'}
+                      </button>
+                    )}
+                  </div>
                   
                   {expandedRecords.includes(record.id) && (
-                    <div className="mt-2">
-                      <div className="flex justify-end items-center mb-2">
-                        {viewDetailedAnalysis.includes(record.id) && (
-                          <h3 className="text-sm font-medium text-gray-700 mr-auto">
-                            Detailed Analysis
-                          </h3>
-                        )}
-                        <button 
-                          onClick={() => toggleDetailedView(record.id)}
-                          className="text-xs text-blue-600 hover:text-blue-800"
-                        >
-                          {viewDetailedAnalysis.includes(record.id) ? 'View Brief Summary' : 'View Detailed Analysis'}
-                        </button>
-                      </div>
-                      
-                      <p className="text-gray-800 text-sm">
-                        {viewDetailedAnalysis.includes(record.id) 
-                          ? (record.detailedAnalysis || extractDetailedAnalysis(record.analysis) || 'No detailed analysis available')
-                          : (record.briefSummary || 'No brief summary available')}
-                      </p>
-                      
-                      {/* Display comment directly under summary if this is a comment-only record */}
-                      {record.comment && !(record.urls && record.urls.length > 0) && !record.url && (
-                        <div className="mt-3 p-3 bg-gray-50 rounded-md border border-gray-200">
-                          <h3 className="text-sm font-medium text-gray-700 mb-1">Comment:</h3>
-                          <p className="text-gray-800 text-sm">{record.comment}</p>
+                    <div className="mt-2 border-t border-gray-700 pt-2">
+                      {record.isMultiFile ? (
+                        <div>
+                          <h3 className="font-semibold text-white text-sm">Files:</h3>
+                          <ul className="mt-1">
+                            {record.urls && record.urls.map((url, index) => (
+                              <li key={index}>
+                                <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-sm">
+                                  File {index + 1}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                      )}
+                      ) : record.url && (record.url.includes('.pdf') || record.url.includes('pdf')) ? (
+                        <div>
+                          <h3 className="font-semibold text-white text-sm">File:</h3>
+                          <ul className="mt-1">
+                            <li>
+                              <a href={record.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-sm">
+                                View PDF
+                              </a>
+                            </li>
+                          </ul>
+                        </div>
+                      ) : record.comment && (record.urls && record.urls.length > 0 || record.url) ? (
+                        <div>
+                          <h3 className="font-semibold text-white text-sm">Comment:</h3>
+                          <div className="text-gray-300 text-sm mt-1">{record.comment}</div>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>
-                
-                <div className="flex justify-between items-center">
-                  <button 
-                    onClick={() => handleDelete(record)}
-                    disabled={deleting === record.id}
-                    className={`text-red-500 hover:text-red-700 text-sm ${deleting === record.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    {deleting === record.id ? 'Deleting...' : 'Delete'}
-                  </button>
-                  
-                  <div className="flex items-center">
-                    <button 
-                      onClick={() => {
-                        // Toggle the visibility of files or comment without affecting the summary
-                        setExpandedRecords((prev) => 
-                          prev.includes(record.id) ? prev.filter((id) => id !== record.id) : [...prev, record.id]
-                        );
-                      }}
-                      className={`text-sm font-medium px-2 py-1 rounded-md ${
-                        record.isMultiFile || (record.url && (record.url.includes('.pdf') || record.url.includes('pdf'))) 
-                          ? 'bg-blue-200 text-blue-800' 
-                          : 'bg-green-200 text-green-800'
-                      } hover:bg-opacity-80`}
-                    >
-                      {(() => {
-                        // More robust page count display logic
-                        if (record.isMultiFile) {
-                          // For multi-file records, show the file count or fallback to URLs length
-                          return `${record.fileCount || record.urls?.length || 1} pages`;
-                        } else if (record.url && (record.url.includes('.pdf') || record.url.includes('pdf'))) {
-                          // For PDF files, show the page count if available
-                          if (record.fileCount && record.fileCount > 1) {
-                            return `${record.fileCount} pages`;
-                          } else if (record.fileCount === 1) {
-                            return '1 page';
-                          } else {
-                            // If fileCount is not set yet, show a generic label
-                            return 'PDF';
-                          }
-                        } else if (record.comment) {
-                          // For comment-only records
-                          return 'Comment';
-                        } else {
-                          // Default fallback
-                          return '1 page';
-                        }
-                      })()}
-                    </button>
-                  </div>
-                </div>
-                
-                {expandedRecords.includes(record.id) && (
-                  <div className="mt-2">
-                    {record.isMultiFile ? (
-                      <div>
-                        <h3 className="font-semibold">Files:</h3>
-                        <ul>
-                          {record.urls && record.urls.map((url, index) => (
-                            <li key={index}>
-                              <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                                File {index + 1}
-                              </a>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : record.url && (record.url.includes('.pdf') || record.url.includes('pdf')) ? (
-                      <div>
-                        <h3 className="font-semibold">File:</h3>
-                        <ul>
-                          <li>
-                            <a href={record.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                              View PDF
-                            </a>
-                          </li>
-                        </ul>
-                      </div>
-                    ) : record.comment && (record.urls && record.urls.length > 0 || record.url) ? (
-                      <div>
-                        <h3 className="font-semibold">Comment:</h3>
-                        <div className="text-gray-800 text-sm mt-2">{record.comment}</div>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </ProtectedRoute>
   );
