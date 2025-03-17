@@ -12,10 +12,6 @@ import { useAuth } from '../lib/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Navigation from '../components/Navigation';
 
-// Log Firebase configuration for debugging
-console.log('🔥 Firebase Project ID:', process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
-console.log('🔥 Firebase Storage Bucket:', process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
-
 interface ErrorResponse {
   message?: string;
   error?: string;
@@ -72,7 +68,10 @@ export default function Upload() {
           );
         }
       } catch (err) {
-        console.error('Error checking API key:', err);
+        // Only log errors in development mode
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error checking API key:', err);
+        }
         setApiKeyChecked(true);
         setApiKeyValid(false);
         // Don't set error here to avoid blocking the UI
@@ -81,12 +80,11 @@ export default function Upload() {
     
     checkApiKey();
     
-    // Test Firestore write access
+    // Test Firestore write access in development mode only
     async function testFirestoreWrite() {
-      if (!currentUser) return;
+      if (!currentUser || process.env.NODE_ENV !== 'development') return;
       
       try {
-        console.log('🧪 Testing Firestore write access...');
         const testDocRef = doc(db, `users/${currentUser.uid}/test/firestore-test`);
         await setDoc(testDocRef, {
           timestamp: serverTimestamp(),
@@ -94,9 +92,10 @@ export default function Upload() {
           browser: navigator.userAgent,
           testId: Date.now().toString()
         });
-        console.log('✅ Test document written successfully to Firestore');
       } catch (err) {
-        console.error('❌ Error writing test document to Firestore:', err);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error writing test document to Firestore:', err);
+        }
       }
     }
     
@@ -146,231 +145,53 @@ export default function Upload() {
       setError(null);
       setUploadProgress(0);
       setUploadStatus('uploading');
-      console.log(`📤 Starting upload of ${files.length} files with name: ${recordName}`);
-
-      const fileUrls: string[] = [];
-      const fileTypes: string[] = [];
-      const totalFiles = files.length;
       
-      // First, upload all files to Firebase for storage/backup
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        console.log(`📄 Processing file ${i+1}/${totalFiles}: ${file.name} (${file.size} bytes, type: ${file.type})`);
-        
-        // Upload to Firebase for storage/backup
-        const timestamp = Date.now();
-        const safeRecordName = recordName.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const filePath = `users/${currentUser.uid}/records/${safeRecordName}_${timestamp}_${i}_${file.name}`;
-        console.log(`🔄 Creating Firebase storage reference: ${filePath}`);
-        
-        const storageRef = ref(storage, filePath);
-        
-        console.log(`📤 Uploading to Firebase Storage...`);
-        try {
-          await uploadBytes(storageRef, file);
-        } catch (uploadError) {
-          console.error(`❌ Firebase upload failed for ${file.name}:`, uploadError);
-          throw uploadError; // Re-throw to trigger outer catch
-        }
-        console.log(`✅ Firebase upload successful, getting download URL...`);
-        
-        const fileUrl = await getDownloadURL(storageRef);
-        console.log(`📎 Firebase download URL: ${fileUrl}`);
-        fileUrls.push(fileUrl);
-        fileTypes.push(file.type);
-        
-        // Update progress
-        setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
+      // Get the Firebase ID token
+      const token = await currentUser.getIdToken();
+      
+      // Create form data for the API request
+      const formData = new FormData();
+      files.forEach(file => formData.append('files', file));
+      formData.append('recordName', recordName);
+      formData.append('comment', comment);
+      
+      // Upload files using the secure API endpoint
+      const response = await fetch('/api/records/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Upload failed with status: ${response.status}`);
       }
-
-      console.log(`✅ All files uploaded successfully to Firebase. Total URLs: ${fileUrls.length}`);
-
-      // If files are uploaded, create a record in Firestore
-      if (fileUrls.length > 0) {
-        console.log(`📝 Creating Firestore record for user: ${currentUser.uid}`);
-        console.log(`📝 Record data: name=${recordName}, files=${fileUrls.length}, comment=${comment ? 'provided' : 'none'}`);
-        
-        try {
-          // Create the record in Firestore first
-          const docRef = await addDoc(collection(db, `users/${currentUser.uid}/records`), {
-            name: recordName.trim() || 'Medical Record', // Use a default name if empty
-            comment: comment,
-            urls: fileUrls,
-            fileCount: fileUrls.length, // This will be updated with actual page count for PDFs
-            isMultiFile: fileUrls.length > 1,
-            createdAt: serverTimestamp(),
-            analysis: "This record is being analyzed...",
-            briefSummary: "This record is being analyzed...",
-            detailedAnalysis: "This record is being analyzed...",
-            recordType: "Medical Record", // Default record type
-            recordDate: "", // Default empty date
-            fileTypes: files.map(file => file.type),
-          });
-          console.log(`✅ Firestore record created successfully with ID: ${docRef.id}`);
-          
-          // Now upload files to OpenAI
-          setUploadStatus('analyzing');
-          setAnalysisProgress(10);
-          
-          try {
-            console.log(`🔄 Uploading files to OpenAI...`);
-            
-            // Process files individually
-            const secureFileIds: string[] = [];
-            const secureFileTypes: string[] = [];
-            let combinedAnalysis = '';
-            let combinedDetailedAnalysis = '';
-            let combinedBriefSummary = '';
-            let recordTypes: string[] = [];
-            let recordDates: string[] = [];
-            
-            // Calculate progress increment per file
-            const progressIncrement = 80 / fileUrls.length;
-            
-            for (let i = 0; i < fileUrls.length; i++) {
-              const fileUrl = fileUrls[i];
-              const fileName = files[i].name;
-              const fileType = files[i].type;
-              
-              console.log(`🔒 Securely uploading file ${i+1}/${fileUrls.length} to OpenAI via server: ${fileName} (${fileType})`);
-              
-              try {
-                // Upload the file from Firestore to OpenAI via the server
-                const fileId = await uploadFirestoreFileToOpenAI(
-                  fileUrl,
-                  fileName,
-                  fileType,
-                  currentUser.uid,
-                  docRef.id
-                );
-                
-                secureFileIds.push(fileId);
-                secureFileTypes.push(fileType);
-                
-                // Update progress
-                setAnalysisProgress(10 + Math.round((i + 1) * progressIncrement / 2));
-                
-                // Analyze the file
-                console.log(`🧠 Analyzing file ${i+1}/${fileUrls.length}: ${fileName}`);
-                
-                try {
-                  const analysisResult = await analyzeRecord(
-                    currentUser.uid,
-                    docRef.id,
-                    fileId,
-                    fileType,
-                    fileName
-                  );
-                  
-                  // Extract the analysis text
-                  const analysisText = analysisResult.analysis || '';
-                  // Add file content without the === filename === header
-                  combinedAnalysis += `\n\n${analysisText}`;
-                  
-                  // Extract other fields if available
-                  if (analysisResult.detailedAnalysis) {
-                    combinedDetailedAnalysis += `\n\n${analysisResult.detailedAnalysis}`;
-                  }
-                  
-                  if (analysisResult.briefSummary) {
-                    combinedBriefSummary += `\n\n${analysisResult.briefSummary}`;
-                  }
-                  
-                  if (analysisResult.recordType) {
-                    recordTypes.push(analysisResult.recordType);
-                  }
-                  
-                  if (analysisResult.recordDate) {
-                    recordDates.push(analysisResult.recordDate);
-                  }
-                  
-                  // Update progress
-                  setAnalysisProgress(10 + Math.round((i + 1) * progressIncrement));
-                } catch (analysisError) {
-                  console.error(`❌ Error analyzing file ${fileName}:`, analysisError);
-                  combinedAnalysis += `\n\n${analysisError instanceof Error ? analysisError.message : 'Unknown error'}`;
-                }
-              } catch (uploadError) {
-                console.error(`❌ Error uploading file ${fileName} to OpenAI:`, uploadError);
-                // Continue with other files even if one fails
-              }
-            }
-            
-            // Update the record with the combined analysis
-            await updateDoc(doc(db, `users/${currentUser.uid}/records/${docRef.id}`), {
-              analysis: combinedAnalysis || 'Analysis could not be completed.',
-              openaiFileIds: secureFileIds,
-              analyzedAt: serverTimestamp(),
-              recordType: recordTypes.length > 0 ? recordTypes[0] : 'Medical Record',
-              recordDate: recordDates.length > 0 ? recordDates[0] : '',
-              briefSummary: combinedBriefSummary || '',
-              detailedAnalysis: combinedDetailedAnalysis || ''
-            });
-            
-            // Set success status
-            setUploadStatus('success');
-            setIsUploading(false);
-            setIsLoading(false);
-            
-            // Redirect to the records page
-            router.push('/records');
-          } catch (openaiError) {
-            console.error('❌ Error with OpenAI processing:', openaiError);
-            setError(`Error with OpenAI processing: ${openaiError instanceof Error ? openaiError.message : 'Unknown error'}`);
-            setUploadStatus('error');
-            setIsUploading(false);
-            setIsLoading(false);
-          }
-        } catch (firestoreError) {
-          console.error('❌ Error creating Firestore record:', firestoreError);
-          setError(`Error creating record: ${firestoreError instanceof Error ? firestoreError.message : 'Unknown error'}`);
-          setUploadStatus('error');
-          setIsUploading(false);
-          setIsLoading(false);
-        }
-      } else if (comment.trim()) {
-        // Handle case where there are no files but there is a comment
-        console.log(`📝 Creating comment-only Firestore record for user: ${currentUser.uid}`);
-        
-        try {
-          // Create a record with just the comment
-          const docRef = await addDoc(collection(db, `users/${currentUser.uid}/records`), {
-            name: recordName.trim() || 'Note', // Use a default name if empty
-            comment: comment,
-            urls: [],
-            fileCount: 0,
-            isMultiFile: false,
-            createdAt: serverTimestamp(),
-            analysis: "",
-            briefSummary: "",
-            detailedAnalysis: "",
-            recordType: recordName.trim() || 'Note', // Use record name as record type
-            recordDate: new Date().toISOString().split('T')[0], // Today's date
-          });
-          
-          console.log(`✅ Comment-only record created successfully with ID: ${docRef.id}`);
-          
-          // Set success status
-          setUploadStatus('success');
-          setIsUploading(false);
-          setIsLoading(false);
-          
-          // Redirect to the records page
-          router.push('/records');
-        } catch (firestoreError) {
-          console.error('❌ Error creating comment-only Firestore record:', firestoreError);
-          setError(`Error creating record: ${firestoreError instanceof Error ? firestoreError.message : 'Unknown error'}`);
-          setUploadStatus('error');
-          setIsUploading(false);
-          setIsLoading(false);
-        }
+      
+      const data = await response.json();
+      
+      setUploadStatus('success');
+      setUploadProgress(100);
+      
+      // Reset form
+      setFiles([]);
+      setRecordName('');
+      setComment('');
+      
+      // Redirect to records page
+      router.push('/records');
+      
+    } catch (err: any) {
+      // Only log errors in development mode
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error uploading files:', err);
       }
-    } catch (error) {
-      console.error('❌ Upload error:', error);
-      setError(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setUploadStatus('error');
-      setIsUploading(false);
+      setError(err.message || 'Failed to upload files. Please try again.');
+    } finally {
       setIsLoading(false);
+      setIsUploading(false);
     }
   };
 

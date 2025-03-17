@@ -248,56 +248,60 @@ export default function Records() {
     try {
       if (!currentUser) return;
       
-      console.log('📂 Fetching records from Firestore...');
-      const recordsCollection = collection(db, 'users', currentUser.uid, 'records');
-      const recordsSnapshot = await getDocs(recordsCollection);
+      setLoading(true);
       
-      console.log(`📊 Found ${recordsSnapshot.docs.length} records in Firestore`);
+      // Get the Firebase ID token
+      const token = await currentUser.getIdToken();
       
-      const recordsList = recordsSnapshot.docs.map(doc => {
-        const data = doc.data();
-        console.log(`📄 Record ID: ${doc.id}, Name: ${data.name || 'unnamed'}`);
-        console.log(`   Analysis length: ${data.analysis ? data.analysis.length : 0}`);
-        console.log(`   Detailed Analysis length: ${data.detailedAnalysis ? data.detailedAnalysis.length : 0}`);
-        console.log(`   Brief Summary length: ${data.briefSummary ? data.briefSummary.length : 0}`);
-        console.log(`   Are analysis and detailedAnalysis the same: ${data.analysis === data.detailedAnalysis}`);
-        console.log(`   File Count: ${data.fileCount || 'not set'}, Is Multi-File: ${data.isMultiFile ? 'yes' : 'no'}`);
-        console.log(`   File Type: ${data.fileType || 'unknown'}, URL: ${data.url ? 'present' : 'not present'}`);
-        
-        // Always extract record date from analysis if available
+      // Use the secure API endpoint to fetch records
+      const response = await fetch('/api/records', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error fetching records: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const recordsList = data.records.map((record: any) => {
+        // Process record data
         let recordDate = null;
-        if (data.analysis) {
-          recordDate = extractRecordDate(data.analysis);
-          if (recordDate === 'Unknown' && data.recordDate) {
-            recordDate = data.recordDate;
+        if (record.analysis) {
+          recordDate = extractRecordDate(record.analysis);
+          if (recordDate === 'Unknown' && record.recordDate) {
+            recordDate = record.recordDate;
           }
-        } else if (data.recordDate) {
-          recordDate = data.recordDate;
+        } else if (record.recordDate) {
+          recordDate = record.recordDate;
         }
         
         // Always extract brief summary from analysis if available
         let briefSummary = null;
-        if (data.analysis) {
-          briefSummary = extractBriefSummary(data.analysis);
-        } else if (data.briefSummary) {
-          briefSummary = data.briefSummary;
+        if (record.analysis) {
+          briefSummary = extractBriefSummary(record.analysis);
+        } else if (record.briefSummary) {
+          briefSummary = record.briefSummary;
         }
         
         // Clean any record type of ## markers
-        if (data.recordType) {
-          data.recordType = data.recordType.replace(/##/g, '');
+        if (record.recordType) {
+          record.recordType = record.recordType.replace(/##/g, '');
         }
         
         return {
-          id: doc.id,
-          ...data,
+          id: record.id,
+          ...record,
           recordDate,
           briefSummary
         } as Record;
       });
       
       // Sort by createdAt if available, newest first
-      recordsList.sort((a, b) => {
+      recordsList.sort((a: Record, b: Record) => {
         if (a.createdAt && b.createdAt) {
           return b.createdAt.seconds - a.createdAt.seconds;
         }
@@ -306,7 +310,10 @@ export default function Records() {
       
       setRecords(recordsList);
     } catch (err) {
-      console.error('❌ Error fetching records:', err);
+      // Only log errors in development mode
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error fetching records:', err);
+      }
       setError('Failed to load records. Please try again later.');
     } finally {
       setLoading(false);
@@ -328,126 +335,32 @@ export default function Records() {
 
     try {
       setDeleting(record.id);
-      console.log(`🗑️ Deleting record: ${record.id}, Name: ${record.name || 'unnamed'}`);
       
-      // Check if record exists in Firestore
-      const recordRef = doc(db, 'users', currentUser.uid, 'records', record.id);
-      const recordDoc = await getDoc(recordRef);
+      // Get the Firebase ID token
+      const token = await currentUser.getIdToken();
       
-      if (!recordDoc.exists()) {
-        console.warn(`⚠️ Record ${record.id} not found in Firestore, removing from UI only`);
-        // If record doesn't exist in Firestore, just remove it from UI
-        setRecords(records.filter(r => r.id !== record.id));
-        return;
+      // Use the secure API endpoint to delete the record
+      const response = await fetch(`/api/records/${record.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error deleting record: ${response.status}`);
       }
       
-      // Delete from Firestore
-      await deleteDoc(recordRef);
-      console.log(`✅ Deleted record ${record.id} from Firestore`);
-      
-      // Delete from Storage - handle both single and multi-file records
-      if (record.isMultiFile && record.urls && record.urls.length > 0) {
-        // Delete all files in the record
-        console.log(`🗑️ Deleting ${record.urls.length} files from Storage`);
-        for (const url of record.urls) {
-          try {
-            if (url && typeof url === 'string') {
-              if (url.startsWith('http')) {
-                // Extract the path from the URL
-                const path = url.split('firebase.storage.googleapis.com/')[1];
-                if (path) {
-                  const decodedPath = decodeURIComponent(path.split('?')[0]);
-                  console.log(`🗑️ Deleting file: ${decodedPath}`);
-                  const fileRef = ref(storage, decodedPath);
-                  await deleteObject(fileRef);
-                  console.log(`✅ Deleted file: ${decodedPath}`);
-                } else {
-                  console.warn(`⚠️ Could not extract path from URL: ${url}`);
-                }
-              } else {
-                console.warn(`⚠️ URL does not start with http: ${url}`);
-              }
-            } else {
-              console.warn(`⚠️ Invalid URL: ${url}`);
-            }
-          } catch (err) {
-            console.error(`❌ Error deleting file: ${url}`, err);
-            // Continue with other files even if one fails
-          }
-        }
-      } else if (record.url && typeof record.url === 'string') {
-        // Delete single file
-        try {
-          if (record.url.startsWith('http')) {
-            // Extract the path from the URL
-            const path = record.url.split('firebase.storage.googleapis.com/')[1];
-            if (path) {
-              const decodedPath = decodeURIComponent(path.split('?')[0]);
-              console.log(`🗑️ Deleting file: ${decodedPath}`);
-              const fileRef = ref(storage, decodedPath);
-              await deleteObject(fileRef);
-              console.log(`✅ Deleted file: ${decodedPath}`);
-            } else {
-              console.warn(`⚠️ Could not extract path from URL: ${record.url}`);
-            }
-          } else {
-            console.warn(`⚠️ URL does not start with http: ${record.url}`);
-          }
-        } catch (err) {
-          console.error(`❌ Error deleting file: ${record.url}`, err);
-        }
-      }
-      
-      // Update the records list
+      // Remove the record from the UI
       setRecords(records.filter(r => r.id !== record.id));
-      console.log(`✅ Removed record ${record.id} from UI`);
-      
-      // Check if we need to update the holistic analysis
-      const remainingRecords = await getDocs(collection(db, 'users', currentUser.uid, 'records'));
-      console.log(`📊 Remaining records after deletion: ${remainingRecords.docs.length}`);
-      
-      if (remainingRecords.docs.length === 0) {
-        // If no records left, clear the holistic analysis
-        try {
-          console.log(`🗑️ No records left, clearing holistic analysis`);
-          await setDoc(doc(db, 'users', currentUser.uid, 'analysis', 'holistic'), {
-            text: 'No health records found. Please upload some medical records first.',
-            updatedAt: serverTimestamp()
-          });
-          console.log(`✅ Updated holistic analysis to indicate no records`);
-        } catch (err) {
-          console.error('❌ Error updating holistic analysis:', err);
-          // Continue even if this fails
-        }
-      } else {
-        // If records remain, add a flag to indicate analysis needs update
-        try {
-          console.log(`🔄 Setting flag to indicate analysis needs update`);
-          const analysisDoc = await getDoc(doc(db, 'users', currentUser.uid, 'analysis', 'holistic'));
-          if (analysisDoc.exists()) {
-            await setDoc(doc(db, 'users', currentUser.uid, 'analysis', 'holistic'), {
-              ...analysisDoc.data(),
-              needsUpdate: true,
-              updatedAt: serverTimestamp()
-            });
-            console.log(`✅ Set flag to indicate analysis needs update`);
-          }
-        } catch (err) {
-          console.error('❌ Error setting update flag:', err);
-          // Continue even if this fails
-        }
-      }
       
     } catch (err) {
-      console.error('❌ Error deleting record:', err);
-      
-      // Force delete from UI if user confirms
-      if (confirm('Error deleting record. Would you like to remove it from the list anyway?')) {
-        setRecords(records.filter(r => r.id !== record.id));
-        console.log(`⚠️ Force removed record ${record.id} from UI`);
-      } else {
-        alert('Failed to delete record. Please try again.');
+      // Only log errors in development mode
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error deleting record:', err);
       }
+      setError('Failed to delete record. Please try again later.');
     } finally {
       setDeleting(null);
     }
@@ -467,53 +380,6 @@ export default function Records() {
         ? prev.filter((id) => id !== recordId) 
         : [...prev, recordId]
     );
-  };
-
-  const debugRecord = (record: Record) => {
-    console.log('DEBUG RECORD:', record.id);
-    console.log('- name:', record.name);
-    console.log('- analysis length:', record.analysis ? record.analysis.length : 0);
-    console.log('- detailedAnalysis length:', record.detailedAnalysis ? record.detailedAnalysis.length : 0);
-    console.log('- briefSummary length:', record.briefSummary ? record.briefSummary.length : 0);
-    console.log('- recordType:', record.recordType);
-    console.log('- recordDate:', record.recordDate);
-    console.log('- analysis preview:', record.analysis ? record.analysis.substring(0, 100) + '...' : 'None');
-    console.log('- detailedAnalysis preview:', record.detailedAnalysis ? record.detailedAnalysis.substring(0, 100) + '...' : 'None');
-    console.log('- briefSummary preview:', record.briefSummary ? record.briefSummary.substring(0, 100) + '...' : 'None');
-    
-    // Extract and log values from analysis field
-    if (record.analysis) {
-      const extractedBriefSummary = extractBriefSummary(record.analysis);
-      const extractedDetailedAnalysis = extractDetailedAnalysis(record.analysis);
-      const extractedRecordType = extractRecordType(record.analysis);
-      const extractedRecordDate = extractRecordDate(record.analysis);
-      
-      console.log('EXTRACTED VALUES FROM ANALYSIS:');
-      console.log('- extracted briefSummary:', extractedBriefSummary.substring(0, 100) + '...');
-      console.log('- extracted detailedAnalysis:', extractedDetailedAnalysis.substring(0, 100) + '...');
-      console.log('- extracted recordType:', extractedRecordType);
-      console.log('- extracted recordDate:', extractedRecordDate);
-      
-      // Show the regex patterns used for extraction
-      console.log('REGEX PATTERNS USED:');
-      console.log('- BRIEF_SUMMARY patterns:');
-      console.log('  - Pattern 1:', /\*\*BRIEF_SUMMARY:\*\*([\s\S]+?)(?=\*\*RECORD_TYPE:|$)/.toString());
-      console.log('  - Pattern 2:', /BRIEF_SUMMARY:([\s\S]+?)(?=RECORD_TYPE:|$)/i.toString());
-      console.log('  - Pattern 3:', /##\s*BRIEF_SUMMARY:([\s\S]+?)(?=##\s*RECORD_TYPE:|$)/i.toString());
-      console.log('  - Pattern 4:', /#\s*BRIEF_SUMMARY:([\s\S]+?)(?=#\s*RECORD_TYPE:|$)/i.toString());
-      console.log('  - Pattern 5:', /BRIEF_SUMMARY:[\r\n]+([\s\S]+?)(?=RECORD_TYPE:[\r\n]|$)/i.toString());
-      
-      console.log('- RECORD_DATE patterns:');
-      console.log('  - Pattern 1:', /\*\*RECORD_DATE:\*\*([\s\S]+?)(?=\*\*|$)/.toString());
-      console.log('  - Pattern 2:', /RECORD_DATE:([\s\S]+?)(?=\n\n|$)/i.toString());
-      console.log('  - Pattern 3:', /##\s*RECORD_DATE:([\s\S]+?)(?=##|$)/i.toString());
-      console.log('  - Pattern 4:', /#\s*RECORD_DATE:([\s\S]+?)(?=#|$)/i.toString());
-      console.log('  - Pattern 5:', /RECORD_DATE:[\r\n]+([\s\S]+?)(?=\n\n|$)/i.toString());
-      
-      // Log the full analysis for inspection
-      console.log('FULL ANALYSIS:');
-      console.log(record.analysis);
-    }
   };
 
   return (

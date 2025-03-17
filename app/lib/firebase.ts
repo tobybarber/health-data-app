@@ -16,9 +16,6 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "YOUR_APP_ID"
 };
 
-// Log Firebase configuration
-console.log('🔥 Initializing Firebase with project ID:', firebaseConfig.projectId);
-
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
@@ -36,15 +33,14 @@ const getFirebaseConfig = () => {
 
 // Enable offline persistence with unlimited cache size
 enableIndexedDbPersistence(db)
-  .then(() => {
-    console.log('✅ Firestore persistence enabled successfully');
-  })
   .catch((err) => {
-    console.error('❌ Error enabling Firestore persistence:', err);
-    if (err.code === 'failed-precondition') {
-      console.warn('⚠️ Multiple tabs open, persistence can only be enabled in one tab at a time.');
-    } else if (err.code === 'unimplemented') {
-      console.warn('⚠️ The current browser does not support all of the features required to enable persistence');
+    // Only log errors in development mode
+    if (process.env.NODE_ENV === 'development') {
+      if (err.code === 'failed-precondition') {
+        console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
+      } else if (err.code === 'unimplemented') {
+        console.warn('The current browser does not support all of the features required to enable persistence');
+      }
     }
   });
 
