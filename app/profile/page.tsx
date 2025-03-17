@@ -6,7 +6,7 @@ import { db } from '../lib/firebase';
 import Link from 'next/link';
 import { useAuth } from '../lib/AuthContext';
 import { useRouter } from 'next/navigation';
-import HomeNavigation from '../components/HomeNavigation';
+import Navigation from '../components/Navigation';
 
 interface UserProfile {
   name: string;
@@ -106,16 +106,16 @@ export default function ProfilePage() {
 
   return (
     <div className="p-6 pt-20">
-      <HomeNavigation />
+      <Navigation isHomePage={true} />
       <div className="max-w-2xl mx-auto p-4">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-primary-blue">My Profile</h1>
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 flex items-center"
+            className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-md text-primary-blue border border-primary-blue hover:bg-white/90 transition-colors flex items-center"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
             {isLoggingOut ? 'Logging out...' : 'Log out'}

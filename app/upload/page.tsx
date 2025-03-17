@@ -4,12 +4,13 @@ import { useState, FormEvent, ChangeEvent, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { doc, setDoc, collection, addDoc, serverTimestamp, getDocs, query, limit } from 'firebase/firestore';
+import { doc, setDoc, collection, addDoc, serverTimestamp, getDocs, query, limit, updateDoc } from 'firebase/firestore';
 import { storage, db, getFirebaseConfig } from '../lib/firebase';
 import { isApiKeyValid } from '../lib/openai';
+import { analyzeRecord, uploadFirestoreFileToOpenAI } from '../lib/openai-utils';
 import { useAuth } from '../lib/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
-import HomeNavigation from '../components/HomeNavigation';
+import Navigation from '../components/Navigation';
 
 // Log Firebase configuration for debugging
 console.log('🔥 Firebase Project ID:', process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
@@ -36,7 +37,6 @@ export default function Upload() {
   const [isLoading, setIsLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { currentUser } = useAuth();
 
@@ -110,20 +110,8 @@ export default function Upload() {
       const fileArray = Array.from(e.target.files);
       setFiles(fileArray);
       
-      if (!recordName && fileArray.length > 0) {
-        const firstFile = fileArray[0] as File;
-        const fileName = firstFile.name.split('.').slice(0, -1).join('.');
-        setRecordName(fileName || 'Medical Record');
-      }
-      
       setError(null);
       setUploadStatus('idle');
-    }
-  };
-
-  const handleCameraCapture = () => {
-    if (cameraInputRef.current) {
-      cameraInputRef.current.click();
     }
   };
 
@@ -146,11 +134,6 @@ export default function Upload() {
       return;
     }
 
-    if (!recordName.trim()) {
-      setError('Please provide a name for this record');
-      return;
-    }
-
     const supportedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
     if (!files.every((file: File) => supportedTypes.includes(file.type))) {
       setError('Only PDF, JPG, and PNG files are supported.');
@@ -166,16 +149,19 @@ export default function Upload() {
       console.log(`📤 Starting upload of ${files.length} files with name: ${recordName}`);
 
       const fileUrls: string[] = [];
+      const fileTypes: string[] = [];
       const totalFiles = files.length;
       
+      // First, upload all files to Firebase for storage/backup
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         console.log(`📄 Processing file ${i+1}/${totalFiles}: ${file.name} (${file.size} bytes, type: ${file.type})`);
         
+        // Upload to Firebase for storage/backup
         const timestamp = Date.now();
         const safeRecordName = recordName.replace(/[^a-zA-Z0-9.-]/g, '_');
         const filePath = `users/${currentUser.uid}/records/${safeRecordName}_${timestamp}_${i}_${file.name}`;
-        console.log(`🔄 Creating storage reference: ${filePath}`);
+        console.log(`🔄 Creating Firebase storage reference: ${filePath}`);
         
         const storageRef = ref(storage, filePath);
         
@@ -186,66 +172,205 @@ export default function Upload() {
           console.error(`❌ Firebase upload failed for ${file.name}:`, uploadError);
           throw uploadError; // Re-throw to trigger outer catch
         }
-        console.log(`✅ Upload successful, getting download URL...`);
+        console.log(`✅ Firebase upload successful, getting download URL...`);
         
         const fileUrl = await getDownloadURL(storageRef);
         console.log(`📎 Firebase download URL: ${fileUrl}`);
         fileUrls.push(fileUrl);
+        fileTypes.push(file.type);
         
         // Update progress
         setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
       }
 
-      console.log(`✅ All files uploaded successfully. Total URLs: ${fileUrls.length}`);
+      console.log(`✅ All files uploaded successfully to Firebase. Total URLs: ${fileUrls.length}`);
 
-      // If files are uploaded, send them to AI for analysis
+      // If files are uploaded, create a record in Firestore
       if (fileUrls.length > 0) {
-        // Create a record in Firestore for the uploaded files
         console.log(`📝 Creating Firestore record for user: ${currentUser.uid}`);
         console.log(`📝 Record data: name=${recordName}, files=${fileUrls.length}, comment=${comment ? 'provided' : 'none'}`);
         
         try {
+          // Create the record in Firestore first
           const docRef = await addDoc(collection(db, `users/${currentUser.uid}/records`), {
-            name: recordName,
+            name: recordName.trim() || 'Medical Record', // Use a default name if empty
             comment: comment,
             urls: fileUrls,
-            fileCount: fileUrls.length,
+            fileCount: fileUrls.length, // This will be updated with actual page count for PDFs
             isMultiFile: fileUrls.length > 1,
             createdAt: serverTimestamp(),
-            analysis: "This record has not been analyzed yet.",
+            analysis: "This record is being analyzed...",
+            briefSummary: "This record is being analyzed...",
+            detailedAnalysis: "This record is being analyzed...",
+            recordType: "Medical Record", // Default record type
+            recordDate: "", // Default empty date
+            fileTypes: files.map(file => file.type),
           });
           console.log(`✅ Firestore record created successfully with ID: ${docRef.id}`);
+          
+          // Now upload files to OpenAI
+          setUploadStatus('analyzing');
+          setAnalysisProgress(10);
+          
+          try {
+            console.log(`🔄 Uploading files to OpenAI...`);
+            
+            // Process files individually
+            const secureFileIds: string[] = [];
+            const secureFileTypes: string[] = [];
+            let combinedAnalysis = '';
+            let combinedDetailedAnalysis = '';
+            let combinedBriefSummary = '';
+            let recordTypes: string[] = [];
+            let recordDates: string[] = [];
+            
+            // Calculate progress increment per file
+            const progressIncrement = 80 / fileUrls.length;
+            
+            for (let i = 0; i < fileUrls.length; i++) {
+              const fileUrl = fileUrls[i];
+              const fileName = files[i].name;
+              const fileType = files[i].type;
+              
+              console.log(`🔒 Securely uploading file ${i+1}/${fileUrls.length} to OpenAI via server: ${fileName} (${fileType})`);
+              
+              try {
+                // Upload the file from Firestore to OpenAI via the server
+                const fileId = await uploadFirestoreFileToOpenAI(
+                  fileUrl,
+                  fileName,
+                  fileType,
+                  currentUser.uid,
+                  docRef.id
+                );
+                
+                secureFileIds.push(fileId);
+                secureFileTypes.push(fileType);
+                
+                // Update progress
+                setAnalysisProgress(10 + Math.round((i + 1) * progressIncrement / 2));
+                
+                // Analyze the file
+                console.log(`🧠 Analyzing file ${i+1}/${fileUrls.length}: ${fileName}`);
+                
+                try {
+                  const analysisResult = await analyzeRecord(
+                    currentUser.uid,
+                    docRef.id,
+                    fileId,
+                    fileType,
+                    fileName
+                  );
+                  
+                  // Extract the analysis text
+                  const analysisText = analysisResult.analysis || '';
+                  // Add file content without the === filename === header
+                  combinedAnalysis += `\n\n${analysisText}`;
+                  
+                  // Extract other fields if available
+                  if (analysisResult.detailedAnalysis) {
+                    combinedDetailedAnalysis += `\n\n${analysisResult.detailedAnalysis}`;
+                  }
+                  
+                  if (analysisResult.briefSummary) {
+                    combinedBriefSummary += `\n\n${analysisResult.briefSummary}`;
+                  }
+                  
+                  if (analysisResult.recordType) {
+                    recordTypes.push(analysisResult.recordType);
+                  }
+                  
+                  if (analysisResult.recordDate) {
+                    recordDates.push(analysisResult.recordDate);
+                  }
+                  
+                  // Update progress
+                  setAnalysisProgress(10 + Math.round((i + 1) * progressIncrement));
+                } catch (analysisError) {
+                  console.error(`❌ Error analyzing file ${fileName}:`, analysisError);
+                  combinedAnalysis += `\n\n${analysisError instanceof Error ? analysisError.message : 'Unknown error'}`;
+                }
+              } catch (uploadError) {
+                console.error(`❌ Error uploading file ${fileName} to OpenAI:`, uploadError);
+                // Continue with other files even if one fails
+              }
+            }
+            
+            // Update the record with the combined analysis
+            await updateDoc(doc(db, `users/${currentUser.uid}/records/${docRef.id}`), {
+              analysis: combinedAnalysis || 'Analysis could not be completed.',
+              openaiFileIds: secureFileIds,
+              analyzedAt: serverTimestamp(),
+              recordType: recordTypes.length > 0 ? recordTypes[0] : 'Medical Record',
+              recordDate: recordDates.length > 0 ? recordDates[0] : '',
+              briefSummary: combinedBriefSummary || '',
+              detailedAnalysis: combinedDetailedAnalysis || ''
+            });
+            
+            // Set success status
+            setUploadStatus('success');
+            setIsUploading(false);
+            setIsLoading(false);
+            
+            // Redirect to the records page
+            router.push('/records');
+          } catch (openaiError) {
+            console.error('❌ Error with OpenAI processing:', openaiError);
+            setError(`Error with OpenAI processing: ${openaiError instanceof Error ? openaiError.message : 'Unknown error'}`);
+            setUploadStatus('error');
+            setIsUploading(false);
+            setIsLoading(false);
+          }
         } catch (firestoreError) {
           console.error('❌ Error creating Firestore record:', firestoreError);
-          throw firestoreError; // Re-throw to trigger outer catch
+          setError(`Error creating record: ${firestoreError instanceof Error ? firestoreError.message : 'Unknown error'}`);
+          setUploadStatus('error');
+          setIsUploading(false);
+          setIsLoading(false);
         }
-        
-        // Call your AI analysis function here, passing the comment and fileUrls
-        // Example: await analyzeFiles(fileUrls, comment);
       } else if (comment.trim()) {
-        // Handle manual record case
-        await addDoc(collection(db, `users/${currentUser.uid}/records`), {
-          name: recordName,
-          comment: comment,
-          createdAt: serverTimestamp(),
-          isManualRecord: true,
-        });
+        // Handle case where there are no files but there is a comment
+        console.log(`📝 Creating comment-only Firestore record for user: ${currentUser.uid}`);
+        
+        try {
+          // Create a record with just the comment
+          const docRef = await addDoc(collection(db, `users/${currentUser.uid}/records`), {
+            name: recordName.trim() || 'Note', // Use a default name if empty
+            comment: comment,
+            urls: [],
+            fileCount: 0,
+            isMultiFile: false,
+            createdAt: serverTimestamp(),
+            analysis: "",
+            briefSummary: "",
+            detailedAnalysis: "",
+            recordType: recordName.trim() || 'Note', // Use record name as record type
+            recordDate: new Date().toISOString().split('T')[0], // Today's date
+          });
+          
+          console.log(`✅ Comment-only record created successfully with ID: ${docRef.id}`);
+          
+          // Set success status
+          setUploadStatus('success');
+          setIsUploading(false);
+          setIsLoading(false);
+          
+          // Redirect to the records page
+          router.push('/records');
+        } catch (firestoreError) {
+          console.error('❌ Error creating comment-only Firestore record:', firestoreError);
+          setError(`Error creating record: ${firestoreError instanceof Error ? firestoreError.message : 'Unknown error'}`);
+          setUploadStatus('error');
+          setIsUploading(false);
+          setIsLoading(false);
+        }
       }
-
-      setUploadStatus('success');
-      setTimeout(() => router.push('/records'), 1500);
-    } catch (err) {
-      console.error('❌ Error uploading files:', err);
-      setError('An error occurred while uploading files. Please try again later.');
+    } catch (error) {
+      console.error('❌ Upload error:', error);
+      setError(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setUploadStatus('error');
-      
-      // Redirect to records page after a delay even if upload failed
-      setTimeout(() => {
-        router.push('/records');
-      }, 3000);
-    } finally {
-      setIsLoading(false);
       setIsUploading(false);
+      setIsLoading(false);
     }
   };
 
@@ -255,7 +380,7 @@ export default function Upload() {
   return (
     <ProtectedRoute>
       <div className="p-6 pt-20">
-        <HomeNavigation />
+        <Navigation isHomePage={true} />
         <h1 className="text-2xl font-bold text-primary-blue mb-6">Upload Health Records</h1>
         
         {apiKeyValid === false && !isLoading && (
@@ -307,7 +432,7 @@ export default function Upload() {
           <form onSubmit={handleSubmit} className="bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md">
             <div className="mb-6">
               <label htmlFor="recordName" className="block text-sm font-medium text-gray-700 mb-1">
-                Record Name
+                Record Name (optional)
               </label>
               <input
                 type="text"
@@ -316,7 +441,6 @@ export default function Upload() {
                 onChange={(e) => setRecordName(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="e.g., Annual Checkup 2023"
-                required
               />
             </div>
 
@@ -350,19 +474,6 @@ export default function Upload() {
                     </svg>
                     Upload Photos/Files
                   </button>
-                  
-                  <button
-                    type="button"
-                    onClick={handleCameraCapture}
-                    className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center"
-                    disabled={isUploading}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Take Photo
-                  </button>
                 </div>
                 
                 {/* File input for gallery photos/files */}
@@ -375,17 +486,6 @@ export default function Upload() {
                   multiple
                   onChange={handleFileChange}
                   accept=".pdf,.jpg,.jpeg,.png"
-                  disabled={isUploading}
-                />
-                
-                {/* Camera input for mobile devices */}
-                <input
-                  type="file"
-                  ref={cameraInputRef}
-                  accept="image/*"
-                  capture={isMobile ? "environment" : undefined}
-                  onChange={handleFileChange}
-                  className="hidden"
                   disabled={isUploading}
                 />
                 
@@ -427,7 +527,7 @@ export default function Upload() {
           </form>
         )}
 
-        {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') !== 'idle' && (
+        {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') !== 'idle' && uploadStatus !== 'success' && (
           <div className="bg-white shadow-md rounded-lg p-6">
             <h2 className="text-lg font-medium mb-4">Upload Status</h2>
             
@@ -457,9 +557,8 @@ export default function Upload() {
               </div>
             </div>
             
-            {/* Analysis Progress Bar - Only show when analyzing or complete */}
-            {((uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'analyzing' || 
-              (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'success') && (
+            {/* Analysis Progress Bar - Only show when analyzing */}
+            {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'analyzing' && (
               <div className="mb-4">
                 <div className="relative pt-1">
                   <div className="flex mb-2 items-center justify-between">
@@ -469,9 +568,7 @@ export default function Upload() {
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className={`text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full ${
-                        (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-indigo-500'
-                      } text-white`}>
+                      <span className="text-xs font-semibold inline-block text-purple-600">
                         {analysisProgress}%
                       </span>
                     </div>
@@ -487,21 +584,6 @@ export default function Upload() {
                 </div>
               </div>
             )}
-            
-            {/* Overall Status */}
-            <div className="text-center">
-              <span className={`inline-block px-3 py-1 text-sm font-semibold rounded-full ${
-                (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'uploading' ? 'bg-blue-100 text-blue-800' :
-                (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'analyzing' ? 'bg-purple-100 text-purple-800' :
-                (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'success' ? 'bg-green-100 text-green-800' :
-                'bg-red-100 text-red-800'
-              }`}>
-                {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'uploading' && 'Uploading Files...'}
-                {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'analyzing' && 'Analyzing Documents...'}
-                {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'success' && 'Complete!'}
-                {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' && 'Error'}
-              </span>
-            </div>
           </div>
         )}
       </div>

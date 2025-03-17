@@ -3,7 +3,7 @@
 import { useAuth } from './lib/AuthContext';
 import Link from 'next/link';
 import { FaUpload, FaComments, FaWatchmanMonitoring, FaClipboardList } from 'react-icons/fa';
-import HomeNavigation from './components/HomeNavigation';
+import Navigation from './components/Navigation';
 
 export default function Home() {
   const { currentUser, loading } = useAuth();
@@ -21,7 +21,7 @@ export default function Home() {
       {/* Content */}
       <div className="pt-20">
         {/* Navigation Header */}
-        <HomeNavigation />
+        <Navigation isHomePage={true} />
 
         {/* Main Content */}
         {!currentUser ? (

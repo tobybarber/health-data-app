@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Link from 'next/link';
-import HomeNavigation from '../components/HomeNavigation';
+import Navigation from '../components/Navigation';
 
 // Define device types
 interface DeviceType {
@@ -58,7 +58,7 @@ export default function WearablesPage() {
   return (
     <ProtectedRoute>
       <div className="p-6 pt-20">
-        <HomeNavigation />
+        <Navigation isHomePage={true} />
         <h1 className="text-2xl font-bold text-primary-blue mb-6">My Wearables</h1>
         
         <p className="mb-6 text-gray-700">

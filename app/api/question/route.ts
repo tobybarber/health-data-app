@@ -165,11 +165,11 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
         messages: [
           {
             role: 'system',
-            content: 'You are a medical AI assistant. Analyze the provided health record summaries and answer the user\'s question based on the information in these summaries. All records belong to the same individual whose profile information is provided. Consider how the patient\'s demographic information, lifestyle factors, and medical history might interact when formulating your response.'
+            content: 'You are a medical AI assistant. Analyze the provided health record summaries and answer the user\'s question based on the information in these summaries. All records belong to the same individual whose profile information is provided. Consider how the patient\'s demographic information, lifestyle factors, and medical history might interact when formulating your response. Format your answer using XML-like tags for structured output.'
           },
           {
             role: 'user',
-            content: `${profileInfo}\n\nI have the following health record summaries for this user:\n\n${limitedSummaries.join('\n\n---\n\n')}\n\nBased on these summaries and the user's profile information, please answer this question: ${question}`
+            content: `${profileInfo}\n\nI have the following health record summaries for this user:\n\n${limitedSummaries.join('\n\n---\n\n')}\n\nBased on these summaries and the user's profile information, please answer this question: ${question}\n\nPlease format your response using these XML-like tags:\n\n<ANSWER>\nYour detailed answer here.\n</ANSWER>\n\n<RELEVANT_RECORDS>\nList the records that were most relevant to answering this question.\n</RELEVANT_RECORDS>\n\n<ADDITIONAL_CONTEXT>\nProvide any additional context or caveats about your answer.\n</ADDITIONAL_CONTEXT>\n\nIt is CRITICAL that you use these exact XML-like tags in your response to ensure proper formatting.`
           }
         ]
       })

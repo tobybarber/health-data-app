@@ -11,5 +11,5 @@ export default function ClientNavigationWrapper() {
     return null;
   }
   
-  return <Navigation />;
+  return <Navigation isHomePage={false} />;
 } 

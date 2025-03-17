@@ -3,7 +3,7 @@
 import { useAuth } from '../lib/AuthContext';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import HomeNavigation from '../components/HomeNavigation';
+import Navigation from '../components/Navigation';
 
 export default function AboutPage() {
   const { currentUser } = useAuth();
@@ -12,7 +12,7 @@ export default function AboutPage() {
   return (
     <>
       <div className="p-6 pt-20">
-        <HomeNavigation />
+        <Navigation isHomePage={true} />
         
         <div className="bg-white/90 backdrop-blur-sm p-6 rounded-md shadow-md mb-6">
           <h1 className="text-3xl font-bold text-primary-blue mb-6">About Wattle</h1>

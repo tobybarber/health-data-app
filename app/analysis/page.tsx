@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect, FormEvent, useRef } from 'react';
 import Link from 'next/link';
-import { doc, getDoc, collection, addDoc, getDocs, serverTimestamp, deleteDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, getDocs, serverTimestamp, deleteDoc, setDoc, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { isApiKeyValid } from '../lib/openai';
 import { useAuth } from '../lib/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
-import HomeNavigation from '../components/HomeNavigation';
+import Navigation from '../components/Navigation';
 
 interface Question {
   id: string;
@@ -24,6 +24,20 @@ interface Record {
   isMultiFile?: boolean;
   isManual?: boolean;
   hasPhoto?: boolean;
+  comment?: string;
+  comments?: string[] | string | { [key: string]: any };
+  analysis?: string;
+  detailedAnalysis?: string;
+  recordDate?: string;
+  recordType?: string;
+}
+
+interface RecordDetail {
+  id: string;
+  name: string;
+  detailedAnalysis: string;
+  comment: string;
+  comments: string[];
 }
 
 export default function Analysis() {
@@ -43,9 +57,15 @@ export default function Analysis() {
   const [performanceMetrics, setPerformanceMetrics] = useState<any>(null);
   const [summariesUsed, setSummariesUsed] = useState<boolean>(false);
   const [commentsUsed, setCommentsUsed] = useState<boolean>(false);
+  const [apiKeyValid, setApiKeyValid] = useState<boolean | null>(null);
+  const [question, setQuestion] = useState<string>('');
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [isAskingQuestion, setIsAskingQuestion] = useState<boolean>(false);
   const chatRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { currentUser } = useAuth();
+  const [dataLoaded, setDataLoaded] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
     // Check if OpenAI API key is valid
@@ -68,54 +88,97 @@ export default function Analysis() {
       if (!currentUser) return;
       
       try {
-        // Fetch holistic analysis
+        // Set loading state
+        setDataLoaded(false);
+        setIsLoading(true);
+        
+        // Check localStorage first for cached analysis data
+        const cachedData = localStorage.getItem(`analysis_${currentUser.uid}`);
+        if (cachedData) {
+          const parsedData = JSON.parse(cachedData);
+          setHolisticAnalysis(parsedData.text || 'No analysis available yet.');
+          setAnalysisSource(parsedData.generatedBy || '');
+          setRecordCount(parsedData.recordCount || 0);
+          setLastUpdated(parsedData.updatedAt || '');
+          setSummariesUsed(parsedData.summariesUsed === true);
+          setCommentsUsed(parsedData.commentsUsed === true);
+          setNeedsUpdate(parsedData.needsUpdate === true);
+          
+          // Show cached data immediately
+          setIsLoading(false);
+        }
+        
+        // Fetch holistic analysis from Firestore
         const analysisDoc = await getDoc(doc(db, `users/${currentUser.uid}/analysis`, 'holistic'));
         if (analysisDoc.exists()) {
           const analysisData = analysisDoc.data();
-          setHolisticAnalysis(analysisData.text || 'No analysis available yet.');
           
-          // Set the analysis source if available
-          if (analysisData.generatedBy) {
-            setAnalysisSource(analysisData.generatedBy);
-          } else {
-            setAnalysisSource('');
+          // Only update state if there's actual text content
+          if (analysisData.text) {
+            setHolisticAnalysis(analysisData.text);
+            
+            // Set the analysis source if available
+            if (analysisData.generatedBy) {
+              setAnalysisSource(analysisData.generatedBy);
+            } else {
+              setAnalysisSource('');
+            }
+            
+            // Set record count if available
+            if (analysisData.recordCount) {
+              setRecordCount(analysisData.recordCount);
+            } else {
+              setRecordCount(0);
+            }
+            
+            // Set last updated timestamp if available
+            if (analysisData.updatedAt) {
+              const timestamp = analysisData.updatedAt.toDate();
+              setLastUpdated(timestamp.toLocaleString());
+            } else {
+              setLastUpdated('');
+            }
+            
+            // Set summaries and comments used flags if available
+            setSummariesUsed(analysisData.summariesUsed === true);
+            setCommentsUsed(analysisData.commentsUsed === true);
+            
+            // Check if analysis needs update
+            if (analysisData.needsUpdate) {
+              console.log('Analysis needs update flag detected');
+              setNeedsUpdate(true);
+            } else {
+              setNeedsUpdate(false);
+            }
+            
+            // Cache the analysis data in localStorage
+            localStorage.setItem(`analysis_${currentUser.uid}`, JSON.stringify({
+              text: analysisData.text,
+              generatedBy: analysisData.generatedBy || '',
+              recordCount: analysisData.recordCount || 0,
+              updatedAt: analysisData.updatedAt ? analysisData.updatedAt.toDate().toLocaleString() : '',
+              summariesUsed: analysisData.summariesUsed === true,
+              commentsUsed: analysisData.commentsUsed === true,
+              needsUpdate: analysisData.needsUpdate === true
+            }));
           }
-          
-          // Set record count if available
-          if (analysisData.recordCount) {
-            setRecordCount(analysisData.recordCount);
-          } else {
-            setRecordCount(0);
-          }
-          
-          // Set last updated timestamp if available
-          if (analysisData.updatedAt) {
-            const timestamp = analysisData.updatedAt.toDate();
-            setLastUpdated(timestamp.toLocaleString());
-          } else {
-            setLastUpdated('');
-          }
-          
-          // Set summaries and comments used flags if available
-          setSummariesUsed(analysisData.summariesUsed === true);
-          setCommentsUsed(analysisData.commentsUsed === true);
-          
-          // Check if analysis needs update
-          if (analysisData.needsUpdate) {
-            console.log('Analysis needs update flag detected');
-            setNeedsUpdate(true);
-          } else {
-            setNeedsUpdate(false);
-          }
-        } else {
+        } else if (!cachedData) {
+          // Only set default message if we don't have cached data
           setHolisticAnalysis('No analysis available yet. Please upload some medical records first.');
           setNeedsUpdate(false);
           setAnalysisSource('');
           setRecordCount(0);
           setLastUpdated('');
+          
+          // Clear cached data if no analysis exists and no cached data
+          localStorage.removeItem(`analysis_${currentUser.uid}`);
         }
       } catch (err) {
         console.error('Error fetching analysis:', err);
+        // Don't clear existing data on error
+      } finally {
+        setDataLoaded(true);
+        setIsLoading(false);
       }
     }
 
@@ -201,7 +264,14 @@ export default function Analysis() {
   // Close chat when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (chatRef.current && !chatRef.current.contains(event.target as Node)) {
+      // Get the chat button element
+      const chatButton = document.querySelector('button[aria-label="Chat with AI"]');
+      
+      // Only close if the click is outside the chat AND not on the chat button
+      if (chatRef.current && 
+          !chatRef.current.contains(event.target as Node) && 
+          chatButton !== event.target && 
+          !chatButton?.contains(event.target as Node)) {
         setIsChatOpen(false);
       }
     };
@@ -237,6 +307,18 @@ export default function Analysis() {
         console.log('No records found, updating UI');
         setHolisticAnalysis('No health records found. Please upload some medical records first.');
         setIsUpdating(false);
+        
+        // Update localStorage to reflect no records
+        localStorage.setItem(`analysis_${currentUser.uid}`, JSON.stringify({
+          text: 'No health records found. Please upload some medical records first.',
+          generatedBy: '',
+          recordCount: 0,
+          updatedAt: new Date().toLocaleString(),
+          summariesUsed: false,
+          commentsUsed: false,
+          needsUpdate: false
+        }));
+        
         return;
       }
       
@@ -244,59 +326,83 @@ export default function Analysis() {
       const recordNames = recordsSnapshot.docs.map(doc => doc.data().name || doc.id).join(', ');
       console.log('Sending record names for analysis:', recordNames);
       
-      // Fetch detailed record information including summaries and comments
-      interface RecordDetail {
-        id: string;
-        name: string;
-        summary: string;
-        comments: string[];
-        date: string;
-        type: string;
-      }
-      
+      // Prepare record details for the prompt
       const recordDetails: RecordDetail[] = [];
       
-      // Fetch summaries and comments for each record
-      for (const recordDoc of recordsSnapshot.docs) {
-        const record = recordDoc.data();
-        const recordId = recordDoc.id;
+      // Process each record
+      for (const docSnapshot of recordsSnapshot.docs) {
+        const recordId = docSnapshot.id;
+        const record = docSnapshot.data();
         const recordName = record.name || recordId;
         
-        // Fetch the record's summary if it exists
+        console.log(`Processing record: ${recordName}`);
+        console.log(`Full record data for ${recordName}:`, JSON.stringify(record, null, 2));
+        
+        // Get the summary for this record
         let summary = '';
         try {
-          // First check if the record has an analysis field directly
-          if (record.analysis) {
-            summary = record.analysis;
-            console.log(`Found analysis directly on record ${recordName}: ${summary.substring(0, 50)}...`);
+          const summaryDocRef = doc(db, 'users', currentUser.uid, 'records', recordId, 'summary', 'latest');
+          const summaryDoc = await getDoc(summaryDocRef);
+          if (summaryDoc.exists()) {
+            const summaryData = summaryDoc.data();
+            summary = summaryData.text || '';
+            console.log(`Found summary for record ${recordName}: ${summary.substring(0, 50)}...`);
           } else {
-            // If not, try to fetch from the summaries collection
-            const summaryDoc = await getDoc(doc(db, `users/${currentUser.uid}/records/${recordId}/summaries`, 'main'));
-            if (summaryDoc.exists()) {
-              summary = summaryDoc.data()?.text || '';
-              console.log(`Found summary for record ${recordName}: ${summary.substring(0, 50)}...`);
-            } else {
-              console.log(`No summary found for record ${recordName}`);
-            }
+            console.log(`No summary found for record ${recordName}`);
           }
         } catch (summaryError) {
           console.error(`Error fetching summary for record ${recordName}:`, summaryError);
         }
         
-        // Fetch the record's comments if they exist
+        // Get comments for this record (include all comments)
         const comments: string[] = [];
+        
+        // First check if the record itself has a comment field
+        if (record.comment) {
+          comments.push(record.comment);
+          console.log(`Found comment directly in record ${recordName}: ${record.comment.substring(0, 50)}...`);
+        }
+        
+        // Check if the record has a comments field (plural)
+        if (record.comments) {
+          if (Array.isArray(record.comments)) {
+            comments.push(...record.comments);
+            console.log(`Found comments array directly in record ${recordName} with ${record.comments.length} items`);
+          } else if (typeof record.comments === 'string') {
+            comments.push(record.comments);
+            console.log(`Found comments string directly in record ${recordName}: ${record.comments.substring(0, 50)}...`);
+          } else if (typeof record.comments === 'object') {
+            comments.push(JSON.stringify(record.comments));
+            console.log(`Found comments object directly in record ${recordName}`);
+          }
+        }
+        
+        // Then check the comments collection
         try {
-          const commentsCollection = collection(db, `users/${currentUser.uid}/records/${recordId}/comments`);
+          const commentsCollection = collection(db, 'users', currentUser.uid, 'records', recordId, 'comments');
           const commentsSnapshot = await getDocs(commentsCollection);
+          
+          // Log the raw comments data for debugging
+          console.log(`Raw comments data for ${recordName}:`, commentsSnapshot.docs.map(doc => doc.data()));
+          
           commentsSnapshot.forEach(commentDoc => {
             const comment = commentDoc.data();
+            // Check for both 'text' field and direct comment content
             if (comment.text) {
               comments.push(comment.text);
-              console.log(`Found comment for record ${recordName}: ${comment.text.substring(0, 50)}...`);
+              console.log(`Found comment with text field for record ${recordName}: ${comment.text.substring(0, 50)}...`);
+            } else if (typeof comment === 'object' && Object.keys(comment).length > 0) {
+              // If there's no text field but there is content, stringify it
+              const commentContent = JSON.stringify(comment);
+              comments.push(commentContent);
+              console.log(`Found comment without text field for record ${recordName}: ${commentContent.substring(0, 50)}...`);
             }
           });
+          
           if (comments.length === 0) {
             console.log(`No comments found for record ${recordName}`);
+          } else {
+            console.log(`Found ${comments.length} comments for record ${recordName}`);
           }
         } catch (commentsError) {
           console.error(`Error fetching comments for record ${recordName}:`, commentsError);
@@ -306,27 +412,39 @@ export default function Analysis() {
         recordDetails.push({
           id: recordId,
           name: recordName,
-          summary: summary || (record.analysis ? record.analysis : ''),
-          comments: comments,
-          date: record.date || 'Unknown date',
-          type: record.type || 'Unknown type'
+          detailedAnalysis: record.detailedAnalysis || '',
+          comment: record.comment || '',
+          comments: comments
         });
+      }
+      
+      // Limit the number of records if there are too many (to prevent timeouts)
+      const MAX_RECORDS = 15;
+      let recordDetailsToSend = recordDetails;
+      if (recordDetails.length > MAX_RECORDS) {
+        console.log(`Limiting records from ${recordDetails.length} to ${MAX_RECORDS} to prevent timeout`);
+        // Take the first MAX_RECORDS records
+        recordDetailsToSend = recordDetails.slice(0, MAX_RECORDS);
       }
       
       // Add a delay to ensure Firestore operations are complete
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Log the record details being sent
-      console.log('Record details being sent:', JSON.stringify(recordDetails, null, 2));
+      console.log('Record details being sent:', JSON.stringify(recordDetailsToSend, null, 2));
       
       // Make API call to generate new analysis
-      console.log('Making API call to /api/analyze-simple...');
+      console.log('Making API call to /api/analyze...');
       try {
         // Log the record details being sent
-        console.log('Sending record details to API:', recordDetails.length);
-        console.log('First record details:', recordDetails.length > 0 ? JSON.stringify(recordDetails[0], null, 2) : 'No records');
+        console.log('Sending record details to API:', recordDetailsToSend.length);
+        console.log('First record details:', recordDetailsToSend.length > 0 ? JSON.stringify(recordDetailsToSend[0], null, 2) : 'No records');
         
-        const response = await fetch('/api/analyze-simple', {
+        // Create an AbortController to handle timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 50000); // 50 second timeout
+        
+        const response = await fetch('/api/analyze', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -335,10 +453,14 @@ export default function Analysis() {
           body: JSON.stringify({
             userId: currentUser.uid,
             recordNames: recordNames,
-            recordDetails: recordDetails, // Include the detailed record information
+            recordDetails: recordDetailsToSend, // Send the limited record details
             timestamp: new Date().getTime() // Add timestamp to prevent caching
           }),
+          signal: controller.signal
         });
+        
+        // Clear the timeout since the request completed
+        clearTimeout(timeoutId);
 
         console.log('API response status:', response.status);
         
@@ -351,21 +473,25 @@ export default function Analysis() {
         const data = await response.json();
         console.log('Received analysis response:', data);
         
-        if (data.analysis) {
+        if (data && data.analysis) {
+          // Store the current analysis before updating
+          const previousAnalysis = holisticAnalysis;
+          
+          console.log('Analysis received from API:', data.analysis.substring(0, 100) + '...');
+          console.log('Firestore saved status:', data.firestoreSaved);
+          
           setHolisticAnalysis(data.analysis);
           
-          // Set the analysis source
+          // Set the record count
+          setRecordCount(recordsSnapshot.docs.length);
+          
+          // Set the last updated timestamp
+          setLastUpdated(new Date().toLocaleString());
+          
+          // Set the analysis source if available
           if (data.generatedBy) {
             setAnalysisSource(data.generatedBy);
           }
-          
-          // Set the record count
-          if (data.recordCount) {
-            setRecordCount(data.recordCount);
-          }
-          
-          // Set last updated timestamp
-          setLastUpdated(new Date().toLocaleString());
           
           // Set performance metrics if available
           if (data.performance) {
@@ -376,16 +502,17 @@ export default function Analysis() {
           setSummariesUsed(data.summariesUsed === true);
           setCommentsUsed(data.commentsUsed === true);
           
-          // Save the analysis to Firestore and clear the needsUpdate flag
+          // Save the analysis to Firestore if the API didn't already do it
           try {
-            // Check if the API reported any Firestore errors
-            if (data.firestoreError) {
-              console.log('API reported Firestore error, saving locally');
+            if (!data.firestoreSaved) {
+              console.log('API did not save to Firestore, saving locally');
               // Save the analysis locally as a fallback
               await setDoc(doc(db, `users/${currentUser.uid}/analysis`, 'holistic'), {
                 text: data.analysis,
                 updatedAt: serverTimestamp(),
                 needsUpdate: false,
+                recordCount: recordsSnapshot.docs.length,
+                generatedBy: data.generatedBy || 'openai',
                 summariesUsed: data.summariesUsed === true,
                 commentsUsed: data.commentsUsed === true
               });
@@ -393,10 +520,43 @@ export default function Analysis() {
             } else {
               // The API already saved to Firestore, so we just need to update the UI
               console.log('Analysis saved by API, updating UI');
+              
+              // Verify the data was saved correctly by fetching it
+              const verifyDoc = await getDoc(doc(db, `users/${currentUser.uid}/analysis`, 'holistic'));
+              if (verifyDoc.exists() && verifyDoc.data().text === data.analysis) {
+                console.log('Verified analysis was saved correctly to Firestore');
+              } else {
+                console.warn('Analysis verification failed, saving locally as backup');
+                await setDoc(doc(db, `users/${currentUser.uid}/analysis`, 'holistic'), {
+                  text: data.analysis,
+                  updatedAt: serverTimestamp(),
+                  needsUpdate: false,
+                  recordCount: recordsSnapshot.docs.length,
+                  generatedBy: data.generatedBy || 'openai',
+                  summariesUsed: data.summariesUsed === true,
+                  commentsUsed: data.commentsUsed === true
+                });
+              }
             }
             setNeedsUpdate(false);
+            
+            // Update localStorage with the new analysis data
+            const cacheData = {
+              text: data.analysis,
+              generatedBy: data.generatedBy || '',
+              recordCount: recordsSnapshot.docs.length,
+              updatedAt: new Date().toLocaleString(),
+              summariesUsed: data.summariesUsed === true,
+              commentsUsed: data.commentsUsed === true,
+              needsUpdate: false
+            };
+            
+            localStorage.setItem(`analysis_${currentUser.uid}`, JSON.stringify(cacheData));
+            console.log('Analysis data cached in localStorage:', cacheData);
           } catch (saveError) {
             console.error('Error updating UI after analysis:', saveError);
+            // Revert to previous analysis on error
+            setHolisticAnalysis(previousAnalysis);
           }
         } else {
           console.error('No analysis data received from API');
@@ -414,10 +574,135 @@ export default function Analysis() {
     }
   };
 
-  // Function to format analysis text by removing stars from headings and applying proper styling
+  // Function to format analysis text by parsing XML-like tags and applying proper styling
   const formatAnalysisText = (text: string) => {
     if (!text) return null;
 
+    // Function to extract content from XML-like tags
+    const extractTagContent = (text: string, tagName: string) => {
+      const regex = new RegExp(`<${tagName}>\\s*([\\s\\S]*?)\\s*<\\/${tagName}>`, 'i');
+      const match = text.match(regex);
+      return match ? match[1].trim() : null;
+    };
+
+    // Check if the text contains XML-like tags
+    const hasXmlTags = /<[A-Z_]+>[\s\S]*?<\/[A-Z_]+>/i.test(text);
+
+    if (hasXmlTags) {
+      // Parse XML-like tags
+      const sections = [];
+      let sectionIndex = 0;
+
+      // Check for KEY_FINDINGS
+      const keyFindings = extractTagContent(text, 'KEY_FINDINGS');
+      if (keyFindings) {
+        sections.push(
+          <div key={`section-${sectionIndex++}`}>
+            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Key Findings</h3>
+            {keyFindings.split('\n').map((line, idx) => 
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+            )}
+          </div>
+        );
+      }
+
+      // Check for HEALTH_CONCERNS or POTENTIAL_CONCERNS
+      const healthConcerns = extractTagContent(text, 'HEALTH_CONCERNS') || extractTagContent(text, 'POTENTIAL_CONCERNS');
+      if (healthConcerns) {
+        sections.push(
+          <div key={`section-${sectionIndex++}`}>
+            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Health Concerns</h3>
+            {healthConcerns.split('\n').map((line, idx) => 
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+            )}
+          </div>
+        );
+      }
+
+      // Check for PATTERNS
+      const patterns = extractTagContent(text, 'PATTERNS');
+      if (patterns) {
+        sections.push(
+          <div key={`section-${sectionIndex++}`}>
+            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Patterns & Trends</h3>
+            {patterns.split('\n').map((line, idx) => 
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+            )}
+          </div>
+        );
+      }
+
+      // Check for RECOMMENDATIONS or FOLLOW_UP
+      const recommendations = extractTagContent(text, 'RECOMMENDATIONS') || extractTagContent(text, 'FOLLOW_UP');
+      if (recommendations) {
+        sections.push(
+          <div key={`section-${sectionIndex++}`}>
+            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Recommendations</h3>
+            {recommendations.split('\n').map((line, idx) => 
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+            )}
+          </div>
+        );
+      }
+
+      // Check for QUESTIONS
+      const questions = extractTagContent(text, 'QUESTIONS');
+      if (questions) {
+        sections.push(
+          <div key={`section-${sectionIndex++}`}>
+            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Questions to Ask Your Doctor</h3>
+            {questions.split('\n').map((line, idx) => 
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+            )}
+          </div>
+        );
+      }
+
+      // Check for ANSWER (from question API)
+      const answer = extractTagContent(text, 'ANSWER');
+      if (answer) {
+        sections.push(
+          <div key={`section-${sectionIndex++}`}>
+            {answer.split('\n').map((line, idx) => 
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+            )}
+          </div>
+        );
+      }
+
+      // Check for RELEVANT_RECORDS
+      const relevantRecords = extractTagContent(text, 'RELEVANT_RECORDS');
+      if (relevantRecords) {
+        sections.push(
+          <div key={`section-${sectionIndex++}`}>
+            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Relevant Records</h3>
+            {relevantRecords.split('\n').map((line, idx) => 
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+            )}
+          </div>
+        );
+      }
+
+      // Check for ADDITIONAL_CONTEXT
+      const additionalContext = extractTagContent(text, 'ADDITIONAL_CONTEXT');
+      if (additionalContext) {
+        sections.push(
+          <div key={`section-${sectionIndex++}`}>
+            <h3 className="text-xl font-semibold text-primary-blue mt-4 mb-2">Additional Context</h3>
+            {additionalContext.split('\n').map((line, idx) => 
+              line.trim() ? <p key={idx} className="text-gray-800 mb-2">{line}</p> : <br key={idx} />
+            )}
+          </div>
+        );
+      }
+
+      // If we found and processed XML tags, return the formatted sections
+      if (sections.length > 0) {
+        return sections;
+      }
+    }
+
+    // Fallback to the original formatting if no XML tags were found or processed
     // Split the text into lines
     const lines = text.split('\n');
     
@@ -460,7 +745,7 @@ export default function Analysis() {
   return (
     <ProtectedRoute>
       <div className="p-6 pt-20">
-        <HomeNavigation />
+        <Navigation isHomePage={true} />
         
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold text-primary-blue">My Health Analysis</h1>
@@ -534,8 +819,16 @@ export default function Analysis() {
         )}
 
         <div className="bg-white/90 backdrop-blur-sm p-6 rounded-md shadow-md mb-6">
-          {holisticAnalysis === 'No analysis available yet. Please upload some medical records first.' || 
-           holisticAnalysis === 'No health records found. Please upload some medical records first.' ? (
+          {isLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <svg className="animate-spin h-8 w-8 text-primary-blue" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 100 12v2a8 8 0 01-8-8z"></path>
+              </svg>
+              <span className="ml-2 text-gray-600">Loading your health analysis...</span>
+            </div>
+          ) : holisticAnalysis === 'No analysis available yet. Please upload some medical records first.' || 
+             holisticAnalysis === 'No health records found. Please upload some medical records first.' ? (
             <p className="text-gray-800 text-lg">{holisticAnalysis}</p>
           ) : (
             <div className="text-gray-800">

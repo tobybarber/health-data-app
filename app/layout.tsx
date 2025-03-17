@@ -25,7 +25,7 @@ export default function RootLayout({
         <main className="min-h-screen">
           <div className="relative min-h-screen">
             {/* Background Image with increased opacity */}
-            <div className="absolute inset-0 z-0 bg-black/40">
+            <div className="absolute inset-0 z-0 bg-black/40 fixed">
               <Image
                 src="/images/logo.jpg"
                 alt="Wattle Health Logo"
