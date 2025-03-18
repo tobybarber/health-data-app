@@ -35,7 +35,7 @@ export default function ForgotPassword() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-6">
-      <Link href="/" className="mb-8 text-3xl font-bold text-primary-blue">Wombat</Link>
+      <Link href="/" className="mb-8 text-3xl font-bold text-primary-blue">Wattle</Link>
       
       <form onSubmit={handleSubmit} className="w-full max-w-md">
         <div className="bg-black p-6 rounded-lg shadow-sm border border-gray-800">

@@ -63,7 +63,7 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
       <>
         {/* Navigation Header */}
         <header className="bg-black/80 backdrop-blur-sm p-4 flex justify-between items-center shadow-md w-full absolute top-0 left-0 right-0">
-          <Link href="/about" className="text-2xl font-bold text-white">Fox Health Vault</Link>
+          <Link href="/about" className="text-2xl font-bold text-white">Wattle</Link>
           <div className="flex items-center space-x-4">
             {currentUser && (
               <Link href="/profile" className="text-white flex items-center border border-gray-600 rounded-full py-1 px-3 hover:border-gray-400 transition-colors">
@@ -84,7 +84,7 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
         {currentUser ? (
           // Authenticated navigation
           <>
-            <Link href="/about" className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Fox Health Vault</Link>
+            <Link href="/about" className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Wattle</Link>
             <div className="flex items-center space-x-4">
               <Link 
                 href="/profile" 
@@ -99,7 +99,7 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
         ) : (
           // Unauthenticated navigation
           <>
-            <Link href="/about" className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Fox Health Vault</Link>
+            <Link href="/about" className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Wattle</Link>
             <div className="flex items-center space-x-4">
               <Link 
                 href="/login" 

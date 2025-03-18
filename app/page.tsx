@@ -157,7 +157,7 @@ export default function Home() {
         {!currentUser ? (
           <div className="flex flex-col items-center justify-center h-screen px-4">
             <div className="bg-black/80 p-6 rounded-lg shadow-lg text-center max-w-sm w-full backdrop-blur-sm border border-gray-800">
-              <h1 className="text-3xl font-bold text-white mb-6">Welcome to Fox Health Vault</h1>
+              <h1 className="text-3xl font-bold text-white mb-6">Welcome to Wattle</h1>
               <p className="mb-8 text-gray-300">Your personal health assistant powered by AI</p>
               <div className="space-y-4">
                 <Link 
@@ -176,72 +176,75 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <div className="p-2 pb-safe">
-            {/* Remove the bottom navigation from here since it's now in the ClientWrapper */}
+          <div className="p-2 pb-safe flex flex-col h-[calc(100vh-120px)]">
             
-            {/* AI Chat Section - Adjusted to account for bottom navigation */}
-            <div className="mt-6 bg-black/80 backdrop-blur-sm p-3 rounded-lg shadow-md w-full">
-              <div className="bg-black rounded-lg p-3">
-                <div className="flex justify-end items-center mb-2">
-                  <button
-                    onClick={handleNewChat}
-                    className="text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 py-1 px-2 rounded transition-colors"
-                    aria-label="Start a new chat"
-                  >
-                    New Chat
-                  </button>
+            {/* Messages displayed directly on background */}
+            <div className="flex-grow overflow-y-auto hide-scrollbar mb-2 pt-4">
+              {messages.length === 0 ? (
+                <div className="text-gray-200 text-center py-4">
+                  
                 </div>
-                <div className="h-80 overflow-y-auto mb-3 bg-gray-800 rounded-lg p-2">
-                  {messages.length === 0 ? (
-                    <div className="text-gray-200 text-center py-4">
-                      Ask questions about your health records.
+              ) : (
+                messages.map((msg, index) => (
+                  <div key={index} className="mb-5">
+                    {/* User message - right aligned, darker gray */}
+                    <div className="flex justify-end mb-3">
+                      <div className="bg-gray-700 p-3 rounded-2xl text-gray-100 max-w-[80%]">{msg.user}</div>
                     </div>
-                  ) : (
-                    messages.map((msg, index) => (
-                      <div key={index} className="mb-3">
-                        <div className="font-semibold text-white">You:</div>
-                        <div className="bg-gray-600 p-2 rounded-lg mb-2 text-gray-200">{msg.user}</div>
-                        {msg.ai ? (
-                          <>
-                            <div className="font-semibold text-white">AI:</div>
-                            <div style={{backgroundColor: '#4338ca', borderColor: '#6366f1', borderWidth: '2px'}} className="p-2 rounded-lg whitespace-pre-line text-white">{msg.ai}</div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="font-semibold text-white">AI:</div>
-                            <div style={{backgroundColor: '#4338ca', borderColor: '#6366f1', borderWidth: '2px'}} className="flex items-center text-white p-2 rounded-lg">
-                              <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 100 12v2a8 8 0 01-8-8z"></path>
-                              </svg>
-                              Thinking...
-                            </div>
-                          </>
-                        )}
+                    
+                    {/* AI message - left aligned, no background/border */}
+                    {msg.ai ? (
+                      <div className="flex justify-start">
+                        <div className="text-white max-w-[80%] whitespace-pre-line pl-3">{msg.ai}</div>
                       </div>
-                    ))
-                  )}
-                  <div ref={messagesEndRef} /> {/* Scroll anchor */}
-                </div>
-                
-                <form onSubmit={handleSendMessage} className="flex w-full">
-                  <input
-                    type="text"
-                    value={userInput}
-                    onChange={(e) => setUserInput(e.target.value)}
-                    className="border border-gray-600 rounded-l-xl p-2 flex-grow bg-gray-700 text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-blue"
-                    placeholder="Type your question here..."
-                    disabled={isAiResponding}
-                  />
-                  <button 
-                    type="submit" 
-                    className={`bg-gray-500 text-white rounded-r-xl p-2 px-4 ${isAiResponding ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-400'}`}
-                    disabled={isAiResponding}
-                  >
-                    Send
-                  </button>
-                </form>
-              </div>
+                    ) : (
+                      <div className="flex justify-start">
+                        <div className="flex items-center text-white pl-3">
+                          <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 100 12v2a8 8 0 01-8-8z"></path>
+                          </svg>
+                          Thinking...
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} /> {/* Scroll anchor */}
+            </div>
+            
+            {/* Question input moved lower */}
+            <div className="mt-auto pb-1">
+              <form onSubmit={handleSendMessage} className="flex w-full">
+                <input
+                  type="text"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  className="border border-gray-600 rounded-l-xl p-3 flex-grow bg-gray-800/80 backdrop-blur-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-blue"
+                  placeholder="Ask about your health records."
+                  disabled={isAiResponding}
+                />
+                <button 
+                  type="submit" 
+                  className={`bg-gray-600 text-white rounded-r-xl p-3 ${isAiResponding ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-500'}`}
+                  disabled={isAiResponding}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handleNewChat}
+                  className="ml-2 bg-gray-800 hover:bg-gray-700 text-gray-300 p-3 rounded-xl transition-colors"
+                  aria-label="Start a new chat"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </form>
+              <p className="text-xs text-gray-500 mt-1 pl-1">AI can get things wrong, use at own risk!</p>
             </div>
           </div>
         )}
