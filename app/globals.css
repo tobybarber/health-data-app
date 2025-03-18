@@ -8,10 +8,14 @@
   --background-end-rgb: 0, 0, 0;
   --primary-blue: 59, 130, 246;
   --primary-green: 16, 185, 129;
+  --app-height: 100vh;
+  --vh: 1vh; /* Fix for iOS vh units */
 }
 
 html {
   min-height: 100%;
+  min-height: var(--app-height);
+  min-height: calc(var(--vh, 1vh) * 100);
 }
 
 body {
@@ -24,6 +28,35 @@ body {
     rgb(var(--background-start-rgb));
   font-family: 'Roboto', sans-serif;
   -webkit-overflow-scrolling: touch; /* Improve scrolling on iOS */
+  min-height: var(--app-height);
+  overscroll-behavior-y: none; /* Prevent pull-to-refresh in iOS */
+}
+
+/* iOS standalone mode (added to home screen) */
+body.standalone-mode {
+  /* Remove any default margins and padding */
+  margin: 0;
+  padding: 0;
+  /* Ensure content fills the screen */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  height: var(--app-height);
+  height: calc(var(--vh, 1vh) * 100);
+  overflow: hidden;
+}
+
+/* Make main content scrollable in standalone mode */
+body.standalone-mode main {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  height: 100%;
+  height: var(--app-height);
+  height: calc(var(--vh, 1vh) * 100);
 }
 
 /* iOS select element styling fix */
