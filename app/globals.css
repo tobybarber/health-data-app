@@ -120,7 +120,7 @@ select {
 
 /* Add padding to the bottom of the page content to account for the bottom navigation */
 .pb-safe {
-  padding-bottom: calc(1rem + 80px); /* Adjust based on the height of your bottom navigation */
+  padding-bottom: calc(1rem + 94px); /* Adjusted for the new bottom navigation position */
 }
 
 /* Add padding to the top of the page content to account for the fixed top navigation */
