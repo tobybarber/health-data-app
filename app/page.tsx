@@ -14,10 +14,38 @@ export default function Home() {
   const [isAiResponding, setIsAiResponding] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
-  // Scroll to bottom of messages when new message is added
-  useEffect(() => {
+  // Function to manually scroll to the bottom when button is clicked
+  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Listen for scroll events to determine if scroll button should be shown
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!messagesEndRef.current) return;
+      
+      const messagesContainer = document.querySelector('.messages-container');
+      if (messagesContainer) {
+        const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
+        // Show button if not scrolled to bottom (with small threshold)
+        setShowScrollButton(scrollHeight - scrollTop - clientHeight > 20);
+      }
+    };
+
+    const messagesContainer = document.querySelector('.messages-container');
+    if (messagesContainer) {
+      messagesContainer.addEventListener('scroll', handleScroll);
+      return () => messagesContainer.removeEventListener('scroll', handleScroll);
+    }
+  }, [messages]);
+
+  // Scroll to bottom of messages when a new user message is added (but not for AI responses)
+  useEffect(() => {
+    if (messages.length > 0 && messages[messages.length - 1].ai === '') {
+      scrollToBottom();
+    }
   }, [messages]);
 
   // Close chat when clicking outside
@@ -179,7 +207,7 @@ export default function Home() {
           <div className="p-2 pb-safe flex flex-col h-[calc(100vh-120px)]">
             
             {/* Messages displayed directly on background */}
-            <div className="flex-grow overflow-y-auto hide-scrollbar mb-2 pt-4">
+            <div className="flex-grow overflow-y-auto hide-scrollbar mb-2 pt-4 pb-20 messages-container relative">
               {messages.length === 0 ? (
                 <div className="text-gray-200 text-center py-4">
                   
@@ -212,10 +240,23 @@ export default function Home() {
                 ))
               )}
               <div ref={messagesEndRef} /> {/* Scroll anchor */}
+              
+              {/* Scroll to bottom button */}
+              {showScrollButton && (
+                <button
+                  onClick={scrollToBottom}
+                  className="fixed bottom-24 right-4 bg-gray-700 text-white rounded-full p-2 shadow-lg hover:bg-gray-600 transition-colors"
+                  aria-label="Scroll to bottom"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" transform="rotate(180,10,10)" />
+                  </svg>
+                </button>
+              )}
             </div>
             
             {/* Question input moved lower */}
-            <div className="mt-auto pb-1">
+            <div className="fixed bottom-[68px] left-0 right-0 px-4 py-2 bg-black/40 backdrop-blur-sm z-10">
               <form onSubmit={handleSendMessage} className="flex w-full">
                 <input
                   type="text"

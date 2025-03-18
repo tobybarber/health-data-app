@@ -258,7 +258,7 @@ export default function Upload() {
                 onClick={handleFileUpload}
                 className="text-white px-4 py-2 rounded-md border border-primary-blue hover:bg-black/20 transition-colors"
               >
-                Upload Health Record
+                Upload File/Photo
               </button>
               <p className="mt-2 text-sm text-gray-400">
                 Supported formats: PDF, JPG, PNG (Max 10MB per file)

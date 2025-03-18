@@ -119,7 +119,7 @@ export default function ProfilePage() {
     <ProtectedRoute>
       <div className="pb-safe">
         <Navigation isHomePage={true} />
-        <div className="max-w-2xl mx-auto p-4">
+        <div className="max-w-2xl mx-auto p-4 pt-16">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-primary-blue">Your Profile</h1>
             <button 
@@ -156,7 +156,7 @@ export default function ProfilePage() {
               
               <button 
                 onClick={() => setShowChangePassword(true)}
-                className="bg-primary-blue text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors"
+                className="text-primary-blue border border-primary-blue px-4 py-2 rounded-md hover:bg-gray-800/20 transition-colors"
               >
                 Change Password
               </button>
@@ -167,7 +167,7 @@ export default function ProfilePage() {
               
               <button 
                 onClick={() => setShowDeleteAccount(true)}
-                className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
+                className="text-red-600 border border-red-600 px-4 py-2 rounded-md hover:bg-red-600/10 transition-colors"
               >
                 Delete Account
               </button>
@@ -196,10 +196,10 @@ export default function ProfilePage() {
             <p className="text-gray-600">Loading profile...</p>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
+              <div className="bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-700">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-1">
                       Name
                     </label>
                     <input
@@ -208,13 +208,13 @@ export default function ProfilePage() {
                       name="name"
                       value={profile.name}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 text-gray-800"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue text-white placeholder-gray-400"
                       placeholder="Enter your name"
                     />
                   </div>
                   
                   <div>
-                    <label htmlFor="age" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="age" className="block text-sm font-medium text-gray-300 mb-1">
                       Year of Birth
                     </label>
                     <input
@@ -223,7 +223,7 @@ export default function ProfilePage() {
                       name="age"
                       value={profile.age}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 text-gray-800"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue text-white placeholder-gray-400"
                       placeholder="Enter your year of birth"
                       min="1900"
                       max={new Date().getFullYear()}
@@ -231,7 +231,7 @@ export default function ProfilePage() {
                   </div>
                   
                   <div>
-                    <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="gender" className="block text-sm font-medium text-gray-300 mb-1">
                       Gender
                     </label>
                     <select
@@ -239,7 +239,7 @@ export default function ProfilePage() {
                       name="gender"
                       value={profile.gender}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 text-gray-800"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue text-white"
                     >
                       <option value="">Select gender</option>
                       <option value="male">Male</option>
@@ -250,7 +250,7 @@ export default function ProfilePage() {
                   </div>
                   
                   <div>
-                    <label htmlFor="height" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="height" className="block text-sm font-medium text-gray-300 mb-1">
                       Height (cm)
                     </label>
                     <input
@@ -259,13 +259,13 @@ export default function ProfilePage() {
                       name="height"
                       value={profile.height}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 text-gray-800"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue text-white placeholder-gray-400"
                       placeholder="Enter your height in cm"
                     />
                   </div>
                   
                   <div>
-                    <label htmlFor="weight" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="weight" className="block text-sm font-medium text-gray-300 mb-1">
                       Weight (kg)
                     </label>
                     <input
@@ -274,13 +274,13 @@ export default function ProfilePage() {
                       name="weight"
                       value={profile.weight}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 text-gray-800"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue text-white placeholder-gray-400"
                       placeholder="Enter your weight in kg"
                     />
                   </div>
                   
                   <div>
-                    <label htmlFor="smoking" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="smoking" className="block text-sm font-medium text-gray-300 mb-1">
                       Smoking Status
                     </label>
                     <select
@@ -288,7 +288,7 @@ export default function ProfilePage() {
                       name="smoking"
                       value={profile.smoking}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 text-gray-800"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue text-white"
                     >
                       <option value="">Select status</option>
                       <option value="never">Never smoked</option>
@@ -299,7 +299,7 @@ export default function ProfilePage() {
                   </div>
                   
                   <div>
-                    <label htmlFor="alcohol" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="alcohol" className="block text-sm font-medium text-gray-300 mb-1">
                       Alcohol Consumption
                     </label>
                     <select
@@ -307,7 +307,7 @@ export default function ProfilePage() {
                       name="alcohol"
                       value={profile.alcohol}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 text-gray-800"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue text-white"
                     >
                       <option value="">Select consumption</option>
                       <option value="none">None</option>
@@ -318,7 +318,7 @@ export default function ProfilePage() {
                   </div>
                   
                   <div>
-                    <label htmlFor="diet" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="diet" className="block text-sm font-medium text-gray-300 mb-1">
                       Diet
                     </label>
                     <select
@@ -326,7 +326,7 @@ export default function ProfilePage() {
                       name="diet"
                       value={profile.diet}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 text-gray-800"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue text-white"
                     >
                       <option value="">Select diet type</option>
                       <option value="whole-foods">Mostly whole foods (fruits, vegetables, lean meats, whole grains)</option>
@@ -337,7 +337,7 @@ export default function ProfilePage() {
                   </div>
                   
                   <div>
-                    <label htmlFor="exercise" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="exercise" className="block text-sm font-medium text-gray-300 mb-1">
                       Exercise Frequency
                     </label>
                     <select
@@ -345,7 +345,7 @@ export default function ProfilePage() {
                       name="exercise"
                       value={profile.exercise}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 text-gray-800"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue text-white"
                     >
                       <option value="">Select frequency</option>
                       <option value="sedentary">Sedentary (little to no exercise)</option>
@@ -357,7 +357,7 @@ export default function ProfilePage() {
                   </div>
                   
                   <div className="md:col-span-2">
-                    <label htmlFor="familyHistory" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="familyHistory" className="block text-sm font-medium text-gray-300 mb-1">
                       Family Medical History
                     </label>
                     <textarea
@@ -366,7 +366,7 @@ export default function ProfilePage() {
                       value={profile.familyHistory}
                       onChange={handleChange}
                       rows={4}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 text-gray-800"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue text-white placeholder-gray-400"
                       placeholder="Enter relevant family medical history (e.g., heart disease, diabetes, cancer)"
                     ></textarea>
                   </div>
