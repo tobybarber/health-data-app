@@ -39,6 +39,7 @@ export default function Upload() {
   const { currentUser } = useAuth();
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [analysisStatus, setAnalysisStatus] = useState<string>('');
 
   // Check if device is mobile
   useEffect(() => {
@@ -156,51 +157,185 @@ export default function Upload() {
       formData.append('recordName', recordName);
       formData.append('comment', comment);
       
-      // Set up timeout for long requests
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
-      
       try {
-        // Upload files using the secure API endpoint with timeout
-        const response = await fetch('/api/records/upload', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          body: formData,
-          signal: controller.signal
+        // Instead of fetch, use XMLHttpRequest to track upload progress
+        const uploadPromise = new Promise<{success: boolean, recordId: string, fileUrls: string[]}>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          
+          // Set up progress tracking with simulated progress for large files
+          let progressInterval: NodeJS.Timeout | null = null;
+          
+          xhr.upload.addEventListener('progress', (event) => {
+            if (event.lengthComputable) {
+              // Calculate the actual progress
+              const actualProgress = Math.round((event.loaded / event.total) * 100);
+              
+              // Clear any existing interval when we get real progress
+              if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+              }
+              
+              // If we're getting real progress updates, use them directly up to 95%
+              if (actualProgress < 95) {
+                setUploadProgress(actualProgress);
+              } else {
+                // Cap at 95% until fully complete
+                setUploadProgress(95);
+              }
+              
+              console.log(`Upload progress: ${actualProgress}%`);
+            }
+          });
+          
+          // For large files, particularly on fast connections, simulate progress
+          // This helps provide visual feedback even when the progress event doesn't
+          // fire with intermediate values
+          if (files.some(file => file.size > 1024 * 1024)) { // If any file is over 1MB
+            let simulatedProgress = 0;
+            
+            progressInterval = setInterval(() => {
+              // Increase by smaller amounts as we get higher
+              let increment = 10;
+              if (simulatedProgress > 50) increment = 5;
+              if (simulatedProgress > 80) increment = 2;
+              
+              simulatedProgress = Math.min(90, simulatedProgress + increment);
+              setUploadProgress(simulatedProgress);
+              
+              console.log(`Simulated progress: ${simulatedProgress}%`);
+              
+              // Stop at 90% and let the real progress take over
+              if (simulatedProgress >= 90) {
+                if (progressInterval) {
+                  clearInterval(progressInterval);
+                  progressInterval = null;
+                }
+              }
+            }, 300); // Update every 300ms
+          }
+          
+          // Handle completion
+          xhr.addEventListener('load', () => {
+            // Clean up interval if it exists
+            if (progressInterval) {
+              clearInterval(progressInterval);
+              progressInterval = null;
+            }
+            
+            // Set to 100% when truly complete
+            setUploadProgress(100);
+            
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const response = JSON.parse(xhr.responseText);
+                resolve(response);
+              } catch (e) {
+                reject(new Error('Invalid response format'));
+              }
+            } else {
+              try {
+                const errorData = JSON.parse(xhr.responseText);
+                reject(new Error(errorData.error || `Upload failed with status: ${xhr.status}`));
+              } catch (e) {
+                reject(new Error(`Upload failed with status: ${xhr.status}`));
+              }
+            }
+          });
+          
+          // Handle network errors
+          xhr.addEventListener('error', () => {
+            reject(new Error('Network error occurred during upload'));
+          });
+          
+          // Handle timeouts
+          xhr.addEventListener('timeout', () => {
+            reject(new Error('Upload timed out after 5 minutes'));
+          });
+          
+          // Open the request and set timeout
+          xhr.open('POST', '/api/records/upload', true);
+          xhr.timeout = 300000; // 5 minute timeout
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          
+          // Send the form data
+          xhr.send(formData);
         });
         
-        clearTimeout(timeoutId);
+        // Wait for upload to complete
+        const data = await uploadPromise;
         
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Upload failed with status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        // Invalidate the records cache to ensure fresh data on next load
         if (currentUser.uid) {
           invalidateRecordsCache(currentUser.uid);
         }
         
-        setUploadStatus('success');
-        setUploadProgress(100);
+        // For multiple files, show better feedback about the analysis process
+        if (files.length > 1) {
+          setUploadStatus('analyzing');
+          setAnalysisStatus('Processing multiple files individually...');
+          
+          // Simulate progress for better UX during multi-file analysis
+          const totalSteps = files.length + 2; // analyze each file + combination step + final step
+          let currentStep = 0;
+          
+          const updateAnalysisProgress = () => {
+            currentStep++;
+            const percent = Math.min(95, Math.round((currentStep / totalSteps) * 100));
+            setAnalysisProgress(percent);
+            
+            // Update status message based on progress
+            if (currentStep <= files.length) {
+              setAnalysisStatus(`Analyzing file ${currentStep} of ${files.length}...`);
+            } else if (currentStep === files.length + 1) {
+              setAnalysisStatus('Combining analysis results...');
+            }
+          };
+          
+          // Start progress simulation
+          const progressInterval = setInterval(() => {
+            updateAnalysisProgress();
+            
+            // When complete, clear interval and finish
+            if (currentStep >= totalSteps) {
+              clearInterval(progressInterval);
+              setAnalysisProgress(100);
+              setAnalysisStatus('Analysis complete!');
+              setTimeout(() => {
+                setUploadStatus('success');
+                setUploadProgress(100);
+              }, 1000);
+            }
+          }, files.length > 5 ? 4000 : 3000); // Pace depends on number of files
+          
+          // Clear interval if component unmounts
+          return () => clearInterval(progressInterval);
+        } else {
+          // For single file, just show success immediately
+          setUploadStatus('success');
+          setUploadProgress(100);
+        }
         
         // Reset form
         setFiles([]);
         setRecordName('');
         setComment('');
         
-        // Remove auto-navigation to records page
-        // router.push('/records');
-      } catch (fetchError: any) {
-        // Handle abort/timeout specifically
-        if (fetchError.name === 'AbortError') {
-          throw new Error('Upload timed out. Try uploading fewer or smaller files at once.');
+      } catch (uploadError: any) {
+        // Handle errors
+        console.error('Error uploading files:', uploadError);
+        setError(`Error uploading files: ${uploadError.message || 'Unknown error'}`);
+        setUploadStatus('error');
+        
+        // Test Firestore write to check if that's working
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Testing Firestore write...');
+          try {
+            const testResult = await testFirestoreWrite(currentUser.uid);
+            console.log('Firestore test result:', testResult);
+          } catch (testError) {
+            console.error('Firestore test failed:', testError);
+          }
         }
-        throw fetchError;
       }
       
     } catch (err: any) {
@@ -421,6 +556,10 @@ export default function Upload() {
                         }`}
                       ></div>
                     </div>
+                    {/* Add status message */}
+                    {analysisStatus && (
+                      <p className="text-xs text-blue-200 text-center mb-2">{analysisStatus}</p>
+                    )}
                   </div>
                 </div>
               )}

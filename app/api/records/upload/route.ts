@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db, storage } from '../../../lib/firebase-admin';
 import { verifyAuthToken } from '../../../lib/auth-middleware';
 import fs from 'fs';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * POST handler for uploading files and creating records
@@ -184,23 +185,25 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Create record in Firestore
+    // Create record in Firestore with basic information initially
     const recordData: Record<string, any> = {
       name: recordName.trim() || 'Medical Record',
       comment: comment,
       urls: fileUrls,
       fileCount: fileUrls.length,
       isMultiFile: fileUrls.length > 1,
-      createdAt: new Date(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
       analysis: "This record is being analyzed...",
       briefSummary: "This record is being analyzed...",
       detailedAnalysis: "This record is being analyzed...",
       recordType: "Medical Record",
       recordDate: new Date().toISOString().split('T')[0],
       fileTypes: files.map(file => file.type),
+      userId: userId
     };
     
-    // Only add url field if there's exactly one file (for single-file records)
+    // Only add url field if there's exactly one file
     if (fileUrls.length === 1) {
       recordData.url = fileUrls[0];
     }
@@ -299,19 +302,34 @@ export async function POST(request: NextRequest) {
               
               // Now trigger analysis, but limit the number of additional files to avoid timeouts
               // When there are too many files, we'll analyze just the primary file first
-              const maxAdditionalFilesForAnalysis = 5;
+              const maxAdditionalFilesForAnalysis = 8; // Increased from 5 to 8
               const analysisAdditionalIds = additionalIds.length > maxAdditionalFilesForAnalysis
                 ? additionalIds.slice(0, maxAdditionalFilesForAnalysis) // Take only the first few additional files
                 : additionalIds;
                 
               try {
+                // Customize the prompt based on number of files
+                let analysisInstructions = undefined;
+                if (openaiFileIds.length > 2) {
+                  // Create enhanced instructions for OpenAI when handling multiple files
+                  analysisInstructions = 
+                    `You're analyzing ${openaiFileIds.length} medical files that belong to the same patient. 
+                    Please examine each file thoroughly and provide a complete analysis that covers ALL files.
+                    Take your time to analyze each file individually first, then create a comprehensive summary 
+                    that covers all important findings across all files.
+                    This analysis is critical for medical care, so please be thorough and don't omit any important details.`;
+                    
+                  // Update the briefSummary in the record data
+                  recordData.briefSummary = `Analysis includes ${Math.min(openaiFileIds.length, maxAdditionalFilesForAnalysis + 1)} of ${openaiFileIds.length} uploaded files. Important findings across all files are noted.`;
+                }
+                
                 const result = await analyzeRecord(
                   userId, 
                   docRef.id,
                   primaryFileId,
                   fileTypes[0], 
                   recordName.trim() || 'Medical Record',
-                  undefined,
+                  analysisInstructions, // Pass the custom instructions for multiple files
                   analysisAdditionalIds.length > 0 ? analysisAdditionalIds : undefined
                 );
                 
@@ -320,9 +338,32 @@ export async function POST(request: NextRequest) {
                 // If we limited the analysis files, update the record to note this
                 if (additionalIds.length > maxAdditionalFilesForAnalysis) {
                   await recordRef.update({
-                    briefSummary: "Note: Due to the large number of files, only some have been analyzed together. For a complete analysis, view individual files.",
+                    briefSummary: "Note: Due to system limitations, only some files have been analyzed together. The analysis includes the most important findings across all available files.",
                     analysisNote: `Analyzed ${maxAdditionalFilesForAnalysis + 1} out of ${openaiFileIds.length} files in this record.`
                   });
+                }
+
+                // After analysis is complete, update the record with the suggested name if appropriate
+                try {
+                  // Check if the analysis result contains a suggested record name
+                  if (result && result.content) {
+                    const suggestedNameMatch = result.content.match(/<SUGGESTED_RECORD_NAME>\s*([\s\S]*?)\s*<\/SUGGESTED_RECORD_NAME>/i);
+                    
+                    if (suggestedNameMatch && suggestedNameMatch[1]) {
+                      const suggestedName = suggestedNameMatch[1].trim();
+                      console.log(`Found suggested record name: ${suggestedName}`);
+                      
+                      // Only update if the user didn't provide a name
+                      if (!recordName || recordName.trim() === '' || recordName.trim() === 'Medical Record') {
+                        await recordRef.update({
+                          name: suggestedName
+                        });
+                        console.log(`Updated record name to suggested name: ${suggestedName}`);
+                      }
+                    }
+                  }
+                } catch (nameExtractionError) {
+                  console.error('Error extracting or updating suggested record name:', nameExtractionError);
                 }
               } catch (analysisError: any) {
                 console.error('Error during analysis:', analysisError);

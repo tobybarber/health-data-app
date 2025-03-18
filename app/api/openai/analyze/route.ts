@@ -102,22 +102,32 @@ export async function POST(request: NextRequest) {
     let defaultQuestion = '';
     
     // Add multi-file instruction prefix if applicable
-    let multiFileInstruction = additionalFileIds?.length > 0 
-      ? `\n\nIMPORTANT: You will be provided with multiple files/documents. Please analyze ALL of them together as a single comprehensive analysis. Consider them all part of one medical record. `
-      : '';
+    let multiFileInstruction = '';
+    let queryText = '';
     
-    // For PDFs and images, use the detailed instruction - note these are identical in the original code
-    defaultQuestion = 'Please review this document and provide the following information in clearly labeled sections with XML-like tags:\n\n' +
-                     '<DETAILED_ANALYSIS>\nList all information in the document, please ensure it is a complete list containing ALL information available. Ignore any personal identifiers like name, address.\n</DETAILED_ANALYSIS>\n\n' +
-                     '<BRIEF_SUMMARY>\nProvide a user-friendly summary of all information in plain language.\n</BRIEF_SUMMARY>\n\n' +
-                     '<DOCUMENT_TYPE>\nIdentify the specific type of document, keep it short (e.g., "Blood Test", "MRI", "Echocardiogram", "Pathology Report").\n</DOCUMENT_TYPE>\n\n' +
-                     '<DATE>\nExtract the date of the report or document. Format as mmm yyyy.\n</DATE>\n\n' +
-                     'It is CRITICAL that you use these exact XML-like tags in your response to ensure proper formatting. Do not use asterisks or other special formatting characters in your response. This will be used for informational purposes only, medical professionals will be consulted before taking any action.';
+    if (additionalFileIds?.length > 0) {
+      // Enhanced multi-file instruction with explicit guidance
+      multiFileInstruction = `\n\nIMPORTANT: You will be provided with ${additionalFileIds.length + 1} files/documents. Please analyze ALL of them together as a single comprehensive analysis. Consider them all part of one medical record. 
+
+Take your time to thoroughly review each file individually and then provide a comprehensive analysis. Work through the files methodically, taking note of important information in each one before synthesizing your analysis.
+
+This is important for ensuring the patient receives complete and accurate medical information. Don't rush - carefully examine each file in detail before providing your analysis.`;
+    }
     
-    // The query text to use (question from user or default)
-    let queryText = (question || defaultQuestion);
-    if (multiFileInstruction) {
-      queryText = multiFileInstruction + queryText;
+    // If a custom question was provided (from the upload route), use it directly
+    if (question) {
+      queryText = question + (multiFileInstruction ? `\n\n${multiFileInstruction}` : '');
+    } else {
+      // For PDFs and images, use the detailed instruction - note these are identical in the original code
+      defaultQuestion = 'Please review this document and provide the following information in clearly labeled sections with XML-like tags:\n\n' +
+                       '<DETAILED_ANALYSIS>\nList all information in the document, please ensure it is a complete list containing ALL information available. Ignore any personal identifiers like name, address.\n</DETAILED_ANALYSIS>\n\n' +
+                       '<BRIEF_SUMMARY>\nProvide a user-friendly summary of all information in plain language.\n</BRIEF_SUMMARY>\n\n' +
+                       '<DOCUMENT_TYPE>\nIdentify the specific type of document, keep it short (e.g., "Blood Test", "MRI", "Echocardiogram", "Pathology Report").\n</DOCUMENT_TYPE>\n\n' +
+                       '<DATE>\nExtract the date of the report or document. Format as mmm yyyy.\n</DATE>\n\n' +
+                       'It is CRITICAL that you use these exact XML-like tags in your response to ensure proper formatting. Do not use asterisks or other special formatting characters in your response. This will be used for informational purposes only, medical professionals will be consulted before taking any action.';
+      
+      // The query text to use (default with any multi-file instruction)
+      queryText = multiFileInstruction ? `${multiFileInstruction}\n\n${defaultQuestion}` : defaultQuestion;
     }
     
     try {
@@ -133,43 +143,202 @@ export async function POST(request: NextRequest) {
         console.log(`Using Chat Completions API for image file: ${fileId}`);
         
         try {
-          // Get the file content
-          const fileContent = await openai.files.content(fileId);
-          
-          // Convert the file content to base64
-          const buffer = Buffer.from(await fileContent.arrayBuffer());
-          if (buffer.length === 0) {
-            throw new Error('Empty image file');
-          }
-          
-          const base64Image = buffer.toString('base64');
-          const mimeType = fileType.includes('png') ? 'image/png' : 'image/jpeg';
-          
-          // Use the Chat Completions API with vision capabilities
-          const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  { type: 'text', text: queryText },
-                  {
-                    type: 'image_url',
-                    image_url: {
-                      url: `data:${mimeType};base64,${base64Image}`,
+          // Special handling for multiple images
+          if (additionalFileIds?.length > 0) {
+            console.log(`Processing ${additionalFileIds.length + 1} image files separately and then combining results`);
+            
+            // First analyze the main image
+            const mainImageContent = await openai.files.content(fileId);
+            const mainImageBuffer = Buffer.from(await mainImageContent.arrayBuffer());
+            if (mainImageBuffer.length === 0) {
+              throw new Error('Empty image file');
+            }
+            
+            const mainImageBase64 = mainImageBuffer.toString('base64');
+            const mainImageMimeType = fileType.includes('png') ? 'image/png' : 'image/jpeg';
+            
+            // Use a simpler prompt for individual image analysis
+            const singleImagePrompt = 'Please analyze this medical image and provide the following information in clearly labeled sections with XML-like tags:\n\n' +
+                       '<DETAILED_ANALYSIS>\nList all information visible in this image, ensuring it is complete and detailed.\n</DETAILED_ANALYSIS>\n\n' +
+                       '<DOCUMENT_TYPE>\nIdentify the specific type of document (e.g., "Blood Test", "MRI", "X-Ray").\n</DOCUMENT_TYPE>\n\n' +
+                       '<DATE>\nExtract any date visible in the image. Format as mmm yyyy.\n</DATE>';
+            
+            // Analyze main image
+            const mainImageResponse = await openai.chat.completions.create({
+              model: 'gpt-4o',
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'text', text: singleImagePrompt },
+                    {
+                      type: 'image_url',
+                      image_url: {
+                        url: `data:${mainImageMimeType};base64,${mainImageBase64}`,
+                      },
                     },
-                  },
-                ],
-              },
-            ],
-            max_tokens: 4000,
-          });
-          
-          // Extract the text content from the response
-          if (response.choices?.[0]?.message.content) {
-            analysisResponse = response.choices[0].message.content;
+                  ],
+                },
+              ],
+              max_tokens: 2000,
+            });
+            
+            // Store main image analysis
+            let mainImageAnalysis = '';
+            if (mainImageResponse.choices?.[0]?.message.content) {
+              mainImageAnalysis = mainImageResponse.choices[0].message.content;
+            } else {
+              mainImageAnalysis = 'No analysis could be generated for the primary image.';
+            }
+            
+            // Process additional images one by one (limit to first 10 for performance)
+            const additionalImageResults = [];
+            const additionalImagesToProcess = additionalFileIds.slice(0, Math.min(additionalFileIds.length, 10));
+            
+            for (const [index, addImageId] of additionalImagesToProcess.entries()) {
+              console.log(`Processing additional image ${index + 1}/${additionalImagesToProcess.length}`);
+              
+              try {
+                // Get file info to determine type
+                const addFileInfo = await openai.files.retrieve(addImageId);
+                const addFileType = addFileInfo.filename.split('.').pop()?.toLowerCase();
+                
+                if (!addFileType || !isImageFile(addFileType)) {
+                  console.log(`Skipping non-image file: ${addImageId}`);
+                  continue;
+                }
+                
+                // Get file content
+                const addImageContent = await openai.files.content(addImageId);
+                const addImageBuffer = Buffer.from(await addImageContent.arrayBuffer());
+                
+                if (addImageBuffer.length === 0) {
+                  console.log(`Empty additional image file: ${addImageId}`);
+                  continue;
+                }
+                
+                const addImageBase64 = addImageBuffer.toString('base64');
+                const addImageMimeType = addFileType.includes('png') ? 'image/png' : 'image/jpeg';
+                
+                // Analyze additional image
+                const addImageResponse = await openai.chat.completions.create({
+                  model: 'gpt-4o',
+                  messages: [
+                    {
+                      role: 'user',
+                      content: [
+                        { type: 'text', text: singleImagePrompt },
+                        {
+                          type: 'image_url',
+                          image_url: {
+                            url: `data:${addImageMimeType};base64,${addImageBase64}`,
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                  max_tokens: 2000,
+                });
+                
+                if (addImageResponse.choices?.[0]?.message.content) {
+                  additionalImageResults.push(addImageResponse.choices[0].message.content);
+                }
+              } catch (addImageError: any) {
+                console.error(`Error processing additional image ${addImageId}:`, addImageError);
+                additionalImageResults.push(`Error analyzing additional image ${index + 1}: ${addImageError.message}`);
+              }
+              
+              // Add a small delay between processing images
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            // Now combine all results with a final analysis
+            const combinationPrompt = `Please combine the following ${additionalImageResults.length + 1} separate medical image analyses into one comprehensive analysis. 
+            Each analysis represents a different image from the same patient's medical record. It is CRITICAL that you do not lose ANY medical information from any of the individual analyses.
+            
+            Create a unified analysis that maintains the XML tag structure but combines ALL findings. Be thorough and ensure ALL details from each image are preserved in your unified analysis.
+
+            PRIMARY IMAGE ANALYSIS:
+            ${mainImageAnalysis}
+            
+            ${additionalImageResults.map((result, i) => `ADDITIONAL IMAGE ${i + 1} ANALYSIS:\n${result}`).join('\n\n')}
+            
+            Please provide your combined analysis using these XML-like tags:
+            <DETAILED_ANALYSIS>
+            Comprehensive findings from ALL images, organized clearly. Make sure to include EVERY medical detail from each individual image analysis. Do not omit any information, even if it appears redundant.
+            </DETAILED_ANALYSIS>
+            
+            <BRIEF_SUMMARY>
+            A concise summary of the key findings across all images.
+            </BRIEF_SUMMARY>
+            
+            <DOCUMENT_TYPE>
+            List ALL types of documents analyzed.
+            </DOCUMENT_TYPE>
+            
+            <DATE>
+            List ALL dates found in the documents.
+            </DATE>
+            
+            <SUGGESTED_RECORD_NAME>
+            Based on the content of ALL images, suggest a descriptive and specific name for this medical record that captures its content. Example: "Blood Test Results - Cholesterol Panel" rather than just "Blood Test Results".
+            </SUGGESTED_RECORD_NAME>`;
+            
+            const finalResponse = await openai.chat.completions.create({
+              model: 'gpt-4o',
+              messages: [
+                {
+                  role: 'user',
+                  content: combinationPrompt
+                }
+              ],
+              max_tokens: 4000,
+            });
+            
+            if (finalResponse.choices?.[0]?.message.content) {
+              analysisResponse = finalResponse.choices[0].message.content;
+            } else {
+              analysisResponse = 'Unable to combine multiple image analyses.';
+            }
           } else {
-            analysisResponse = 'No analysis could be generated for this image.';
+            // Original single image analysis code
+            const fileContent = await openai.files.content(fileId);
+            
+            // Convert the file content to base64
+            const buffer = Buffer.from(await fileContent.arrayBuffer());
+            if (buffer.length === 0) {
+              throw new Error('Empty image file');
+            }
+            
+            const base64Image = buffer.toString('base64');
+            const mimeType = fileType.includes('png') ? 'image/png' : 'image/jpeg';
+            
+            // Use the Chat Completions API with vision capabilities
+            const response = await openai.chat.completions.create({
+              model: 'gpt-4o',
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'text', text: queryText },
+                    {
+                      type: 'image_url',
+                      image_url: {
+                        url: `data:${mimeType};base64,${base64Image}`,
+                      },
+                    },
+                  ],
+                },
+              ],
+              max_tokens: 4000,
+            });
+            
+            // Extract the text content from the response
+            if (response.choices?.[0]?.message.content) {
+              analysisResponse = response.choices[0].message.content;
+            } else {
+              analysisResponse = 'No analysis could be generated for this image.';
+            }
           }
         } catch (imageError: any) {
           console.error('Error processing image with Chat Completions API:', imageError.message);
