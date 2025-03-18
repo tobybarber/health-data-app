@@ -62,7 +62,7 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
     return (
       <>
         {/* Navigation Header */}
-        <header className="bg-black/80 backdrop-blur-sm p-4 flex justify-between items-center shadow-md w-full absolute top-0 left-0 right-0">
+        <header className="bg-black/80 backdrop-blur-sm p-4 flex justify-between items-center shadow-md w-full fixed top-0 left-0 right-0 z-20">
           <Link href="/about" className="text-2xl font-bold text-white">Wattle</Link>
           <div className="flex items-center space-x-4">
             {currentUser && (
@@ -79,7 +79,7 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
 
   // Standard navigation layout for other pages
   return (
-    <nav className="bg-black/80 backdrop-blur-sm p-4 mb-6 shadow-md">
+    <nav className="bg-black/80 backdrop-blur-sm p-4 mb-6 shadow-md fixed top-0 left-0 right-0 z-20">
       <div className="flex justify-between items-center">
         {currentUser ? (
           // Authenticated navigation

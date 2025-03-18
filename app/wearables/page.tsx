@@ -57,7 +57,7 @@ export default function WearablesPage() {
 
   return (
     <ProtectedRoute>
-      <div className="pb-safe">
+      <div className="pb-safe pt-safe">
         <Navigation isHomePage={true} />
         <div className="container mx-auto px-4 py-8">
           <h1 className="text-2xl font-bold text-primary-blue mb-6">My Wearables</h1>

@@ -11,7 +11,7 @@ export default function AboutPage() {
 
   return (
     <>
-      <div className="p-6 pt-20">
+      <div className="p-6 pt-safe">
         <Navigation isHomePage={true} />
         
         <div className="bg-black/90 backdrop-blur-sm p-6 rounded-md shadow-md mb-6 border border-gray-800">

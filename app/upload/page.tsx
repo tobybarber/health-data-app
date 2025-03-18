@@ -202,10 +202,10 @@ export default function Upload() {
 
   return (
     <ProtectedRoute>
-      <div className="pb-safe">
+      <div className="pb-safe pt-safe">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
-          <h1 className="text-2xl font-bold text-primary-blue mb-6">Upload Health Records</h1>
+          <h1 className="text-2xl font-bold text-primary-blue mb-6"></h1>
           
           {apiKeyValid === false && !isLoading && (
             <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-md shadow-md">
@@ -258,7 +258,7 @@ export default function Upload() {
                 onClick={handleFileUpload}
                 className="text-white px-4 py-2 rounded-md border border-primary-blue hover:bg-black/20 transition-colors"
               >
-                Upload Files/Photos
+                Upload Health Record
               </button>
               <p className="mt-2 text-sm text-gray-400">
                 Supported formats: PDF, JPG, PNG (Max 10MB per file)

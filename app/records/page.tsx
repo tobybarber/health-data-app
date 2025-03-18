@@ -385,16 +385,16 @@ export default function Records() {
 
   return (
     <ProtectedRoute>
-      <div className="pb-safe">
+      <div className="pb-safe pt-safe">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-primary-blue">Your Health Records</h1>
+            <h1 className="text-2xl font-bold text-primary-blue"></h1>
             <Link 
               href="/upload" 
               className="bg-black/80 backdrop-blur-sm px-4 py-2 rounded-md text-primary-blue border border-primary-blue hover:bg-black/90 transition-colors flex items-center"
             >
-              <FaPlus className="mr-2" /> Add Record
+              <FaPlus className="mr-2" /> New
             </Link>
           </div>
           

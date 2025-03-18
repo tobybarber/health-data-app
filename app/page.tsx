@@ -149,7 +149,7 @@ export default function Home() {
   return (
     <div>
       {/* Content */}
-      <div className="pt-20">
+      <div className="pt-safe">
         {/* Navigation Header */}
         <Navigation isHomePage={true} />
 

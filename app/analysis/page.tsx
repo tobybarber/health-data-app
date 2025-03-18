@@ -810,11 +810,11 @@ export default function Analysis() {
 
   return (
     <ProtectedRoute>
-      <div className="pb-safe">
+      <div className="pb-safe pt-safe">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-bold text-primary-blue">My Health Analysis</h1>
+            <h1 className="text-2xl font-bold text-primary-blue"></h1>
             {/* Update Button positioned on the right side */}
             <div className="flex space-x-2">
               <button
