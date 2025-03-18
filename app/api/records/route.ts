@@ -30,10 +30,25 @@ export async function GET(request: NextRequest) {
     const recordsSnapshot = await db.collection('users').doc(userId).collection('records').get();
     
     // Convert the snapshot to an array of records
-    const records = recordsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const records = recordsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      
+      // Convert Firestore timestamps to ISO date strings
+      const processedData = Object.entries(data).reduce((acc, [key, value]) => {
+        // Check if it's a Firestore timestamp
+        if (value && typeof value === 'object' && 'seconds' in value && 'nanoseconds' in value) {
+          acc[key] = new Date(value.seconds * 1000).toISOString();
+        } else {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Record<string, any>);
+      
+      return {
+        id: doc.id,
+        ...processedData
+      };
+    });
     
     return NextResponse.json({ records });
   } catch (error) {

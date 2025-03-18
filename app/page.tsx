@@ -245,7 +245,7 @@ export default function Home() {
               {showScrollButton && (
                 <button
                   onClick={scrollToBottom}
-                  className="fixed bottom-24 right-4 bg-gray-700 text-white rounded-full p-2 shadow-lg hover:bg-gray-600 transition-colors"
+                  className="fixed bottom-44 right-4 bg-gray-700 text-white rounded-full p-2 shadow-lg hover:bg-gray-600 transition-colors"
                   aria-label="Scroll to bottom"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -255,8 +255,8 @@ export default function Home() {
               )}
             </div>
             
-            {/* Question input moved lower */}
-            <div className="fixed bottom-[68px] left-0 right-0 px-4 py-2 bg-black/40 backdrop-blur-sm z-10">
+            {/* Question input moved higher up from bottom navigation */}
+            <div className="fixed bottom-[88px] left-0 right-0 px-4 py-2 bg-black/40 backdrop-blur-sm z-10">
               <form onSubmit={handleSendMessage} className="flex w-full">
                 <input
                   type="text"
@@ -268,8 +268,9 @@ export default function Home() {
                 />
                 <button 
                   type="submit" 
-                  className={`bg-gray-600 text-white rounded-r-xl p-3 ${isAiResponding ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-500'}`}
+                  className={`bg-gray-600 text-white p-3 ${isAiResponding ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-500'}`}
                   disabled={isAiResponding}
+                  style={{borderTopRightRadius: '0.75rem', borderBottomRightRadius: '0.75rem', borderTopLeftRadius: 0, borderBottomLeftRadius: 0}}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />

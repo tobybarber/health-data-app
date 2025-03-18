@@ -11,6 +11,7 @@ import { analyzeRecord, uploadFirestoreFileToOpenAI } from '../lib/openai-utils'
 import { useAuth } from '../lib/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Navigation from '../components/Navigation';
+import { invalidateRecordsCache } from '../lib/cache-utils';
 
 interface ErrorResponse {
   message?: string;
@@ -172,6 +173,11 @@ export default function Upload() {
       }
       
       const data = await response.json();
+      
+      // Invalidate the records cache to ensure fresh data on next load
+      if (currentUser.uid) {
+        invalidateRecordsCache(currentUser.uid);
+      }
       
       setUploadStatus('success');
       setUploadProgress(100);

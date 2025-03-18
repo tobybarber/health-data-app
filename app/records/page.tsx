@@ -9,6 +9,7 @@ import { useAuth } from '../lib/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Navigation from '../components/Navigation';
 import { FaPlus, FaFileAlt } from 'react-icons/fa';
+import { invalidateRecordsCache, isRecordsCacheValid } from '../lib/cache-utils';
 
 interface Record {
   id: string;
@@ -31,6 +32,9 @@ interface Record {
   combinedImagesToPdf?: boolean;
   simpleTestResult?: string;
 }
+
+// Cache duration in milliseconds (5 minutes)
+const CACHE_DURATION = 300000;
 
 export default function Records() {
   const [records, setRecords] = useState<Record[]>([]);
@@ -245,11 +249,26 @@ export default function Records() {
     return '';
   };
 
-  const fetchRecords = async () => {
+  const fetchRecords = async (forceFetch = false) => {
     try {
       if (!currentUser) return;
       
       setLoading(true);
+      
+      // Check if we have cached data and it's still valid
+      const cachedData = localStorage.getItem(`records_${currentUser.uid}`);
+      
+      if (!forceFetch && cachedData && isRecordsCacheValid(currentUser.uid, CACHE_DURATION)) {
+        try {
+          const recordsList = JSON.parse(cachedData);
+          setRecords(recordsList);
+          setLoading(false);
+          return;
+        } catch (parseError) {
+          // If parsing fails, proceed with fetch
+          console.error('Error parsing cached records:', parseError);
+        }
+      }
       
       // Get the Firebase ID token
       const token = await currentUser.getIdToken();
@@ -278,6 +297,18 @@ export default function Records() {
           }
         } else if (record.recordDate) {
           recordDate = record.recordDate;
+        }
+        
+        // If we still don't have a valid recordDate but have createdAt, use it
+        if ((!recordDate || recordDate === 'Unknown') && record.createdAt) {
+          // If createdAt is a Firestore timestamp
+          if (record.createdAt.seconds) {
+            recordDate = new Date(record.createdAt.seconds * 1000).toISOString().split('T')[0];
+          } 
+          // If createdAt is a regular Date that was serialized
+          else if (typeof record.createdAt === 'string') {
+            recordDate = new Date(record.createdAt).toISOString().split('T')[0];
+          }
         }
         
         // Always extract brief summary from analysis if available
@@ -309,6 +340,27 @@ export default function Records() {
         return 0;
       });
       
+      // Debug logging for date issues (only in development)
+      if (process.env.NODE_ENV === 'development') {
+        recordsList.forEach((record: Record) => {
+          console.log(`Record ${record.id}:`, {
+            name: record.name,
+            recordDate: record.recordDate,
+            createdAt: record.createdAt,
+            formattedDate: record.recordDate ? formatDateToMonthYear(record.recordDate) : 'No recordDate'
+          });
+        });
+      }
+      
+      // Cache the records in localStorage with timestamp
+      try {
+        localStorage.setItem(`records_${currentUser.uid}`, JSON.stringify(recordsList));
+        localStorage.setItem(`records_${currentUser.uid}_timestamp`, Date.now().toString());
+      } catch (storageError) {
+        // If localStorage fails, just log the error but continue
+        console.error('Error caching records:', storageError);
+      }
+      
       setRecords(recordsList);
     } catch (err) {
       // Only log errors in development mode
@@ -321,11 +373,33 @@ export default function Records() {
     }
   };
 
-  // Remove the refresh interval and keep the original useEffect
+  // Add a function to force refresh data
+  const refreshRecords = () => {
+    fetchRecords(true);
+  };
+
   useEffect(() => {
     if (currentUser) {
       fetchRecords();
     }
+  }, [currentUser]);
+
+  // Add event listener for page visibility changes to update data when navigating back to the page
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && currentUser) {
+        // Check if the cache is valid before fetching
+        if (!isRecordsCacheValid(currentUser.uid, CACHE_DURATION)) {
+          fetchRecords(true);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [currentUser]);
 
   const handleDelete = async (record: Record) => {
@@ -354,7 +428,16 @@ export default function Records() {
       }
       
       // Remove the record from the UI
-      setRecords(records.filter(r => r.id !== record.id));
+      const updatedRecords = records.filter(r => r.id !== record.id);
+      setRecords(updatedRecords);
+      
+      // Update the cache after deletion
+      try {
+        localStorage.setItem(`records_${currentUser.uid}`, JSON.stringify(updatedRecords));
+        localStorage.setItem(`records_${currentUser.uid}_timestamp`, Date.now().toString());
+      } catch (storageError) {
+        console.error('Error updating cache after deletion:', storageError);
+      }
       
     } catch (err) {
       // Only log errors in development mode
@@ -390,12 +473,14 @@ export default function Records() {
         <div className="container mx-auto px-4 py-8">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-primary-blue"></h1>
-            <Link 
-              href="/upload" 
-              className="bg-black/80 backdrop-blur-sm px-4 py-2 rounded-md text-primary-blue border border-primary-blue hover:bg-black/90 transition-colors flex items-center"
-            >
-              <FaPlus className="mr-2" /> New
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link 
+                href="/upload" 
+                className="bg-black/80 backdrop-blur-sm px-4 py-2 rounded-md text-primary-blue border border-primary-blue hover:bg-black/90 transition-colors flex items-center"
+              >
+                <FaPlus className="mr-2" /> New
+              </Link>
+            </div>
           </div>
           
           {loading ? (
@@ -431,6 +516,9 @@ export default function Records() {
                         formatDateToMonthYear(record.recordDate)
                       ) : record.createdAt && record.createdAt.seconds ? (
                         new Date(record.createdAt.seconds * 1000).toLocaleString('default', { month: 'short', year: 'numeric' })
+                      ) : record.createdAt ? (
+                        // Handle string ISO dates
+                        new Date(record.createdAt).toLocaleString('default', { month: 'short', year: 'numeric' })
                       ) : (
                         'Date Unknown'
                       )}

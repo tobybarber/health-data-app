@@ -66,8 +66,8 @@ export async function POST(request: NextRequest) {
         analysis: "This is a comment-only record.",
         briefSummary: "Comment-only record",
         detailedAnalysis: "This record contains only a comment without any attached files.",
-        recordType: "Comment",
-        recordDate: "",
+        recordType: recordName.trim() || 'Comment',
+        recordDate: new Date().toISOString().split('T')[0],
         fileTypes: [],
       };
       
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
       briefSummary: "This record is being analyzed...",
       detailedAnalysis: "This record is being analyzed...",
       recordType: "Medical Record",
-      recordDate: "",
+      recordDate: new Date().toISOString().split('T')[0],
       fileTypes: files.map(file => file.type),
     };
     
