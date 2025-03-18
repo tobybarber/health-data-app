@@ -1,8 +1,8 @@
 'use client';
 
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getStorage } from 'firebase/storage';
-import { getFirestore, enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 // Your web app's Firebase configuration
@@ -30,18 +30,5 @@ const getFirebaseConfig = () => {
     storageBucket: firebaseConfig.storageBucket
   };
 };
-
-// Enable offline persistence with unlimited cache size
-enableIndexedDbPersistence(db)
-  .catch((err) => {
-    // Only log errors in development mode
-    if (process.env.NODE_ENV === 'development') {
-      if (err.code === 'failed-precondition') {
-        console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-      } else if (err.code === 'unimplemented') {
-        console.warn('The current browser does not support all of the features required to enable persistence');
-      }
-    }
-  });
 
 export { storage, db, auth, getFirebaseConfig }; 

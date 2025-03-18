@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { collection, getDocs, doc, deleteDoc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, getDoc, setDoc, serverTimestamp, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
@@ -10,6 +10,7 @@ import ProtectedRoute from '../components/ProtectedRoute';
 import Navigation from '../components/Navigation';
 import { FaPlus, FaFileAlt } from 'react-icons/fa';
 import { invalidateRecordsCache, isRecordsCacheValid } from '../lib/cache-utils';
+import { extractTagContent, extractBriefSummary, extractDetailedAnalysis, extractRecordType, extractRecordDate } from '../lib/analysis-utils';
 
 interface Record {
   id: string;
@@ -31,6 +32,7 @@ interface Record {
   openaiFileIds?: string[];
   combinedImagesToPdf?: boolean;
   simpleTestResult?: string;
+  analyzed?: boolean;
 }
 
 // Cache duration in milliseconds (5 minutes)
@@ -67,340 +69,84 @@ export default function Records() {
     return dateStr;
   };
 
-  // Function to extract content from XML-like tags
-  const extractTagContent = (text: string, tagName: string): string | null => {
-    if (!text) return null;
-    const regex = new RegExp(`<${tagName}>\\s*([\\s\\S]*?)\\s*<\\/${tagName}>`, 'i');
-    const match = text.match(regex);
-    return match ? match[1].trim() : null;
-  };
-
-  // Function to extract brief summary from analysis text
-  const extractBriefSummary = (analysis: string): string => {
-    if (!analysis) return 'No analysis available';
+  // Setup real-time listener to Firestore records collection
+  useEffect(() => {
+    if (!currentUser) return;
     
-    // First try to extract using XML-like tags (new format)
-    const briefSummaryFromXml = extractTagContent(analysis, 'BRIEF_SUMMARY');
-    if (briefSummaryFromXml) {
-      return briefSummaryFromXml
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/===\s*[^=]+\s*===/g, '')
-        .replace(/\*\*/g, '');
-    }
+    setLoading(true);
     
-    // Try to match the new format with numbered sections
-    const numberedBriefSummaryMatch = analysis.match(/2\.?\s*BRIEF SUMMARY:?\s*([\s\S]*?)(?=3\.?\s*DOCUMENT TYPE|DOCUMENT TYPE|$)/i);
-    if (numberedBriefSummaryMatch && numberedBriefSummaryMatch[1]) {
-      // Remove file headers like "=== Shared Health Summary.pdf ==="
-      return numberedBriefSummaryMatch[1].trim()
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/===\s*[^=]+\s*===/g, '')
-        .replace(/\*\*/g, '');
-    }
+    // Reference to the user's records collection
+    const recordsRef = collection(db, 'users', currentUser.uid, 'records');
     
-    // Try to match with just BRIEF SUMMARY: heading
-    const briefSummaryMatch = analysis.match(/BRIEF SUMMARY:?\s*([\s\S]*?)(?=DOCUMENT TYPE|TYPE|DATE|$)/i);
-    if (briefSummaryMatch && briefSummaryMatch[1]) {
-      // Remove file headers like "=== Shared Health Summary.pdf ==="
-      return briefSummaryMatch[1].trim()
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/===\s*[^=]+\s*===/g, '')
-        .replace(/\*\*/g, '');
-    }
+    // Create a query to order by createdAt (newest first)
+    const recordsQuery = query(recordsRef, orderBy('createdAt', 'desc'));
     
-    // Try to extract the brief summary section with double asterisks - more strict pattern
-    const doubleAsteriskMatch = analysis.match(/\*\*BRIEF_SUMMARY:\*\*([\s\S]*?)(?=\*\*RECORD_TYPE:|$)/);
-    if (doubleAsteriskMatch && doubleAsteriskMatch[1]) {
-      // Remove file headers like "=== Shared Health Summary.pdf ==="
-      return doubleAsteriskMatch[1].trim()
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/===\s*[^=]+\s*===/g, '')
-        .replace(/\*\*/g, '');
-    }
-    
-    // If we can't find a specific brief summary section, return a default message
-    return 'No brief summary available';
-  };
-
-  // Function to extract detailed analysis from analysis text
-  const extractDetailedAnalysis = (analysis: string): string => {
-    if (!analysis) return 'No analysis available';
-    
-    // First try to extract using XML-like tags (new format)
-    const detailedAnalysisFromXml = extractTagContent(analysis, 'DETAILED_ANALYSIS');
-    if (detailedAnalysisFromXml) {
-      return detailedAnalysisFromXml
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/===\s*[^=]+\s*===/g, '')
-        .replace(/\*\*/g, '');
-    }
-    
-    // Try to match the new format with numbered sections
-    const numberedDetailedAnalysisMatch = analysis.match(/1\.?\s*DETAILED ANALYSIS:?\s*([\s\S]*?)(?=2\.?\s*BRIEF SUMMARY|BRIEF SUMMARY|$)/i);
-    if (numberedDetailedAnalysisMatch && numberedDetailedAnalysisMatch[1]) {
-      // Remove file headers like "=== Shared Health Summary.pdf ==="
-      return numberedDetailedAnalysisMatch[1].trim()
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/===\s*[^=]+\s*===/g, '')
-        .replace(/\*\*/g, '');
-    }
-    
-    // Try to match with just DETAILED ANALYSIS: heading
-    const detailedAnalysisMatch = analysis.match(/DETAILED ANALYSIS:?\s*([\s\S]*?)(?=BRIEF SUMMARY|SUMMARY|DOCUMENT TYPE|DATE|$)/i);
-    if (detailedAnalysisMatch && detailedAnalysisMatch[1]) {
-      // Remove file headers like "=== Shared Health Summary.pdf ==="
-      return detailedAnalysisMatch[1].trim()
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/===\s*[^=]+\s*===/g, '')
-        .replace(/\*\*/g, '');
-    }
-    
-    // Try to extract the detailed analysis section with double asterisks - more strict pattern
-    const doubleAsteriskMatch = analysis.match(/\*\*DETAILED_ANALYSIS:\*\*([\s\S]*?)(?=\*\*BRIEF_SUMMARY:|$)/);
-    if (doubleAsteriskMatch && doubleAsteriskMatch[1]) {
-      // Remove file headers like "=== Shared Health Summary.pdf ==="
-      return doubleAsteriskMatch[1].trim()
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/===\s*[^=]+\s*===/g, '')
-        .replace(/\*\*/g, '');
-    }
-    
-    // If we can't find a specific detailed analysis section, return a default message
-    return 'No detailed analysis available';
-  };
-
-  // Function to extract record type from analysis text
-  const extractRecordType = (analysis: string): string => {
-    if (!analysis) return 'Unknown';
-    
-    // First try to extract using XML-like tags (new format)
-    const recordTypeFromXml = extractTagContent(analysis, 'DOCUMENT_TYPE');
-    if (recordTypeFromXml) {
-      return recordTypeFromXml
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/\*\*/g, '');
-    }
-    
-    // Try to match the new format with numbered sections
-    const numberedRecordTypeMatch = analysis.match(/3\.?\s*DOCUMENT TYPE:?\s*([\s\S]*?)(?=4\.?\s*DATE|DATE|$)/i);
-    if (numberedRecordTypeMatch && numberedRecordTypeMatch[1]) {
-      return numberedRecordTypeMatch[1].trim()
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/\*\*/g, '');
-    }
-    
-    // Try to match with just DOCUMENT TYPE: heading
-    const recordTypeMatch = analysis.match(/DOCUMENT TYPE:?\s*([\s\S]*?)(?=DATE|$)/i);
-    if (recordTypeMatch && recordTypeMatch[1]) {
-      return recordTypeMatch[1].trim()
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/\*\*/g, '');
-    }
-    
-    // Try to extract the record type section with double asterisks - more strict pattern
-    const doubleAsteriskMatch = analysis.match(/\*\*RECORD_TYPE:\*\*([\s\S]*?)(?=\*\*DATE:|$)/);
-    if (doubleAsteriskMatch && doubleAsteriskMatch[1]) {
-      return doubleAsteriskMatch[1].trim()
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/\*\*/g, '');
-    }
-    
-    // If we can't find a specific record type section, return a default value
-    return 'Medical Record';
-  };
-
-  // Function to extract record date from analysis text
-  const extractRecordDate = (analysis: string): string => {
-    if (!analysis) return '';
-    
-    // First try to extract using XML-like tags (new format)
-    const recordDateFromXml = extractTagContent(analysis, 'DATE');
-    if (recordDateFromXml) {
-      return recordDateFromXml
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/\*\*/g, '');
-    }
-    
-    // Try to match the new format with numbered sections
-    const numberedRecordDateMatch = analysis.match(/4\.?\s*DATE:?\s*([\s\S]*?)(?=$)/i);
-    if (numberedRecordDateMatch && numberedRecordDateMatch[1]) {
-      return numberedRecordDateMatch[1].trim()
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/\*\*/g, '');
-    }
-    
-    // Try to match with just DATE: heading
-    const recordDateMatch = analysis.match(/DATE:?\s*([\s\S]*?)(?=$)/i);
-    if (recordDateMatch && recordDateMatch[1]) {
-      return recordDateMatch[1].trim()
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/\*\*/g, '');
-    }
-    
-    // Try to extract the date section with double asterisks - more strict pattern
-    const doubleAsteriskMatch = analysis.match(/\*\*DATE:\*\*([\s\S]*?)(?=$)/);
-    if (doubleAsteriskMatch && doubleAsteriskMatch[1]) {
-      return doubleAsteriskMatch[1].trim()
-        .replace(/^[-–—]+\s*/, '')
-        .replace(/\*\*/g, '');
-    }
-    
-    // If we can't find a specific date section, return an empty string
-    return '';
-  };
-
-  const fetchRecords = async (forceFetch = false) => {
-    try {
-      if (!currentUser) return;
-      
-      setLoading(true);
-      
-      // Check if we have cached data and it's still valid
-      const cachedData = localStorage.getItem(`records_${currentUser.uid}`);
-      
-      if (!forceFetch && cachedData && isRecordsCacheValid(currentUser.uid, CACHE_DURATION)) {
-        try {
-          const recordsList = JSON.parse(cachedData);
-          setRecords(recordsList);
-          setLoading(false);
-          return;
-        } catch (parseError) {
-          // If parsing fails, proceed with fetch
-          console.error('Error parsing cached records:', parseError);
-        }
-      }
-      
-      // Get the Firebase ID token
-      const token = await currentUser.getIdToken();
-      
-      // Use the secure API endpoint to fetch records
-      const response = await fetch('/api/records', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error fetching records: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      const recordsList = data.records.map((record: any) => {
-        // Process record data
-        let recordDate = null;
-        if (record.analysis) {
-          recordDate = extractRecordDate(record.analysis);
-          if (recordDate === 'Unknown' && record.recordDate) {
-            recordDate = record.recordDate;
+    // Set up the snapshot listener
+    const unsubscribe = onSnapshot(recordsQuery, 
+      (snapshot) => {        
+        const recordsList = snapshot.docs.map(doc => {
+          const data = doc.data();
+          
+          // Process record data
+          let recordDate = null;
+          if (data.recordDate) {
+            recordDate = data.recordDate;
+          } else if (data.analysis) {
+            recordDate = extractRecordDate(data.analysis);
           }
-        } else if (record.recordDate) {
-          recordDate = record.recordDate;
-        }
-        
-        // If we still don't have a valid recordDate but have createdAt, use it
-        if ((!recordDate || recordDate === 'Unknown') && record.createdAt) {
-          // If createdAt is a Firestore timestamp
-          if (record.createdAt.seconds) {
-            recordDate = new Date(record.createdAt.seconds * 1000).toISOString().split('T')[0];
-          } 
-          // If createdAt is a regular Date that was serialized
-          else if (typeof record.createdAt === 'string') {
-            recordDate = new Date(record.createdAt).toISOString().split('T')[0];
+          
+          // If we still don't have a valid recordDate but have createdAt, use it
+          if ((!recordDate || recordDate === 'Unknown') && data.createdAt) {
+            recordDate = new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0];
           }
-        }
-        
-        // Always extract brief summary from analysis if available
-        let briefSummary = null;
-        if (record.analysis) {
-          briefSummary = extractBriefSummary(record.analysis);
-        } else if (record.briefSummary) {
-          briefSummary = record.briefSummary;
-        }
-        
-        // Clean any record type of ## markers
-        if (record.recordType) {
-          record.recordType = record.recordType.replace(/##/g, '');
-        }
-        
-        return {
-          id: record.id,
-          ...record,
-          recordDate,
-          briefSummary
-        } as Record;
-      });
-      
-      // Sort by createdAt if available, newest first
-      recordsList.sort((a: Record, b: Record) => {
-        if (a.createdAt && b.createdAt) {
-          return b.createdAt.seconds - a.createdAt.seconds;
-        }
-        return 0;
-      });
-      
-      // Debug logging for date issues (only in development)
-      if (process.env.NODE_ENV === 'development') {
-        recordsList.forEach((record: Record) => {
-          console.log(`Record ${record.id}:`, {
-            name: record.name,
-            recordDate: record.recordDate,
-            createdAt: record.createdAt,
-            formattedDate: record.recordDate ? formatDateToMonthYear(record.recordDate) : 'No recordDate'
-          });
+          
+          // Use briefSummary field if available, otherwise extract from analysis
+          let briefSummary = null;
+          if (data.briefSummary) {
+            briefSummary = data.briefSummary;
+          } else if (data.analysis) {
+            briefSummary = extractBriefSummary(data.analysis);
+          }
+          
+          // Clean any record type of ## markers
+          if (data.recordType) {
+            data.recordType = data.recordType.replace(/##/g, '');
+          }
+          
+          return {
+            id: doc.id,
+            ...data,
+            recordDate,
+            briefSummary
+          } as Record;
         });
+        
+        setRecords(recordsList);
+        setLoading(false);
+      },
+      (error) => {
+        setError("Error loading records. Please try again.");
+        setLoading(false);
       }
-      
-      // Cache the records in localStorage with timestamp
-      try {
-        localStorage.setItem(`records_${currentUser.uid}`, JSON.stringify(recordsList));
-        localStorage.setItem(`records_${currentUser.uid}_timestamp`, Date.now().toString());
-      } catch (storageError) {
-        // If localStorage fails, just log the error but continue
-        console.error('Error caching records:', storageError);
-      }
-      
-      setRecords(recordsList);
-    } catch (err) {
-      // Only log errors in development mode
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error fetching records:', err);
-      }
-      setError('Failed to load records. Please try again later.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Add a function to force refresh data
-  const refreshRecords = () => {
-    fetchRecords(true);
-  };
-
-  useEffect(() => {
-    if (currentUser) {
-      fetchRecords();
-    }
-  }, [currentUser]);
-
-  // Add event listener for page visibility changes to update data when navigating back to the page
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && currentUser) {
-        // Check if the cache is valid before fetching
-        if (!isRecordsCacheValid(currentUser.uid, CACHE_DURATION)) {
-          fetchRecords(true);
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    );
     
+    // Clean up the listener when component unmounts
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      unsubscribe();
     };
   }, [currentUser]);
+
+  // Update displayedRecord function to prioritize detailedAnalysis and briefSummary fields
+  const displayedSummary = (record: Record, isDetailed: boolean): string => {
+    // Check if analysis is pending but don't return a message (will show content as it updates)
+    if (isDetailed) {
+      // For detailed view, first check detailedAnalysis field, then fallback to extraction
+      return record.detailedAnalysis || extractDetailedAnalysis(record.analysis) || 'No detailed analysis available';
+    } else {
+      // For brief view, first check briefSummary field, then fallback to extraction
+      return record.briefSummary || extractBriefSummary(record.analysis) || 'No brief summary available';
+    }
+  };
 
   const handleDelete = async (record: Record) => {
     if (!currentUser) return;
@@ -436,14 +182,10 @@ export default function Records() {
         localStorage.setItem(`records_${currentUser.uid}`, JSON.stringify(updatedRecords));
         localStorage.setItem(`records_${currentUser.uid}_timestamp`, Date.now().toString());
       } catch (storageError) {
-        console.error('Error updating cache after deletion:', storageError);
+        // Silent error handling for localStorage failures
       }
       
     } catch (err) {
-      // Only log errors in development mode
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error deleting record:', err);
-      }
       setError('Failed to delete record. Please try again later.');
     } finally {
       setDeleting(null);
@@ -472,7 +214,7 @@ export default function Records() {
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-primary-blue"></h1>
+            <h1 className="text-2xl font-bold text-primary-blue">My Records</h1>
             <div className="flex items-center gap-2">
               <Link 
                 href="/upload" 
@@ -484,9 +226,9 @@ export default function Records() {
           </div>
           
           {loading ? (
-            <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-blue"></div>
-              <p className="mt-2 text-gray-300">Loading your records...</p>
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="w-12 h-12 rounded-full border-4 border-gray-300 border-t-primary-blue animate-spin mb-4"></div>
+              <p className="text-gray-300 text-lg font-medium">Loading your records</p>
             </div>
           ) : records.length === 0 ? (
             <div className="text-center py-8 bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md border border-gray-800">
@@ -505,11 +247,13 @@ export default function Records() {
               {records.map(record => (
                 <div key={record.id} className="bg-gray-800 p-3 rounded-md shadow-md border border-gray-700">
                   <div className="flex justify-between items-start mb-1">
-                    <h2 className="text-lg font-medium text-white">
-                      {record.recordType ? 
-                        record.recordType.replace(/##/g, '').replace(/\*\*/g, '') : 
-                        (record.name || 'Medical Record')}
-                    </h2>
+                    <div>
+                      <h2 className="text-lg font-medium text-white">
+                        {record.recordType ? 
+                          record.recordType.replace(/##/g, '').replace(/\*\*/g, '') : 
+                          (record.name || 'Medical Record')}
+                      </h2>
+                    </div>
                     <div className="text-sm text-white">
                       {/* Display only the date in mmm yyyy format */}
                       {record.recordDate ? (
@@ -562,9 +306,7 @@ export default function Records() {
                         </div>
                         
                         <p className="text-gray-300 text-sm">
-                          {viewDetailedAnalysis.includes(record.id) 
-                            ? (record.detailedAnalysis || extractDetailedAnalysis(record.analysis) || 'No detailed analysis available')
-                            : (record.briefSummary || 'No brief summary available')}
+                          {displayedSummary(record, viewDetailedAnalysis.includes(record.id))}
                         </p>
                         
                         {/* Display comment directly under summary if this is a comment-only record */}
@@ -617,13 +359,20 @@ export default function Records() {
                             ))}
                           </ul>
                         </div>
-                      ) : record.url && (record.url.includes('.pdf') || record.url.includes('pdf')) ? (
+                      ) : (record.url || (record.urls && record.urls.length === 1)) ? (
                         <div>
                           <h3 className="font-semibold text-white text-sm">File:</h3>
                           <ul className="mt-1">
                             <li>
-                              <a href={record.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-sm">
-                                View PDF
+                              <a 
+                                href={record.url || (record.urls ? record.urls[0] : '')} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="text-blue-400 hover:text-blue-300 text-sm"
+                              >
+                                {(record.url || (record.urls && record.urls[0] || '')).includes('.pdf') || 
+                                 (record.url || (record.urls && record.urls[0] || '')).includes('pdf') ? 
+                                  'View PDF' : 'View File'}
                               </a>
                             </li>
                           </ul>

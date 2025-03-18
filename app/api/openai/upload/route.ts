@@ -8,6 +8,7 @@ import axios from 'axios';
 import { PDFDocument } from 'pdf-lib';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
+import fs from 'fs';
 
 // Initialize OpenAI client server-side
 const openai = new OpenAI({
@@ -234,13 +235,56 @@ export async function POST(request: NextRequest) {
       }
       
       // Upload to OpenAI
+      console.log(`Debug: Uploading file to OpenAI with details:
+      - Path: ${tempFilePath}
+      - Type: ${fileType}
+      - Extension: ${fileExtension || 'none'}
+      - Purpose: ${isImageFile(fileType) ? 'vision' : 'assistants'}`);
+      
+      // Ensure file has a proper extension for OpenAI
+      let finalFilePath = tempFilePath;
+      
+      // If file doesn't have a PDF extension but fileType indicates it's a PDF
+      if (isPdfFile(fileType) && !tempFilePath.toLowerCase().endsWith('.pdf')) {
+        const pdfPath = `${tempFilePath}.pdf`;
+        fs.copyFileSync(tempFilePath, pdfPath);
+        finalFilePath = pdfPath;
+        console.log(`Debug: Added .pdf extension to file: ${finalFilePath}`);
+      }
+      // If file doesn't have an image extension but fileType indicates it's an image
+      else if (isImageFile(fileType) && 
+              !(tempFilePath.toLowerCase().endsWith('.jpg') || 
+                tempFilePath.toLowerCase().endsWith('.jpeg') || 
+                tempFilePath.toLowerCase().endsWith('.png'))) {
+        const imgExt = fileType.includes('png') ? '.png' : '.jpg';
+        const imgPath = `${tempFilePath}${imgExt}`;
+        fs.copyFileSync(tempFilePath, imgPath);
+        finalFilePath = imgPath;
+        console.log(`Debug: Added ${imgExt} extension to file: ${finalFilePath}`);
+      }
+      
       const uploadResponse = await openai.files.create({
-        file: createReadStream(tempFilePath),
+        file: createReadStream(finalFilePath),
         purpose: isImageFile(fileType) ? 'vision' : 'assistants',
       });
       
-      console.log('OpenAI upload response:', uploadResponse);
-      console.log(`File uploaded with purpose: ${isImageFile(fileType) ? 'vision' : 'assistants'}`);
+      console.log('Debug: OpenAI upload response:', {
+        id: uploadResponse.id,
+        filename: uploadResponse.filename,
+        purpose: uploadResponse.purpose,
+        status: uploadResponse.status,
+        created_at: uploadResponse.created_at
+      });
+      console.log(`Debug: File uploaded with purpose: ${isImageFile(fileType) ? 'vision' : 'assistants'}`);
+      
+      // Verify file status
+      try {
+        console.log('Debug: Checking uploaded file status');
+        const fileInfo = await openai.files.retrieve(uploadResponse.id);
+        console.log(`Debug: Uploaded file status: ${fileInfo.status}`);
+      } catch (statusError) {
+        console.error('Debug: Error checking file status:', statusError);
+      }
       
       // Return the file ID and metadata
       return NextResponse.json({ 
@@ -263,12 +307,34 @@ export async function POST(request: NextRequest) {
         details: openaiError.response?.data || openaiError
       }, { status: 500 });
     } finally {
-      // Clean up the temporary file
+      // Clean up all temporary files
       try {
-        unlinkSync(tempFilePath);
-        console.log(`Deleted temporary file: ${tempFilePath}`);
+        // Clean up the original temporary file
+        if (existsSync(tempFilePath)) {
+          unlinkSync(tempFilePath);
+          console.log(`Deleted temporary file: ${tempFilePath}`);
+        }
+        
+        // Clean up any additional files we might have created
+        const possiblePdfPath = `${tempFilePath}.pdf`;
+        if (existsSync(possiblePdfPath)) {
+          unlinkSync(possiblePdfPath);
+          console.log(`Deleted temporary PDF file: ${possiblePdfPath}`);
+        }
+        
+        const possibleJpgPath = `${tempFilePath}.jpg`;
+        if (existsSync(possibleJpgPath)) {
+          unlinkSync(possibleJpgPath);
+          console.log(`Deleted temporary JPG file: ${possibleJpgPath}`);
+        }
+        
+        const possiblePngPath = `${tempFilePath}.png`;
+        if (existsSync(possiblePngPath)) {
+          unlinkSync(possiblePngPath);
+          console.log(`Deleted temporary PNG file: ${possiblePngPath}`);
+        }
       } catch (cleanupError) {
-        console.error('Error cleaning up temporary file:', cleanupError);
+        console.error('Error cleaning up temporary files:', cleanupError);
       }
     }
   } catch (error: any) {

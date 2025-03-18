@@ -1,7 +1,14 @@
 import './globals.css';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import ClientWrapper from './components/ClientWrapper';
 import Image from 'next/image';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export const metadata: Metadata = {
   title: 'Wattle',
@@ -10,11 +17,6 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'Wattle',
-  },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
   },
   other: {
     'apple-mobile-web-app-capable': 'yes',
@@ -31,8 +33,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="manifest" href="/manifest.json" />
         <link

@@ -12,6 +12,7 @@ import { useAuth } from '../lib/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Navigation from '../components/Navigation';
 import { invalidateRecordsCache } from '../lib/cache-utils';
+import { testFirestoreWrite } from '../lib/test-utils';
 
 interface ErrorResponse {
   message?: string;
@@ -84,26 +85,8 @@ export default function Upload() {
     checkApiKey();
     
     // Test Firestore write access in development mode only
-    async function testFirestoreWrite() {
-      if (!currentUser || process.env.NODE_ENV !== 'development') return;
-      
-      try {
-        const testDocRef = doc(db, `users/${currentUser.uid}/test/firestore-test`);
-        await setDoc(testDocRef, {
-          timestamp: serverTimestamp(),
-          message: 'This is a test document to verify Firestore write access',
-          browser: navigator.userAgent,
-          testId: Date.now().toString()
-        });
-      } catch (err) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Error writing test document to Firestore:', err);
-        }
-      }
-    }
-    
     if (currentUser) {
-      testFirestoreWrite();
+      testFirestoreWrite(currentUser.uid);
     }
   }, [currentUser]);
 
@@ -141,6 +124,21 @@ export default function Upload() {
       setError('Only PDF, JPG, and PNG files are supported.');
       return;
     }
+    
+    // Add size and count checks
+    const MAX_FILES = 20;
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    
+    if (files.length > MAX_FILES) {
+      setError(`You can upload a maximum of ${MAX_FILES} files at once.`);
+      return;
+    }
+    
+    const oversizedFiles = files.filter(file => file.size > MAX_FILE_SIZE);
+    if (oversizedFiles.length > 0) {
+      setError(`The following files exceed the 10MB size limit: ${oversizedFiles.map(f => f.name).join(', ')}`);
+      return;
+    }
 
     try {
       setIsLoading(true);
@@ -158,37 +156,52 @@ export default function Upload() {
       formData.append('recordName', recordName);
       formData.append('comment', comment);
       
-      // Upload files using the secure API endpoint
-      const response = await fetch('/api/records/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
+      // Set up timeout for long requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Upload failed with status: ${response.status}`);
+      try {
+        // Upload files using the secure API endpoint with timeout
+        const response = await fetch('/api/records/upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData,
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Upload failed with status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Invalidate the records cache to ensure fresh data on next load
+        if (currentUser.uid) {
+          invalidateRecordsCache(currentUser.uid);
+        }
+        
+        setUploadStatus('success');
+        setUploadProgress(100);
+        
+        // Reset form
+        setFiles([]);
+        setRecordName('');
+        setComment('');
+        
+        // Remove auto-navigation to records page
+        // router.push('/records');
+      } catch (fetchError: any) {
+        // Handle abort/timeout specifically
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Upload timed out. Try uploading fewer or smaller files at once.');
+        }
+        throw fetchError;
       }
-      
-      const data = await response.json();
-      
-      // Invalidate the records cache to ensure fresh data on next load
-      if (currentUser.uid) {
-        invalidateRecordsCache(currentUser.uid);
-      }
-      
-      setUploadStatus('success');
-      setUploadProgress(100);
-      
-      // Reset form
-      setFiles([]);
-      setRecordName('');
-      setComment('');
-      
-      // Redirect to records page
-      router.push('/records');
       
     } catch (err: any) {
       // Only log errors in development mode
@@ -228,18 +241,18 @@ export default function Upload() {
           )}
           
           {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'success' ? (
-            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-md shadow-md text-center">
-              <div className="mb-4 text-primary-blue">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-gradient-to-br from-blue-900 to-indigo-900 p-6 rounded-md shadow-lg text-center">
+              <div className="mb-4 text-green-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-primary-blue mb-2">Upload Complete!</h2>
-              <p className="mb-6 text-gray-700">Your health records have been uploaded and analyzed successfully.</p>
-              <div className="flex justify-center space-x-4">
+              <h2 className="text-2xl font-bold text-white mb-3">Upload Complete!</h2>
+              <p className="mb-8 text-blue-100">Your health records have been uploaded and are being analyzed.</p>
+              <div className="flex justify-center space-x-6">
                 <Link 
                   href="/records" 
-                  className="text-white px-4 py-2 rounded-md border border-primary-blue hover:bg-black/20 transition-colors"
+                  className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-md shadow-md transition-colors font-medium"
                 >
                   View Records
                 </Link>
@@ -252,7 +265,7 @@ export default function Upload() {
                     setUploadProgress(0);
                     setAnalysisProgress(0);
                   }}
-                  className="text-white px-4 py-2 rounded-md border border-primary-blue hover:bg-black/20 transition-colors"
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-md shadow-md transition-colors font-medium"
                 >
                   Upload Another
                 </button>
@@ -363,21 +376,21 @@ export default function Upload() {
                 <div className="relative pt-1">
                   <div className="flex mb-2 items-center justify-between">
                     <div>
-                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-indigo-600 bg-indigo-200">
+                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-blue-100 bg-blue-800">
                         Uploading Files
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-semibold inline-block text-indigo-600">
+                      <span className="text-xs font-semibold inline-block text-blue-100">
                         {uploadProgress}%
                       </span>
                     </div>
                   </div>
-                  <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-200">
+                  <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-blue-900">
                     <div
                       style={{ width: `${uploadProgress}%` }}
                       className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${
-                        (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-indigo-500'
+                        (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-blue-500'
                       }`}
                     ></div>
                   </div>
@@ -390,21 +403,21 @@ export default function Upload() {
                   <div className="relative pt-1">
                     <div className="flex mb-2 items-center justify-between">
                       <div>
-                        <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-purple-600 bg-purple-200">
+                        <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-blue-100 bg-indigo-800">
                           Analyzing Documents
                         </span>
                       </div>
                       <div className="text-right">
-                        <span className="text-xs font-semibold inline-block text-purple-600">
+                        <span className="text-xs font-semibold inline-block text-blue-100">
                           {analysisProgress}%
                         </span>
                       </div>
                     </div>
-                    <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-purple-200">
+                    <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-900">
                       <div
                         style={{ width: `${analysisProgress}%` }}
                         className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${
-                          (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-purple-500'
+                          (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-indigo-500'
                         }`}
                       ></div>
                     </div>

@@ -1,6 +1,7 @@
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 import { isImageFile } from './pdf-utils';
+import { extractTagContent, extractBriefSummary, extractDetailedAnalysis, extractRecordType, extractRecordDate } from './analysis-utils';
 
 /**
  * Analyzes a record using the OpenAI Responses API
@@ -10,6 +11,7 @@ import { isImageFile } from './pdf-utils';
  * @param fileType The file type
  * @param recordName The record name
  * @param question Optional custom question to ask
+ * @param additionalFileIds Optional array of additional file IDs to analyze together
  * @returns The analysis result
  */
 export async function analyzeRecord(
@@ -18,12 +20,24 @@ export async function analyzeRecord(
   fileId: string,
   fileType: string,
   recordName: string,
-  question?: string
+  question?: string,
+  additionalFileIds?: string[]
 ) {
   try {
     console.log(`🧠 Analyzing record ${recordId} with file ${fileId}`);
     
-    const analysisResponse = await fetch('/api/openai/analyze', {
+    // Log additional files only if they exist
+    if (additionalFileIds?.length) {
+      console.log(`Including ${additionalFileIds.length} additional files in analysis`);
+    }
+    
+    // Check if running on server side and use absolute URL
+    const isServer = typeof window === 'undefined';
+    const baseUrl = isServer 
+      ? process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+      : '';
+    
+    const analysisResponse = await fetch(`${baseUrl}/api/openai/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -32,7 +46,8 @@ export async function analyzeRecord(
         recordName,
         question,
         userId,
-        recordId
+        recordId,
+        additionalFileIds
       }),
     });
     
@@ -43,7 +58,7 @@ export async function analyzeRecord(
     }
     
     const analysisData = await analysisResponse.json();
-    console.log(`✅ Analysis complete:`, analysisData);
+    console.log(`✅ Analysis complete for record ${recordId}`);
     
     // Update the record in Firestore with the new fields
     try {
@@ -56,17 +71,13 @@ export async function analyzeRecord(
       let briefSummary = '';
       let detailedAnalysis = '';
       
-      // If the analysis is a JSON string, try to parse it and extract the output_text
+      // Check if the analysis is a JSON string, try to parse it and extract the output_text
       if (typeof analysis === 'string' && analysis.startsWith('{') && analysis.includes('output_text')) {
         try {
-          console.log('Detected JSON string in analysis field, attempting to parse...');
           const parsedAnalysis = JSON.parse(analysis);
           
           // Extract the output_text if it exists
           if (parsedAnalysis.output_text) {
-            console.log('Found output_text in parsed JSON');
-            
-            // Use the output_text as the analysis
             analysis = parsedAnalysis.output_text;
           }
         } catch (parseError) {
@@ -75,96 +86,16 @@ export async function analyzeRecord(
         }
       }
       
-      // Extract sections from the analysis text
+      // Extract sections from the analysis text only if we have a string
       if (typeof analysis === 'string') {
-        // Extract detailed analysis using XML-like tags (new format)
-        const detailedAnalysisMatch = analysis.match(/<DETAILED_ANALYSIS>\s*([\s\S]*?)\s*<\/DETAILED_ANALYSIS>/i);
+        // Extract all sections at once to avoid redundant regex operations
+        detailedAnalysis = extractDetailedAnalysis(analysis);
+        briefSummary = extractBriefSummary(analysis);
         
-        if (detailedAnalysisMatch && detailedAnalysisMatch[1]) {
-          detailedAnalysis = detailedAnalysisMatch[1].trim();
-          // Remove any file headers
-          detailedAnalysis = detailedAnalysis.replace(/===\s*[^=]+\s*===/g, '');
-        } else {
-          // Fallback to old format
-          const oldDetailedAnalysisMatch = analysis.match(/1\.?\s*DETAILED ANALYSIS:?\s*([\s\S]*?)(?=2\.?\s*BRIEF SUMMARY|BRIEF SUMMARY|$)/i) || 
-                                         analysis.match(/DETAILED ANALYSIS:?\s*([\s\S]*?)(?=BRIEF SUMMARY|SUMMARY|DOCUMENT TYPE|DATE|$)/i);
-          
-          if (oldDetailedAnalysisMatch && oldDetailedAnalysisMatch[1]) {
-            detailedAnalysis = oldDetailedAnalysisMatch[1].trim();
-            // Remove any file headers
-            detailedAnalysis = detailedAnalysis.replace(/===\s*[^=]+\s*===/g, '');
-          }
-        }
-        
-        // Extract brief summary using XML-like tags (new format)
-        const briefSummaryMatch = analysis.match(/<BRIEF_SUMMARY>\s*([\s\S]*?)\s*<\/BRIEF_SUMMARY>/i);
-        
-        if (briefSummaryMatch && briefSummaryMatch[1]) {
-          briefSummary = briefSummaryMatch[1].trim();
-          // Remove any leading dashes or hyphens
-          briefSummary = briefSummary.replace(/^[-–—]+\s*/, '');
-        } else {
-          // Fallback to old format
-          const oldBriefSummaryMatch = analysis.match(/2\.?\s*BRIEF SUMMARY:?\s*([\s\S]*?)(?=3\.?\s*DOCUMENT TYPE|DOCUMENT TYPE|$)/i) || 
-                                     analysis.match(/BRIEF SUMMARY:?\s*([\s\S]*?)(?=DOCUMENT TYPE|TYPE|DATE|$)/i);
-          
-          if (oldBriefSummaryMatch && oldBriefSummaryMatch[1]) {
-            briefSummary = oldBriefSummaryMatch[1].trim();
-            // Remove any leading dashes or hyphens
-            briefSummary = briefSummary.replace(/^[-–—]+\s*/, '');
-          }
-        }
-        
-        // Extract record type using XML-like tags (new format)
-        if (!recordType) {
-          const recordTypeMatch = analysis.match(/<DOCUMENT_TYPE>\s*([\s\S]*?)\s*<\/DOCUMENT_TYPE>/i);
-          
-          if (recordTypeMatch && recordTypeMatch[1]) {
-            recordType = recordTypeMatch[1].trim();
-            // Remove any leading dashes or hyphens
-            recordType = recordType.replace(/^[-–—]+\s*/, '');
-          } else {
-            // Fallback to old format
-            const oldRecordTypeMatch = analysis.match(/3\.?\s*DOCUMENT TYPE:?\s*([\s\S]*?)(?=4\.?\s*DATE|DATE|$)/i) || 
-                                     analysis.match(/DOCUMENT TYPE:?\s*([\s\S]*?)(?=DATE|$)/i);
-            
-            if (oldRecordTypeMatch && oldRecordTypeMatch[1]) {
-              recordType = oldRecordTypeMatch[1].trim();
-              // Remove any leading dashes or hyphens
-              recordType = recordType.replace(/^[-–—]+\s*/, '');
-            }
-          }
-        }
-        
-        // Extract record date using XML-like tags (new format)
-        if (!recordDate) {
-          const recordDateMatch = analysis.match(/<DATE>\s*([\s\S]*?)\s*<\/DATE>/i);
-          
-          if (recordDateMatch && recordDateMatch[1]) {
-            recordDate = recordDateMatch[1].trim();
-            // Remove any leading dashes or hyphens
-            recordDate = recordDate.replace(/^[-–—]+\s*/, '');
-          } else {
-            // Fallback to old format
-            const oldRecordDateMatch = analysis.match(/4\.?\s*DATE:?\s*([\s\S]*?)(?=$)/i) || 
-                                     analysis.match(/DATE:?\s*([\s\S]*?)(?=$)/i);
-            
-            if (oldRecordDateMatch && oldRecordDateMatch[1]) {
-              recordDate = oldRecordDateMatch[1].trim();
-              // Remove any leading dashes or hyphens
-              recordDate = recordDate.replace(/^[-–—]+\s*/, '');
-            }
-          }
-        }
+        // Extract additional fields only if not already provided
+        if (!recordType) recordType = extractRecordType(analysis);
+        if (!recordDate) recordDate = extractRecordDate(analysis);
       }
-      
-      // Log the final analysis value
-      console.log('Final analysis value before Firestore update:');
-      console.log('- analysis:', analysis ? analysis.substring(0, 100) + '...' : 'None');
-      console.log('- recordType:', recordType);
-      console.log('- recordDate:', recordDate);
-      console.log('- briefSummary:', briefSummary ? briefSummary.substring(0, 100) + '...' : 'None');
-      console.log('- detailedAnalysis:', detailedAnalysis ? detailedAnalysis.substring(0, 100) + '...' : 'None');
       
       const updateData = {
         analysis: analysis || "Analysis could not be completed.",
@@ -175,11 +106,8 @@ export async function analyzeRecord(
         detailedAnalysis: detailedAnalysis || ""
       };
       
-      console.log('Updating Firestore with data:', updateData);
-      
       await updateDoc(recordRef, updateData);
-      
-      console.log(`✅ Record updated with analysis`);
+      console.log(`✅ Record ${recordId} updated with analysis`);
     } catch (updateError) {
       console.error('❌ Error updating record with analysis:', updateError);
       // Continue even if update fails, so we still return the analysis
@@ -211,7 +139,13 @@ export async function uploadFirestoreFileToOpenAI(
   try {
     console.log(`📤 Uploading file from Firestore to OpenAI: ${fileName}`);
     
-    const response = await fetch('/api/openai/upload', {
+    // Check if running on server side and use absolute URL
+    const isServer = typeof window === 'undefined';
+    const baseUrl = isServer 
+      ? process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+      : '';
+    
+    const response = await fetch(`${baseUrl}/api/openai/upload`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -225,16 +159,16 @@ export async function uploadFirestoreFileToOpenAI(
     
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('❌ OpenAI upload from Firestore failed:', errorData);
+      console.error('❌ OpenAI upload failed:', errorData);
       throw new Error(`OpenAI upload failed: ${errorData.message || errorData.error || 'Unknown error'}`);
     }
     
     const data = await response.json();
-    console.log(`✅ OpenAI upload from Firestore successful, file ID: ${data.id}`);
+    console.log(`✅ File uploaded to OpenAI, ID: ${data.id}`);
     
     return data.id;
   } catch (error: any) {
-    console.error('❌ Error uploading file from Firestore to OpenAI:', error);
+    console.error('❌ Error uploading file to OpenAI:', error);
     throw error;
   }
 }
