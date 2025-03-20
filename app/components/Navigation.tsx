@@ -7,6 +7,7 @@ import { useState, useRef, useEffect } from 'react';
 import { FaUserCircle } from 'react-icons/fa';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import Image from 'next/image';
 
 interface NavigationProps {
   isHomePage?: boolean;
@@ -63,7 +64,18 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
       <>
         {/* Navigation Header */}
         <header className="bg-black/80 backdrop-blur-sm p-4 flex justify-between items-center shadow-md w-full fixed top-0 left-0 right-0 z-20">
-          <Link href="/about" className="text-2xl font-bold text-white">Wattle</Link>
+          <div className="flex items-center">
+            <div className="mr-2 relative w-8 h-8">
+              <Image 
+                src="/images/logo.png" 
+                alt="Wattle Logo"
+                fill
+                style={{ objectFit: 'contain' }}
+                priority
+              />
+            </div>
+            <Link href="/about" className="text-2xl font-bold text-white">Wattle</Link>
+          </div>
           <div className="flex items-center space-x-4">
             {currentUser && (
               <Link href="/profile" className="text-white flex items-center border border-gray-600 rounded-full py-1 px-3 hover:border-gray-400 transition-colors">
@@ -84,7 +96,18 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
         {currentUser ? (
           // Authenticated navigation
           <>
-            <Link href="/about" className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Wattle</Link>
+            <div className="flex items-center">
+              <div className="mr-2 relative w-8 h-8">
+                <Image 
+                  src="/images/logo.png" 
+                  alt="Wattle Logo"
+                  fill
+                  style={{ objectFit: 'contain' }}
+                  priority
+                />
+              </div>
+              <Link href="/about" className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Wattle</Link>
+            </div>
             <div className="flex items-center space-x-4">
               <Link 
                 href="/profile" 
@@ -99,7 +122,18 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
         ) : (
           // Unauthenticated navigation
           <>
-            <Link href="/about" className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Wattle</Link>
+            <div className="flex items-center">
+              <div className="mr-2 relative w-8 h-8">
+                <Image 
+                  src="/images/logo.png" 
+                  alt="Wattle Logo"
+                  fill
+                  style={{ objectFit: 'contain' }}
+                  priority
+                />
+              </div>
+              <Link href="/about" className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Wattle</Link>
+            </div>
             <div className="flex items-center space-x-4">
               <Link 
                 href="/login" 

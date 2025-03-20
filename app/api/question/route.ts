@@ -68,10 +68,10 @@ export async function POST(request: NextRequest) {
     // Get summaries from all records
     const summaries = recordsSnapshot.docs.map(doc => {
       const data = doc.data();
-      const recordType = data.isManual ? 'Manual Record' : 'Uploaded Record';
+      const recordType = data.recordType || (data.isManual ? 'Manual Record' : 'Uploaded Record');
       const photoInfo = data.hasPhoto && data.url ? ' (Includes photo)' : '';
-      return `Record: ${data.name || 'Unnamed Record'} (${recordType}${photoInfo})
-Analysis: ${data.analysis || 'No analysis available'}`;
+      return `${recordType}${photoInfo}
+Analysis: ${data.detailedAnalysis || data.analysis || 'No analysis available'}`;
     });
     
     if (summaries.length === 0) {
@@ -82,7 +82,7 @@ Analysis: ${data.analysis || 'No analysis available'}`;
     }
     
     // Limit the number of summaries to avoid token limits
-    const limitedSummaries = summaries.slice(0, 10);
+    const limitedSummaries = summaries.slice(0, 20);
     
     // Get user profile information
     let profileInfo = 'User Profile: Not available';
@@ -171,7 +171,7 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
           },
           {
             role: 'user',
-            content: `${profileInfo}\n\nI have the following health record summaries for this user:\n\n${limitedSummaries.join('\n\n---\n\n')}\n\nBased on these summaries and the user's profile information, please answer this question: ${question}\n\nPlease format your response using these XML-like tags:\n\n<ANSWER>\nYour detailed answer here.\n</ANSWER>\n\n<RELEVANT_RECORDS>\nList the records that were most relevant to answering this question.\n</RELEVANT_RECORDS>\n\n<ADDITIONAL_CONTEXT>\nProvide any additional context or caveats about your answer.\n</ADDITIONAL_CONTEXT>\n\nIt is CRITICAL that you use these exact XML-like tags in your response to ensure proper formatting.`
+            content: `${profileInfo}\n\nI have the following health record summaries for this user:\n\n${limitedSummaries.join('\n\n---\n\n')}\n\nBased on these summaries and the user's profile information, please answer this question: ${question}\n\nPlease format your response using these XML-like tags:\n\n<ANSWER>\nYour detailed answer here.\n</ANSWER>\n\n<RELEVANT_RECORDS>\nList the records that were most relevant to answering this question.\n</RELEVANT_RECORDS>\n\nIt is CRITICAL that you use these exact XML-like tags in your response to ensure proper formatting.`
           }
         ]
       })

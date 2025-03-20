@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
 import { FaUpload, FaComments, FaWatchmanMonitoring, FaClipboardList, FaHeartbeat } from 'react-icons/fa';
 import Navigation from './components/Navigation';
+import { useBackgroundLogo } from './layout';
 
 export default function Home() {
   const { currentUser, loading } = useAuth();
@@ -15,11 +16,43 @@ export default function Home() {
   const chatRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const { showBackgroundLogo, setShowBackgroundLogo } = useBackgroundLogo();
+
+  // Load messages from localStorage when component mounts
+  useEffect(() => {
+    if (currentUser) {
+      const savedMessages = localStorage.getItem(`chat_messages_${currentUser.uid}`);
+      if (savedMessages) {
+        try {
+          const parsedMessages = JSON.parse(savedMessages);
+          setMessages(parsedMessages);
+        } catch (e) {
+          console.error('Error parsing saved messages:', e);
+        }
+      }
+    }
+  }, [currentUser]);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (currentUser && messages.length > 0) {
+      localStorage.setItem(`chat_messages_${currentUser.uid}`, JSON.stringify(messages));
+    }
+  }, [messages, currentUser]);
 
   // Function to manually scroll to the bottom when button is clicked
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Hide background logo when messages are present
+  useEffect(() => {
+    if (messages.length > 0) {
+      setShowBackgroundLogo(false);
+    } else {
+      setShowBackgroundLogo(true);
+    }
+  }, [messages, setShowBackgroundLogo]);
 
   // Listen for scroll events to determine if scroll button should be shown
   useEffect(() => {
@@ -77,6 +110,9 @@ export default function Home() {
   const handleNewChat = () => {
     setMessages([]);
     setUserInput('');
+    if (currentUser) {
+      localStorage.removeItem(`chat_messages_${currentUser.uid}`);
+    }
   };
 
   // Function to process AI chat responses and remove XML tags
@@ -207,7 +243,7 @@ export default function Home() {
           <div className="p-2 pb-safe flex flex-col h-[calc(100vh-120px)]">
             
             {/* Messages displayed directly on background */}
-            <div className="flex-grow overflow-y-auto hide-scrollbar mb-2 pt-4 pb-20 messages-container relative">
+            <div className="flex-grow overflow-y-auto hide-scrollbar mb-2 pt-4 pb-40 messages-container relative">
               {messages.length === 0 ? (
                 <div className="text-gray-200 text-center py-4">
                   
@@ -256,7 +292,7 @@ export default function Home() {
             </div>
             
             {/* Question input moved higher up from bottom navigation */}
-            <div className="fixed bottom-[88px] left-0 right-0 px-4 py-2 bg-black/40 backdrop-blur-sm z-10">
+            <div className="fixed bottom-[150px] left-0 right-0 px-4 py-2 bg-black/40 backdrop-blur-sm z-10">
               <form onSubmit={handleSendMessage} className="flex w-full">
                 <input
                   type="text"
