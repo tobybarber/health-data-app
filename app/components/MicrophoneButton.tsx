@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useVoiceInput } from '../hooks/useVoiceInput';
 import { FaMicrophone, FaSpinner } from 'react-icons/fa';
+import { isIOS } from '../lib/voice-utils';
 
 interface MicrophoneButtonProps {
   onTranscription: (text: string) => void;
@@ -18,12 +19,21 @@ export default function MicrophoneButton({ onTranscription, className = '' }: Mi
 
   // Handle errors
   const [displayError, setDisplayError] = useState<string | null>(null);
+  const [isiOSDevice, setIsIOSDevice] = useState(false);
+  
+  // Check if iOS device on client side
+  useEffect(() => {
+    setIsIOSDevice(isIOS());
+  }, []);
 
   // Show error for 3 seconds then clear it
-  if (error && error !== displayError) {
-    setDisplayError(error);
-    setTimeout(() => setDisplayError(null), 3000);
-  }
+  useEffect(() => {
+    if (error && error !== displayError) {
+      setDisplayError(error);
+      const timer = setTimeout(() => setDisplayError(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, displayError]);
 
   // Start recording with timestamp
   const handleStartRecording = () => {
@@ -97,8 +107,14 @@ export default function MicrophoneButton({ onTranscription, className = '' }: Mi
         )}
       </button>
 
+      {isiOSDevice && (
+        <div className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white text-xs py-1 px-2 rounded whitespace-nowrap max-w-xs text-center">
+          iOS: Speak for at least 2 seconds and wait for processing
+        </div>
+      )}
+
       {displayError && (
-        <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-red-500 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
+        <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-red-500 text-white text-xs py-1 px-2 rounded whitespace-nowrap max-w-xs text-center">
           {displayError}
         </div>
       )}

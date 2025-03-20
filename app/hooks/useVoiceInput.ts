@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { blobToBase64, transcribeAudio } from '../lib/voice-utils';
+import { blobToBase64, transcribeAudio, getBestAudioMimeType } from '../lib/voice-utils';
 
 interface UseVoiceInputProps {
   onTranscription?: (text: string) => void;
@@ -44,16 +44,34 @@ export function useVoiceInput({ onTranscription }: UseVoiceInputProps = {}) {
       
       // Request microphone access if we don't have it
       if (!streamRef.current) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          } 
+        });
         streamRef.current = stream;
       }
       
       // Clear previous audio chunks
       audioChunksRef.current = [];
       
-      // Create a new MediaRecorder instance
-      const mediaRecorder = new MediaRecorder(streamRef.current);
+      // Get the appropriate MIME type for this browser
+      const mimeType = getBestAudioMimeType();
+      
+      // Create a new MediaRecorder instance with the appropriate MIME type
+      let mediaRecorder;
+      try {
+        mediaRecorder = new MediaRecorder(streamRef.current, { mimeType });
+      } catch (e) {
+        console.warn(`MediaRecorder does not support ${mimeType} on this browser, trying without specifying format`);
+        mediaRecorder = new MediaRecorder(streamRef.current);
+      }
+      
       mediaRecorderRef.current = mediaRecorder;
+      
+      console.log(`Recording started with mime type: ${mediaRecorder.mimeType}`);
       
       // Setup event handlers
       mediaRecorder.ondataavailable = (event) => {
@@ -68,8 +86,10 @@ export function useVoiceInput({ onTranscription }: UseVoiceInputProps = {}) {
         try {
           setIsProcessing(true);
           
-          // Create audio blob from chunks
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          // Create audio blob with the format that was used for recording
+          const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+          
+          console.log(`Audio recorded as ${mediaRecorder.mimeType}, size: ${audioBlob.size} bytes`);
           
           // Convert to base64
           const base64Audio = await blobToBase64(audioBlob);

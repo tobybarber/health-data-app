@@ -15,6 +15,28 @@ export const blobToBase64 = (blob: Blob): Promise<string> => {
 };
 
 /**
+ * Check if running on iOS
+ */
+export const isIOS = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
+
+/**
+ * Get the best supported audio type for the current browser
+ */
+export const getBestAudioMimeType = (): string => {
+  // iOS Safari doesn't support WebM, use MP4 container instead
+  if (isIOS()) {
+    return 'audio/mp4';
+  }
+  
+  // For other browsers, prefer WebM
+  return 'audio/webm';
+};
+
+/**
  * Get audio stream from the user's microphone
  */
 export const getMicrophoneStream = async (): Promise<MediaStream> => {
@@ -43,7 +65,10 @@ export const transcribeAudio = async (audioBase64: string): Promise<string> => {
     const response = await fetch('/api/whisper', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ audio: audioBase64 }),
+      body: JSON.stringify({ 
+        audio: audioBase64,
+        isIOS: isIOS() // Send flag to inform backend about iOS
+      }),
     });
 
     if (!response.ok) {
