@@ -57,10 +57,14 @@ export default function WearablesPage() {
 
   return (
     <ProtectedRoute>
-      <div className="pb-safe pt-safe">
+      <div className="min-h-screen bg-black">
         <Navigation isHomePage={true} />
-        <div className="container mx-auto px-4 py-8">
-          <h1 className="text-2xl font-bold text-primary-blue mb-6">My Wearables</h1>
+        {/* Navigation spacer - ensures content starts below navbar */}
+        <div className="h-16"></div>
+        <div className="container mx-auto px-4 py-8 pb-24">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold text-primary-blue">My Wearables</h1>
+          </div>
           
           <p className="mb-6 text-gray-300">
             Connect your wearable devices to automatically import health data.

@@ -214,7 +214,7 @@ export default function Records() {
         <Navigation />
         {/* Navigation spacer - ensures content starts below navbar */}
         <div className="h-16"></div>
-        <div className="container mx-auto px-4 py-8 pb-24">
+        <div className="container mx-auto px-4 py-6 pb-24">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-primary-blue">My Records</h1>
             <div className="flex items-center gap-2">

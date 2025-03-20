@@ -50,13 +50,13 @@ export default function AboutPage() {
 
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-primary-blue mb-4">Security Measures</h2>
-            <p className="mb-4 text-gray-800">
+            <p className="mb-4 text-gray-300">
               Protecting your health data is our top priority. We implement industry-leading security 
               measures to ensure your information remains safe.
             </p>
-            <div className="bg-blue-50 p-4 rounded-lg mb-4">
-              <h3 className="font-semibold mb-2 text-gray-800">Our Security Infrastructure:</h3>
-              <ul className="list-disc pl-5 space-y-2 text-gray-800">
+            <div className="bg-gray-900 p-4 rounded-lg mb-4">
+              <h3 className="font-semibold mb-2 text-gray-300">Our Security Infrastructure:</h3>
+              <ul className="list-disc pl-5 space-y-2 text-gray-300">
                 <li>End-to-end encryption for all sensitive data</li>
                 <li>Secure authentication with multi-factor options</li>
                 <li>Regular security audits and vulnerability testing</li>
@@ -69,17 +69,17 @@ export default function AboutPage() {
 
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-primary-blue mb-4">Data Handling Practices</h2>
-            <p className="mb-4 text-gray-800">
+            <p className="mb-4 text-gray-300">
               We adhere to strict data handling practices to maintain the integrity and confidentiality of your information:
             </p>
-            <ul className="list-disc pl-5 space-y-2 mb-4 text-gray-800">
+            <ul className="list-disc pl-5 space-y-2 mb-4 text-gray-300">
               <li>All data is encrypted both in transit and at rest</li>
               <li>Access to user data is strictly limited and logged</li>
               <li>Regular data protection impact assessments</li>
               <li>Clear data retention policies</li>
               <li>Secure data deletion processes when requested</li>
             </ul>
-            <p className="text-gray-800">
+            <p className="text-gray-300">
               For more detailed information about how we handle your data, please review our 
               comprehensive Privacy Policy and Terms of Service.
             </p>
@@ -87,13 +87,13 @@ export default function AboutPage() {
 
           <section>
             <h2 className="text-2xl font-semibold text-primary-blue mb-4">Contact Us</h2>
-            <p className="mb-4 text-gray-800">
+            <p className="mb-4 text-gray-300">
               If you have any questions or concerns about privacy, security, or any other aspect of our service, 
               please don't hesitate to contact our support team.
             </p>
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="font-semibold text-gray-800">Email: support@wattle-health.com</p>
-              <p className="font-semibold text-gray-800">Phone: +61 421 479 656</p>
+            <div className="bg-gray-900 p-4 rounded-lg">
+              <p className="font-semibold text-gray-300">Email: support@wattle-health.com</p>
+              <p className="font-semibold text-gray-300">Phone: +61 421 479 656</p>
             </div>
           </section>
         </div>

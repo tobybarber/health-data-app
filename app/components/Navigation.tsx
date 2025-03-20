@@ -65,16 +65,18 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
         {/* Navigation Header */}
         <header className="bg-black/80 backdrop-blur-sm p-4 flex justify-between items-center shadow-md w-full fixed top-0 left-0 right-0 z-20">
           <div className="flex items-center">
-            <div className="mr-2 relative w-8 h-8">
-              <Image 
-                src="/images/logo.png" 
-                alt="Wattle Logo"
-                fill
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
-            <Link href="/about" className="text-2xl font-bold text-white">Wattle</Link>
+            <Link href="/about" className="flex items-center">
+              <div className="mr-2 relative w-8 h-8">
+                <Image 
+                  src="/images/logo.png" 
+                  alt="Wattle Logo"
+                  fill
+                  style={{ objectFit: 'contain' }}
+                  priority
+                />
+              </div>
+              <span className="text-2xl font-bold text-white">Wattle</span>
+            </Link>
           </div>
           <div className="flex items-center space-x-4">
             {currentUser && (
@@ -97,16 +99,18 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
           // Authenticated navigation
           <>
             <div className="flex items-center">
-              <div className="mr-2 relative w-8 h-8">
-                <Image 
-                  src="/images/logo.png" 
-                  alt="Wattle Logo"
-                  fill
-                  style={{ objectFit: 'contain' }}
-                  priority
-                />
-              </div>
-              <Link href="/about" className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Wattle</Link>
+              <Link href="/about" className="flex items-center">
+                <div className="mr-2 relative w-8 h-8">
+                  <Image 
+                    src="/images/logo.png" 
+                    alt="Wattle Logo"
+                    fill
+                    style={{ objectFit: 'contain' }}
+                    priority
+                  />
+                </div>
+                <span className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Wattle</span>
+              </Link>
             </div>
             <div className="flex items-center space-x-4">
               <Link 
@@ -123,16 +127,18 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
           // Unauthenticated navigation
           <>
             <div className="flex items-center">
-              <div className="mr-2 relative w-8 h-8">
-                <Image 
-                  src="/images/logo.png" 
-                  alt="Wattle Logo"
-                  fill
-                  style={{ objectFit: 'contain' }}
-                  priority
-                />
-              </div>
-              <Link href="/about" className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Wattle</Link>
+              <Link href="/about" className="flex items-center">
+                <div className="mr-2 relative w-8 h-8">
+                  <Image 
+                    src="/images/logo.png" 
+                    alt="Wattle Logo"
+                    fill
+                    style={{ objectFit: 'contain' }}
+                    priority
+                  />
+                </div>
+                <span className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Wattle</span>
+              </Link>
             </div>
             <div className="flex items-center space-x-4">
               <Link 

@@ -44,11 +44,7 @@ interface RecordDetail {
 export default function Analysis() {
   const [holisticAnalysis, setHolisticAnalysis] = useState<string>('');
   const [profileInfo, setProfileInfo] = useState<string>('');
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [messages, setMessages] = useState<{ user: string; ai: string }[]>([]);
-  const [userInput, setUserInput] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
-  const [isAiResponding, setIsAiResponding] = useState(false);
   const [needsUpdate, setNeedsUpdate] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [analysisSource, setAnalysisSource] = useState<string>('');
@@ -59,11 +55,6 @@ export default function Analysis() {
   const [summariesUsed, setSummariesUsed] = useState<boolean>(false);
   const [commentsUsed, setCommentsUsed] = useState<boolean>(false);
   const [apiKeyValid, setApiKeyValid] = useState<boolean | null>(null);
-  const [question, setQuestion] = useState<string>('');
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [isAskingQuestion, setIsAskingQuestion] = useState<boolean>(false);
-  const chatRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { currentUser } = useAuth();
   const [dataLoaded, setDataLoaded] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -210,126 +201,6 @@ export default function Analysis() {
 
     fetchProfile();
   }, [currentUser]);
-
-  // Auto-scroll to bottom of chat when new messages arrive
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
-
-  const handleChatToggle = () => {
-    setIsChatOpen(!isChatOpen);
-  };
-
-  // Function to process AI chat responses and remove XML tags
-  const processChatResponse = (response: string) => {
-    if (!response) return '';
-    
-    // Extract content from XML-like tags
-    const extractTagContent = (text: string, tagName: string) => {
-      const regex = new RegExp(`<${tagName}>\\s*([\\s\\S]*?)\\s*<\\/${tagName}>`, 'i');
-      const match = text.match(regex);
-      return match ? match[1].trim() : null;
-    };
-
-    // Check if the text contains XML-like tags
-    const hasXmlTags = /<[A-Z_]+>[\s\S]*?<\/[A-Z_]+>/i.test(response);
-    
-    if (hasXmlTags) {
-      // Extract content from each section
-      const answer = extractTagContent(response, 'ANSWER') || '';
-      const relevantRecords = extractTagContent(response, 'RELEVANT_RECORDS');
-      const additionalContext = extractTagContent(response, 'ADDITIONAL_CONTEXT');
-      
-      // Combine sections with proper formatting
-      let formattedResponse = answer;
-      
-      if (relevantRecords) {
-        formattedResponse += '\n\nRelevant Records:\n' + relevantRecords;
-      }
-      
-      if (additionalContext) {
-        formattedResponse += '\n\nAdditional Context:\n' + additionalContext;
-      }
-      
-      return formattedResponse;
-    }
-    
-    // If no XML tags, return the original response
-    return response;
-  };
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userInput.trim() || !currentUser || isAiResponding) return;
-
-    // Add user message to chat
-    setMessages((prev) => [...prev, { user: userInput, ai: '' }]);
-    
-    // Clear input field immediately
-    const question = userInput;
-    setUserInput('');
-    
-    // Set loading state
-    setIsAiResponding(true);
-
-    // Call the API endpoint for follow-up questions
-    try {
-      const response = await fetch('/api/question', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          question: question,
-          userId: currentUser.uid,
-          context: holisticAnalysis
-        }),
-      });
-      const data = await response.json();
-      const aiResponse = data.answer || 'No response from AI';
-
-      // Process the AI response to remove XML tags
-      const processedResponse = processChatResponse(aiResponse);
-
-      // Update the last message with processed AI response
-      setMessages((prev) => {
-        const newMessages = [...prev];
-        newMessages[newMessages.length - 1].ai = processedResponse;
-        return newMessages;
-      });
-    } catch (error) {
-      console.error('Error communicating with AI:', error);
-      // Update with error message
-      setMessages((prev) => {
-        const newMessages = [...prev];
-        newMessages[newMessages.length - 1].ai = 'Sorry, there was an error processing your question. Please try again.';
-        return newMessages;
-      });
-    } finally {
-      setIsAiResponding(false);
-    }
-  };
-
-  // Close chat when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      // Get the chat button element
-      const chatButton = document.querySelector('button[aria-label="Chat with AI"]');
-      
-      // Only close if the click is outside the chat AND not on the chat button
-      if (chatRef.current && 
-          !chatRef.current.contains(event.target as Node) && 
-          chatButton !== event.target && 
-          !chatButton?.contains(event.target as Node)) {
-        setIsChatOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
 
   const handleUpdate = async () => {
     if (!currentUser) {
@@ -818,11 +689,13 @@ export default function Analysis() {
 
   return (
     <ProtectedRoute>
-      <div className="pb-safe pt-safe">
+      <div className="min-h-screen bg-black">
         <Navigation />
-        <div className="container mx-auto px-2 py-8">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-bold text-primary-blue"></h1>
+        {/* Navigation spacer - ensures content starts below navbar */}
+        <div className="h-16"></div>
+        <div className="container mx-auto px-4 py-6 pb-24">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold text-primary-blue">My Analysis</h1>
             {/* Update Button positioned on the right side */}
             <div className="flex space-x-2">
               <button
@@ -926,70 +799,9 @@ export default function Analysis() {
             )}
           </div>
 
-          {/* Floating Chat Button */}
-          <button
-            onClick={handleChatToggle}
-            className="fixed bottom-28 right-4 bg-primary-blue text-white rounded-full p-3 shadow-lg hover:bg-gray-700 transition z-30"
-            aria-label="Chat with AI"
-          >
-            <span className="flex items-center">
-              <span className="mr-1">💬</span>
-              <span>Chat</span>
-            </span>
-          </button>
-
           {/* Bottom overlay to prevent seeing content */}
           <div className="fixed bottom-0 left-0 right-0 h-16 bg-black z-10"></div>
 
-          {/* Chat Window */}
-          {isChatOpen && (
-            <div ref={chatRef} className="fixed bottom-0 right-4 bg-black shadow-lg rounded-t-lg p-4 w-80 border border-gray-800 border-b-0 z-20">
-              <h3 className="font-bold mb-2">Chat with AI</h3>
-              <div className="overflow-y-auto h-96 mb-2">
-                {messages.map((msg, index) => (
-                  <div key={index} className="mb-2">
-                    <div className="font-semibold">You:</div>
-                    <div>{msg.user}</div>
-                    {msg.ai ? (
-                      <>
-                        <div className="font-semibold">AI:</div>
-                        <div className="whitespace-pre-line bg-pink-600 border-2 border-pink-400 p-2 rounded-lg text-white">{msg.ai}</div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="font-semibold">AI:</div>
-                        <div className="flex items-center text-white bg-pink-600 border-2 border-pink-400 p-2 rounded-lg">
-                          <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 100 12v2a8 8 0 01-8-8z"></path>
-                          </svg>
-                          Thinking...
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-                <div ref={messagesEndRef} /> {/* Scroll anchor */}
-              </div>
-              <form onSubmit={handleSendMessage} className="flex">
-                <input
-                  type="text"
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  className="border border-gray-300 rounded-l-md p-2 flex-grow"
-                  placeholder="Type your message..."
-                  disabled={isAiResponding}
-                />
-                <button 
-                  type="submit" 
-                  className={`bg-primary-blue text-white rounded-r-md p-2 ${isAiResponding ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-700'}`}
-                  disabled={isAiResponding}
-                >
-                  Send
-                </button>
-              </form>
-            </div>
-          )}
         </div>
       </div>
     </ProtectedRoute>

@@ -18,7 +18,6 @@ interface Message {
 
 export default function Home() {
   const { currentUser, loading } = useAuth();
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState('');
   const [isAiResponding, setIsAiResponding] = useState(false);
@@ -40,26 +39,40 @@ export default function Home() {
         // Clear any existing messages in memory (not in storage)
         setMessages([]);
         console.log('New app session started:', sessionId);
+
+        // Automatically start a new chat session
+        if (currentUser) {
+          localStorage.removeItem(`chat_messages_${currentUser.uid}`);
+          sessionStorage.setItem('messages_loaded', 'true');
+          
+          // Set welcome message that doesn't require API call
+          setMessages([{
+            user: "",
+            ai: "Welcome back! Ask me anything about your health records or how I can help you today."
+          }]);
+        }
       }
     }
-  }, []);
+  }, [currentUser]);
 
   // Load messages from localStorage when component mounts
   useEffect(() => {
     if (currentUser) {
       // Only load saved messages if we're in the same session (navigating between pages)
-      // If it's a new session, we want to start with an empty chat
+      // and messages have been previously loaded in this session
       if (sessionStorage.getItem('app_session_id') && sessionStorage.getItem('messages_loaded') === 'true') {
         const savedMessages = localStorage.getItem(`chat_messages_${currentUser.uid}`);
         if (savedMessages) {
           try {
             const parsedMessages = JSON.parse(savedMessages);
-            setMessages(parsedMessages);
+            if (parsedMessages.length > 0) {
+              setMessages(parsedMessages);
+            }
           } catch (e) {
             console.error('Error parsing saved messages:', e);
           }
         }
-      } else {
+      } else if (sessionStorage.getItem('app_session_id')) {
         // Mark that we've handled the messages loading decision for this session
         sessionStorage.setItem('messages_loaded', 'true');
       }
@@ -113,31 +126,6 @@ export default function Home() {
       scrollToBottom();
     }
   }, [messages]);
-
-  // Close chat when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      // Get the chat button element
-      const chatButton = document.querySelector('button[aria-label="Chat with AI"]');
-      
-      // Only close if the click is outside the chat AND not on the chat button
-      if (chatRef.current && 
-          !chatRef.current.contains(event.target as Node) && 
-          chatButton !== event.target && 
-          !chatButton?.contains(event.target as Node)) {
-        setIsChatOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  const handleChatToggle = () => {
-    setIsChatOpen(!isChatOpen);
-  };
 
   // Function to clear the chat history
   const handleNewChat = () => {
@@ -322,7 +310,7 @@ export default function Home() {
                       <div className="flex justify-start">
                         <div className="relative text-white max-w-[80%] whitespace-pre-line pl-3">
                           {msg.ai}
-                          <div className="absolute -top-1 -right-6">
+                          <div className="absolute -top-1 -right-12">
                             <SpeakText text={msg.ai} />
                           </div>
                         </div>

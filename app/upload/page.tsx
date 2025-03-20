@@ -14,6 +14,7 @@ import Navigation from '../components/Navigation';
 import { invalidateRecordsCache } from '../lib/cache-utils';
 import { testFirestoreWrite } from '../lib/test-utils';
 import MicrophoneButton from '../components/MicrophoneButton';
+import { useBackgroundLogo } from '../layout';
 
 interface ErrorResponse {
   message?: string;
@@ -41,6 +42,15 @@ export default function Upload() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [analysisStatus, setAnalysisStatus] = useState<string>('');
+  const { setShowBackgroundLogo } = useBackgroundLogo();
+
+  // Hide background logo when component mounts
+  useEffect(() => {
+    setShowBackgroundLogo(false);
+    return () => {
+      setShowBackgroundLogo(true); // Restore when component unmounts
+    };
+  }, [setShowBackgroundLogo]);
 
   // Check if device is mobile
   useEffect(() => {
@@ -357,10 +367,14 @@ export default function Upload() {
 
   return (
     <ProtectedRoute>
-      <div className="pb-safe pt-safe">
+      <div className="min-h-screen bg-black">
         <Navigation />
-        <div className="container mx-auto px-4 py-8">
-          <h1 className="text-2xl font-bold text-primary-blue mb-6"></h1>
+        {/* Navigation spacer - ensures content starts below navbar */}
+        <div className="h-16"></div>
+        <div className="container mx-auto px-4 py-8 pb-24">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold text-primary-blue">Upload Health Record</h1>
+          </div>
           
           {apiKeyValid === false && !isLoading && (
             <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-md shadow-md">
