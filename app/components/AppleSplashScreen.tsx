@@ -39,8 +39,8 @@ const AppleSplashScreen = () => {
   // Only render on client side
   if (!mounted) return null;
   
-  // Use logo.png from the public images folder for the splash screen icon
-  const iconPath = '/images/logo.png';
+  // Use Favicon.jpg from the public images folder for the splash screen icon
+  const iconPath = '/images/Favicon.jpg';
   
   return (
     <>

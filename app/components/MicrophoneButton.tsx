@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useVoiceInput } from '../hooks/useVoiceInput';
-import { FaMicrophone, FaSpinner } from 'react-icons/fa';
+import { FaMicrophone, FaSpinner, FaStop } from 'react-icons/fa';
 import { isIOS } from '../lib/voice-utils';
 
 interface MicrophoneButtonProps {
@@ -11,7 +11,6 @@ interface MicrophoneButtonProps {
 }
 
 export default function MicrophoneButton({ onTranscription, className = '' }: MicrophoneButtonProps) {
-  const [isLongPress, setIsLongPress] = useState(false);
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
   const { isRecording, isProcessing, error, startRecording, stopRecording } = useVoiceInput({
     onTranscription,
@@ -20,6 +19,9 @@ export default function MicrophoneButton({ onTranscription, className = '' }: Mi
   // Handle errors
   const [displayError, setDisplayError] = useState<string | null>(null);
   const [isiOSDevice, setIsIOSDevice] = useState(false);
+  
+  // Timer ref for cleanup
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // Check if iOS device on client side
   useEffect(() => {
@@ -34,51 +36,57 @@ export default function MicrophoneButton({ onTranscription, className = '' }: Mi
       return () => clearTimeout(timer);
     }
   }, [error, displayError]);
-
-  // Start recording with timestamp
-  const handleStartRecording = () => {
-    setIsLongPress(true);
-    setRecordingStartTime(Date.now());
-    startRecording();
-  };
-
-  // Stop recording with minimum duration check
-  const handleStopRecording = () => {
-    setIsLongPress(false);
-    
-    // Only stop recording if we've been recording for at least 1 second
-    if (recordingStartTime && Date.now() - recordingStartTime < 1000) {
-      const timeToWait = 1000 - (Date.now() - recordingStartTime);
-      console.log(`Recording too short, waiting ${timeToWait}ms more before stopping`);
-      
-      // Wait until we reach 1 second minimum
-      setTimeout(() => {
+  
+  // Safety cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Stop any ongoing recording if component unmounts
+      if (isRecording) {
+        console.log('Component unmounting, stopping recording');
         stopRecording();
-        setRecordingStartTime(null);
-      }, timeToWait);
-    } else {
+      }
+      
+      // Clear any pending timers
+      if (recordingTimerRef.current) {
+        clearTimeout(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    };
+  }, [isRecording, stopRecording]);
+
+  // Toggle recording on/off
+  const toggleRecording = () => {
+    if (isProcessing) return; // Don't do anything while processing
+    
+    if (isRecording) {
+      // Stop recording if already recording
       stopRecording();
       setRecordingStartTime(null);
+      
+      // Clear any existing timers
+      if (recordingTimerRef.current) {
+        clearTimeout(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    } else {
+      // Start recording
+      setRecordingStartTime(Date.now());
+      startRecording();
     }
   };
-
-  // Handle mouse events for desktop
-  const handleMouseDown = () => {
-    handleStartRecording();
-  };
-
-  const handleMouseUp = () => {
-    handleStopRecording();
-  };
-
-  // Handle touch events for mobile
-  const handleTouchStart = () => {
-    handleStartRecording();
-  };
-
-  const handleTouchEnd = () => {
-    handleStopRecording();
-  };
+  
+  // Auto-stop recording after 30 seconds as a safety measure
+  useEffect(() => {
+    if (isRecording && !isProcessing) {
+      const safetyTimeout = setTimeout(() => {
+        console.log('Safety timeout reached - stopping recording after 30s');
+        stopRecording();
+        setRecordingStartTime(null);
+      }, 30000);
+      
+      return () => clearTimeout(safetyTimeout);
+    }
+  }, [isRecording, isProcessing, stopRecording]);
 
   return (
     <div className="relative">
@@ -91,17 +99,14 @@ export default function MicrophoneButton({ onTranscription, className = '' }: Mi
             ? 'bg-yellow-500 text-white'
             : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
         } transition-colors ${className}`}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={isLongPress ? handleMouseUp : undefined}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={isLongPress ? handleTouchEnd : undefined}
+        onClick={toggleRecording}
         disabled={isProcessing}
-        aria-label={isRecording ? 'Recording in progress' : 'Record voice'}
+        aria-label={isRecording ? 'Stop recording' : 'Start recording'}
       >
         {isProcessing ? (
           <FaSpinner className="w-5 h-5 animate-spin" />
+        ) : isRecording ? (
+          <FaStop className="w-5 h-5" />
         ) : (
           <FaMicrophone className="w-5 h-5" />
         )}
@@ -109,19 +114,13 @@ export default function MicrophoneButton({ onTranscription, className = '' }: Mi
 
       {isiOSDevice && (
         <div className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white text-xs py-1 px-2 rounded whitespace-nowrap max-w-xs text-center">
-          iOS: Speak for at least 2 seconds and wait for processing
+          iOS: Click once to start, again to stop
         </div>
       )}
 
       {displayError && (
         <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-red-500 text-white text-xs py-1 px-2 rounded whitespace-nowrap max-w-xs text-center">
           {displayError}
-        </div>
-      )}
-
-      {isRecording && (
-        <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-black/80 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
-          Release to send <span className="animate-pulse">●</span>
         </div>
       )}
     </div>

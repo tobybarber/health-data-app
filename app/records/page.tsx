@@ -212,6 +212,8 @@ export default function Records() {
     <ProtectedRoute>
       <div className="min-h-screen bg-black">
         <Navigation />
+        {/* Navigation spacer - ensures content starts below navbar */}
+        <div className="h-16"></div>
         <div className="container mx-auto px-4 py-8 pb-24">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-primary-blue">My Records</h1>
