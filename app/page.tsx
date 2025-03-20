@@ -9,10 +9,17 @@ import { useBackgroundLogo } from './layout';
 import MicrophoneButton from './components/MicrophoneButton';
 import SpeakText from './components/SpeakText';
 
+// Updated Message interface with responseId
+interface Message {
+  user: string;
+  ai: string;
+  responseId?: string; // Added to track OpenAI response IDs
+}
+
 export default function Home() {
   const { currentUser, loading } = useAuth();
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [messages, setMessages] = useState<{ user: string; ai: string }[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState('');
   const [isAiResponding, setIsAiResponding] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
@@ -20,17 +27,41 @@ export default function Home() {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const { showBackgroundLogo, setShowBackgroundLogo } = useBackgroundLogo();
 
+  // Generate a new session ID on app load
+  useEffect(() => {
+    // Only execute this on the client side
+    if (typeof window !== 'undefined') {
+      // Check if this is a fresh app load
+      if (!sessionStorage.getItem('app_session_id')) {
+        // Generate a new session ID
+        const sessionId = `session_${Date.now()}`;
+        sessionStorage.setItem('app_session_id', sessionId);
+        
+        // Clear any existing messages in memory (not in storage)
+        setMessages([]);
+        console.log('New app session started:', sessionId);
+      }
+    }
+  }, []);
+
   // Load messages from localStorage when component mounts
   useEffect(() => {
     if (currentUser) {
-      const savedMessages = localStorage.getItem(`chat_messages_${currentUser.uid}`);
-      if (savedMessages) {
-        try {
-          const parsedMessages = JSON.parse(savedMessages);
-          setMessages(parsedMessages);
-        } catch (e) {
-          console.error('Error parsing saved messages:', e);
+      // Only load saved messages if we're in the same session (navigating between pages)
+      // If it's a new session, we want to start with an empty chat
+      if (sessionStorage.getItem('app_session_id') && sessionStorage.getItem('messages_loaded') === 'true') {
+        const savedMessages = localStorage.getItem(`chat_messages_${currentUser.uid}`);
+        if (savedMessages) {
+          try {
+            const parsedMessages = JSON.parse(savedMessages);
+            setMessages(parsedMessages);
+          } catch (e) {
+            console.error('Error parsing saved messages:', e);
+          }
         }
+      } else {
+        // Mark that we've handled the messages loading decision for this session
+        sessionStorage.setItem('messages_loaded', 'true');
       }
     }
   }, [currentUser]);
@@ -112,9 +143,13 @@ export default function Home() {
   const handleNewChat = () => {
     setMessages([]);
     setUserInput('');
+    // Update localStorage
     if (currentUser) {
       localStorage.removeItem(`chat_messages_${currentUser.uid}`);
     }
+    // Reset the session flag so it behaves like a fresh app load for chat purposes
+    sessionStorage.removeItem('messages_loaded');
+    console.log('Chat history cleared');
   };
 
   // Function to process AI chat responses and remove XML tags
@@ -155,6 +190,7 @@ export default function Home() {
     return response;
   };
 
+  // Update the handleSendMessage function to use the previous response ID
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userInput.trim() || !currentUser || isAiResponding) return;
@@ -169,7 +205,24 @@ export default function Home() {
     // Set loading state
     setIsAiResponding(true);
 
-    // Call the API endpoint for follow-up questions
+    // Find the most recent message with a responseId (if any)
+    let previousResponseId = undefined;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].responseId) {
+        previousResponseId = messages[i].responseId;
+        break;
+      }
+    }
+
+    // Add debug logs
+    console.log('Sending question to API with user ID:', currentUser.uid);
+    console.log('Current user object:', JSON.stringify({
+      uid: currentUser.uid,
+      email: currentUser.email,
+      isAnonymous: currentUser.isAnonymous
+    }));
+
+    // Call the API endpoint with the previous response ID if available
     try {
       const response = await fetch('/api/question', {
         method: 'POST',
@@ -177,18 +230,24 @@ export default function Home() {
         body: JSON.stringify({ 
           question: question,
           userId: currentUser.uid,
+          previousResponseId: previousResponseId
         }),
       });
       const data = await response.json();
       const aiResponse = data.answer || 'No response from AI';
+      const responseId = data.responseId;
 
       // Process the AI response to remove XML tags
       const processedResponse = processChatResponse(aiResponse);
 
-      // Update the last message with processed AI response
+      // Update the last message with processed AI response and the new response ID
       setMessages((prev) => {
         const newMessages = [...prev];
-        newMessages[newMessages.length - 1].ai = processedResponse;
+        newMessages[newMessages.length - 1] = {
+          ...newMessages[newMessages.length - 1],
+          ai: processedResponse,
+          responseId: responseId
+        };
         return newMessages;
       });
     } catch (error) {

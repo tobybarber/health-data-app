@@ -51,6 +51,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = async () => {
+    // Clear session storage to ensure a new chat on next login
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('app_session_id');
+      sessionStorage.removeItem('messages_loaded');
+    }
     return signOut(auth);
   };
 

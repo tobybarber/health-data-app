@@ -210,9 +210,9 @@ export default function Records() {
 
   return (
     <ProtectedRoute>
-      <div className="pb-safe pt-safe">
+      <div className="min-h-screen bg-black">
         <Navigation />
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-4 py-8 pb-24">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-primary-blue">My Records</h1>
             <div className="flex items-center gap-2">
@@ -390,6 +390,8 @@ export default function Records() {
             </div>
           )}
         </div>
+        {/* Background fill for the bottom space */}
+        <div className="fixed bottom-0 left-0 right-0 h-[40px] bg-black z-[5]"></div>
       </div>
     </ProtectedRoute>
   );

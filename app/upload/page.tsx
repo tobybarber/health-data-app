@@ -13,6 +13,7 @@ import ProtectedRoute from '../components/ProtectedRoute';
 import Navigation from '../components/Navigation';
 import { invalidateRecordsCache } from '../lib/cache-utils';
 import { testFirestoreWrite } from '../lib/test-utils';
+import MicrophoneButton from '../components/MicrophoneButton';
 
 interface ErrorResponse {
   message?: string;
@@ -440,13 +441,21 @@ export default function Upload() {
               <label htmlFor="comment" className="block text-sm font-medium text-gray-300 mb-1">
                 Comment (optional)
               </label>
-              <textarea
-                id="comment"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
-                placeholder="Add any comments here..."
-              />
+              <div className="relative">
+                <textarea
+                  id="comment"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white pr-12"
+                  placeholder="Add any comments here..."
+                />
+                <div className="absolute right-2 bottom-2">
+                  <MicrophoneButton 
+                    onTranscription={(text) => setComment(prev => prev ? `${prev} ${text}` : text)} 
+                    className="w-8 h-8"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="mb-6">

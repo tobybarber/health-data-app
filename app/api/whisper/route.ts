@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import openai, { isApiKeyValid } from '../../lib/openai-server';
+import openai, { validateOpenAIKey } from '../../lib/openai-server';
 
 // Use Node.js runtime for this API route
 export const runtime = "nodejs";
@@ -7,8 +7,8 @@ export const runtime = "nodejs";
 export async function POST(request: NextRequest) {
   try {
     // Verify the OpenAI API key is valid
-    const keyStatus = await isApiKeyValid();
-    if (!keyStatus.valid) {
+    const keyStatus = await validateOpenAIKey();
+    if (!keyStatus.success) {
       console.error('Invalid or missing OpenAI API key:', keyStatus.message);
       return NextResponse.json(
         { 

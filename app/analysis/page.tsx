@@ -913,7 +913,7 @@ export default function Analysis() {
                 <div className="mb-4 text-sm text-gray-500 flex justify-between">
                   <div>
                     Analysis by: <span className="font-semibold">{analysisSource === 'openai' ? 'OpenAI' : 'Health App'}</span>
-                    {recordCount > 0 && <span className="ml-2">| Based on {recordCount} health records</span>}
+                    {recordCount > 0 && <div className="mt-1">Based on {recordCount} health records</div>}
                   </div>
                   {lastUpdated && (
                     <div>

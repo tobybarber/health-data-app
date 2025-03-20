@@ -14,10 +14,11 @@ export default function BottomNavigation() {
   return (
     <>
       <div className="fixed bottom-[30px] left-0 right-0 h-[1px] bg-gray-800 z-10"></div>
-      <div className="fixed bottom-[24px] left-0 right-0 bg-black/80 backdrop-blur-sm p-3 pt-3 pb-4 flex justify-around items-center z-10">
+      <div className="fixed bottom-[24px] left-0 right-0 bg-black/80 backdrop-blur-sm p-3 pt-3 pb-4 flex justify-around items-center z-10" style={{ height: '60px', paddingBottom: '16px', paddingTop: '12px' }}>
         <Link
           href="/"
-          className="flex flex-col items-center text-center hover:scale-110 transition-all duration-200"
+          className="flex flex-col items-center justify-center text-center hover:scale-110 transition-all duration-200"
+          style={{ height: '45px' }}
         >
           <div className={`${isActive('/')} text-xl mb-1`}>
             <FaHome />
@@ -27,7 +28,8 @@ export default function BottomNavigation() {
         
         <Link
           href="/upload"
-          className="flex flex-col items-center text-center hover:scale-110 transition-all duration-200"
+          className="flex flex-col items-center justify-center text-center hover:scale-110 transition-all duration-200"
+          style={{ height: '45px' }}
         >
           <div className={`${isActive('/upload')} text-xl mb-1`}>
             <FaUpload />
@@ -37,7 +39,8 @@ export default function BottomNavigation() {
         
         <Link
           href="/records"
-          className="flex flex-col items-center text-center hover:scale-110 transition-all duration-200"
+          className="flex flex-col items-center justify-center text-center hover:scale-110 transition-all duration-200"
+          style={{ height: '45px' }}
         >
           <div className={`${isActive('/records')} text-xl mb-1`}>
             <FaClipboardList />
@@ -47,7 +50,8 @@ export default function BottomNavigation() {
         
         <Link
           href="/analysis"
-          className="flex flex-col items-center text-center hover:scale-110 transition-all duration-200"
+          className="flex flex-col items-center justify-center text-center hover:scale-110 transition-all duration-200"
+          style={{ height: '45px' }}
         >
           <div className={`${isActive('/analysis')} text-xl mb-1`}>
             <FaComments />
@@ -57,7 +61,8 @@ export default function BottomNavigation() {
         
         <Link
           href="/wearables"
-          className="flex flex-col items-center text-center hover:scale-110 transition-all duration-200"
+          className="flex flex-col items-center justify-center text-center hover:scale-110 transition-all duration-200"
+          style={{ height: '45px' }}
         >
           <div className={`${isActive('/wearables')} text-xl mb-1`}>
             <FaHeartbeat />
