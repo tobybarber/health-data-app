@@ -70,8 +70,12 @@ export async function POST(request: NextRequest) {
       const data = doc.data();
       const recordType = data.recordType || (data.isManual ? 'Manual Record' : 'Uploaded Record');
       const photoInfo = data.hasPhoto && data.url ? ' (Includes photo)' : '';
+      
+      // Include comment field in the summary if it exists
+      const commentInfo = data.comment ? `\nComment: ${data.comment}` : '';
+      
       return `${recordType}${photoInfo}
-Analysis: ${data.detailedAnalysis || data.analysis || 'No analysis available'}`;
+Analysis: ${data.detailedAnalysis || data.analysis || 'No analysis available'}${commentInfo}`;
     });
     
     if (summaries.length === 0) {

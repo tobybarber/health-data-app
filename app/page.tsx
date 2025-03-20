@@ -3,9 +3,11 @@
 import { useAuth } from './lib/AuthContext';
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
-import { FaUpload, FaComments, FaWatchmanMonitoring, FaClipboardList, FaHeartbeat } from 'react-icons/fa';
+import { FaUpload, FaComments, FaWatchmanMonitoring, FaClipboardList, FaHeartbeat, FaPaperPlane, FaPlus } from 'react-icons/fa';
 import Navigation from './components/Navigation';
 import { useBackgroundLogo } from './layout';
+import MicrophoneButton from './components/MicrophoneButton';
+import SpeakText from './components/SpeakText';
 
 export default function Home() {
   const { currentUser, loading } = useAuth();
@@ -243,7 +245,7 @@ export default function Home() {
           <div className="p-2 pb-safe flex flex-col h-[calc(100vh-120px)]">
             
             {/* Messages displayed directly on background */}
-            <div className="flex-grow overflow-y-auto hide-scrollbar mb-2 pt-4 pb-40 messages-container relative">
+            <div className="flex-grow overflow-y-auto hide-scrollbar mb-0 pt-4 pb-28 messages-container relative">
               {messages.length === 0 ? (
                 <div className="text-gray-200 text-center py-4">
                   
@@ -259,7 +261,12 @@ export default function Home() {
                     {/* AI message - left aligned, no background/border */}
                     {msg.ai ? (
                       <div className="flex justify-start">
-                        <div className="text-white max-w-[80%] whitespace-pre-line pl-3">{msg.ai}</div>
+                        <div className="relative text-white max-w-[80%] whitespace-pre-line pl-3">
+                          {msg.ai}
+                          <div className="absolute -top-1 -right-6">
+                            <SpeakText text={msg.ai} />
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <div className="flex justify-start">
@@ -285,44 +292,74 @@ export default function Home() {
                   aria-label="Scroll to bottom"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" transform="rotate(180,10,10)" />
+                    <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
               )}
             </div>
             
-            {/* Question input moved higher up from bottom navigation */}
-            <div className="fixed bottom-[150px] left-0 right-0 px-4 py-2 bg-black/40 backdrop-blur-sm z-10">
-              <form onSubmit={handleSendMessage} className="flex w-full">
-                <input
-                  type="text"
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  className="border border-gray-600 rounded-l-xl p-3 flex-grow bg-gray-800/80 backdrop-blur-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-blue"
-                  placeholder="Ask about your health records."
-                  disabled={isAiResponding}
-                />
+            {/* Fixed input box at bottom */}
+            <div className="fixed bottom-0 left-0 right-0 p-2 pb-safe bg-black/90 backdrop-blur-sm border-t border-gray-800" style={{ marginBottom: 0 }}>
+              <div className="relative">
+                {/* New Chat button - now positioned above input on right */}
                 <button 
-                  type="submit" 
-                  className={`bg-gray-600 text-white p-3 ${isAiResponding ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-500'}`}
-                  disabled={isAiResponding}
-                  style={{borderTopRightRadius: '0.75rem', borderBottomRightRadius: '0.75rem', borderTopLeftRadius: 0, borderBottomLeftRadius: 0}}
+                  onClick={handleNewChat} 
+                  className="absolute -top-12 right-2 flex items-center justify-center p-2 rounded-full text-gray-400 hover:text-white hover:bg-gray-800 transition-colors z-10"
+                  aria-label="New chat"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                  </svg>
+                  <FaPlus className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={handleNewChat}
-                  className="ml-2 bg-gray-800 hover:bg-gray-700 text-gray-300 p-3 rounded-xl transition-colors"
-                  aria-label="Start a new chat"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </form>
-              <p className="text-xs text-gray-500 mt-1 pl-1">AI can get things wrong, use at own risk!</p>
+                
+                <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                  <div className="relative flex-grow">
+                    <textarea
+                      value={userInput}
+                      onChange={(e) => setUserInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (userInput.trim() && !isAiResponding) {
+                            handleSendMessage(e);
+                          }
+                        }
+                      }}
+                      placeholder="Ask about your health records..."
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white resize-none"
+                      rows={1}
+                      style={{ minHeight: '44px', maxHeight: '120px' }}
+                      disabled={isAiResponding}
+                    />
+                  </div>
+                  
+                  {/* Import and use the MicrophoneButton component */}
+                  <div className="flex-shrink-0 flex items-center">
+                    <MicrophoneButton
+                      onTranscription={(text) => {
+                        setUserInput(text);
+                        // Auto-submit if there's a transcription
+                        setTimeout(() => {
+                          const form = document.querySelector('form');
+                          if (form) form.dispatchEvent(new Event('submit', { cancelable: true }));
+                        }, 500);
+                      }}
+                    />
+                  </div>
+                  
+                  <button
+                    type="submit"
+                    disabled={!userInput.trim() || isAiResponding}
+                    className={`flex items-center justify-center rounded-full p-2 flex-shrink-0 
+                      ${!userInput.trim() || isAiResponding
+                        ? 'bg-gray-700 text-gray-400'
+                        : 'bg-primary-blue text-white hover:bg-blue-600'}
+                      transition-colors
+                    `}
+                    aria-label="Send message"
+                  >
+                    <FaPaperPlane className="w-5 h-5" />
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
         )}

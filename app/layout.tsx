@@ -41,6 +41,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <link rel="icon" href="/images/logo.png" />
         <link rel="manifest" href="/manifest.json" />
         <title>Wattle</title>
         <HomeScreenDetect />
@@ -58,8 +59,8 @@ export default function RootLayout({
                 {/* Black background with centered logo */}
                 {showBackgroundLogo && (
                   <div className="absolute inset-0 z-0 bg-black fixed" style={{ touchAction: 'none' }}>
-                    <div className="absolute inset-0 flex items-center justify-center opacity-15">
-                      <div className="w-64 h-64 relative grayscale">
+                    <div className="absolute inset-0 flex items-center justify-center opacity-15" style={{ paddingBottom: '15vh' }}>
+                      <div className="w-48 h-48 relative grayscale">
                         <Image
                           src="/images/logo.png"
                           alt="Wattle Logo"
