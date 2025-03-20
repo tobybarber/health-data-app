@@ -117,7 +117,22 @@ export default function ProfilePage() {
 
   return (
     <ProtectedRoute>
-      <div className="pb-safe" style={{ overscrollBehavior: 'none', touchAction: 'pan-y' }}>
+      <div 
+        className="pb-safe" 
+        style={{ 
+          overscrollBehavior: 'none', 
+          touchAction: 'pan-y', 
+          WebkitOverflowScrolling: 'touch',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100%',
+          height: '100%',
+          overflow: 'auto'
+        }}
+      >
         <Navigation isHomePage={true} />
         <div className="max-w-2xl mx-auto p-4 pt-16">
           <div className="flex justify-end items-center mb-6">

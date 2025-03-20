@@ -41,7 +41,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <link rel="icon" href="/images/logo.png" />
+        <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23000'/%3E%3Cimage href='/images/logo.png' x='20' y='20' height='60' width='60' preserveAspectRatio='xMidYMid meet'/%3E%3C/svg%3E" />
         <link rel="manifest" href="/manifest.json" />
         <title>Wattle</title>
         <HomeScreenDetect />

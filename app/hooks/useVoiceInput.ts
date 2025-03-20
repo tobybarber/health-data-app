@@ -102,6 +102,21 @@ export function useVoiceInput({ onTranscription }: UseVoiceInputProps = {}) {
   // Function to stop recording
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      // Check if we have any audio data before stopping
+      if (audioChunksRef.current.length === 0) {
+        console.log('No audio chunks recorded yet, continuing recording a bit longer...');
+        // Give it a moment to collect data
+        setTimeout(() => {
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            console.log('Now stopping recorder with chunks:', audioChunksRef.current.length);
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+          }
+        }, 500);
+        return;
+      }
+      
+      console.log('Stopping recorder with chunks:', audioChunksRef.current.length);
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }

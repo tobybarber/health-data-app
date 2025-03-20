@@ -304,7 +304,7 @@ export default function Home() {
                 {/* New Chat button - now positioned above input on right */}
                 <button 
                   onClick={handleNewChat} 
-                  className="absolute -top-12 right-2 flex items-center justify-center p-2 rounded-full text-gray-400 hover:text-white hover:bg-gray-800 transition-colors z-10"
+                  className="absolute -top-12 right-2 flex items-center justify-center p-2 rounded-full text-gray-400 hover:text-white hover:bg-gray-800 transition-colors z-30 bg-black"
                   aria-label="New chat"
                 >
                   <FaPlus className="w-4 h-4" />

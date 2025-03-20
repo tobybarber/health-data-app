@@ -11,6 +11,7 @@ interface MicrophoneButtonProps {
 
 export default function MicrophoneButton({ onTranscription, className = '' }: MicrophoneButtonProps) {
   const [isLongPress, setIsLongPress] = useState(false);
+  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
   const { isRecording, isProcessing, error, startRecording, stopRecording } = useVoiceInput({
     onTranscription,
   });
@@ -24,26 +25,49 @@ export default function MicrophoneButton({ onTranscription, className = '' }: Mi
     setTimeout(() => setDisplayError(null), 3000);
   }
 
-  // Handle mouse events for desktop
-  const handleMouseDown = () => {
+  // Start recording with timestamp
+  const handleStartRecording = () => {
     setIsLongPress(true);
+    setRecordingStartTime(Date.now());
     startRecording();
   };
 
-  const handleMouseUp = () => {
+  // Stop recording with minimum duration check
+  const handleStopRecording = () => {
     setIsLongPress(false);
-    stopRecording();
+    
+    // Only stop recording if we've been recording for at least 1 second
+    if (recordingStartTime && Date.now() - recordingStartTime < 1000) {
+      const timeToWait = 1000 - (Date.now() - recordingStartTime);
+      console.log(`Recording too short, waiting ${timeToWait}ms more before stopping`);
+      
+      // Wait until we reach 1 second minimum
+      setTimeout(() => {
+        stopRecording();
+        setRecordingStartTime(null);
+      }, timeToWait);
+    } else {
+      stopRecording();
+      setRecordingStartTime(null);
+    }
+  };
+
+  // Handle mouse events for desktop
+  const handleMouseDown = () => {
+    handleStartRecording();
+  };
+
+  const handleMouseUp = () => {
+    handleStopRecording();
   };
 
   // Handle touch events for mobile
   const handleTouchStart = () => {
-    setIsLongPress(true);
-    startRecording();
+    handleStartRecording();
   };
 
   const handleTouchEnd = () => {
-    setIsLongPress(false);
-    stopRecording();
+    handleStopRecording();
   };
 
   return (
@@ -53,6 +77,8 @@ export default function MicrophoneButton({ onTranscription, className = '' }: Mi
         className={`flex items-center justify-center rounded-full p-2 ${
           isRecording
             ? 'bg-red-500 text-white animate-pulse'
+            : isProcessing
+            ? 'bg-yellow-500 text-white'
             : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
         } transition-colors ${className}`}
         onMouseDown={handleMouseDown}
@@ -79,7 +105,7 @@ export default function MicrophoneButton({ onTranscription, className = '' }: Mi
 
       {isRecording && (
         <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-black/80 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
-          Release to send
+          Release to send <span className="animate-pulse">●</span>
         </div>
       )}
     </div>
