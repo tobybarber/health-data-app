@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     // Get the request body (audio file as base64)
     const body = await request.json();
-    const { audio, isIOS } = body;
+    const { audio, isIOS, format } = body;
 
     if (!audio) {
       return NextResponse.json({ 
@@ -56,31 +56,12 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Determine file format based on data URL prefix or isIOS flag
-    let mimeType = 'audio/webm';
-    let fileExtension = 'webm';
+    // Determine file format - explicitly use WAV for best compatibility
+    let mimeType = 'audio/wav';
+    let fileExtension = 'wav';
     
-    if (isIOS) {
-      mimeType = 'audio/mp4';
-      fileExtension = 'm4a';
-    } else if (dataUrlParts.length > 1) {
-      // Try to extract MIME type from the data URL
-      const mimeMatch = dataUrlParts[0].match(/data:(.*?);/);
-      if (mimeMatch && mimeMatch[1]) {
-        mimeType = mimeMatch[1];
-        
-        // Derive extension from MIME type
-        if (mimeType.includes('mp4')) {
-          fileExtension = 'm4a';
-        } else if (mimeType.includes('mp3')) {
-          fileExtension = 'mp3';
-        } else if (mimeType.includes('wav')) {
-          fileExtension = 'wav';
-        }
-      }
-    }
-    
-    console.log(`Processing audio as ${mimeType}, using extension .${fileExtension}`);
+    // Log the format details for debugging
+    console.log(`Processing audio with format preferences: isIOS=${isIOS}, format=${format}`);
 
     try {
       // Create a data URL if we don't have one
@@ -105,6 +86,9 @@ export async function POST(request: NextRequest) {
       const transcription = await openai.audio.transcriptions.create({
         file,
         model: 'whisper-1',
+        response_format: 'json',
+        temperature: 0.2, // Lower temperature for more accurate transcriptions
+        language: 'en'    // Default to English for better accuracy
       });
 
       console.log('Transcription successful, text length:', transcription.text.length);
@@ -124,7 +108,7 @@ export async function POST(request: NextRequest) {
         const errMsg = transcriptionError.message.toLowerCase();
         
         if (errMsg.includes('too short')) {
-          errorMessage = 'Recording is too short. Please speak for at least 1 second.';
+          errorMessage = 'Recording is too short. Please speak for at least 2 seconds.';
         } else if (errMsg.includes('no speech')) {
           errorMessage = 'No speech detected. Please speak clearly and check your microphone.';
         } else if (errMsg.includes('invalid file format') || errMsg.includes('unsupported media type')) {
@@ -134,9 +118,11 @@ export async function POST(request: NextRequest) {
           // Log additional details for debugging
           console.error('Audio format details:', {
             isIOS,
+            format,
             mimeType,
             fileExtension,
-            bufferSize: audioBuffer.length
+            bufferSize: audioBuffer.length,
+            blobType: 'unknown' // We can't access audioBlob here
           });
         } else {
           errorMessage = transcriptionError.message;
@@ -145,14 +131,16 @@ export async function POST(request: NextRequest) {
       
       return NextResponse.json({ 
         success: false, 
-        message: errorMessage
+        message: errorMessage,
+        details: String(transcriptionError)
       }, { status: statusCode });
     }
   } catch (error) {
     console.error('Error processing audio data:', error);
     return NextResponse.json({ 
       success: false, 
-      message: `Error processing audio data: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      message: `Error processing audio data: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      details: String(error)
     }, { status: 500 });
   }
 } 

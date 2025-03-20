@@ -69,12 +69,14 @@ export function useVoiceInput({
         streamRef.current = null;
       }
       
-      // Request microphone access
+      // Request microphone access with high quality settings
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          sampleRate: 44100, // Use standard CD quality sample rate
+          channelCount: 1    // Mono recording is better for speech recognition
         } 
       });
       streamRef.current = stream;
@@ -82,16 +84,27 @@ export function useVoiceInput({
       // Clear previous audio chunks
       audioChunksRef.current = [];
       
-      // Get the appropriate MIME type for this browser
+      // Get the appropriate MIME type (always WAV for best compatibility)
       const mimeType = getBestAudioMimeType();
       
       // Create a new MediaRecorder instance with the appropriate MIME type
       let mediaRecorder;
       try {
-        mediaRecorder = new MediaRecorder(streamRef.current, { mimeType });
+        // First try with explicit WAV format
+        mediaRecorder = new MediaRecorder(streamRef.current, { 
+          mimeType: mimeType,
+          audioBitsPerSecond: 128000 // Use a reasonable bitrate for better compatibility
+        });
       } catch (e) {
         console.warn(`MediaRecorder does not support ${mimeType} on this browser, trying without specifying format`);
-        mediaRecorder = new MediaRecorder(streamRef.current);
+        try {
+          // Then try without explicit format options
+          mediaRecorder = new MediaRecorder(streamRef.current);
+        } catch (err) {
+          // If that fails too, report a more specific error
+          console.error('MediaRecorder initialization failed:', err);
+          throw new Error('Your device does not support audio recording in a compatible format');
+        }
       }
       
       mediaRecorderRef.current = mediaRecorder;
@@ -100,14 +113,15 @@ export function useVoiceInput({
       
       // Setup event handlers
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           audioChunksRef.current.push(event.data);
+          console.log(`Received audio chunk: ${event.data.size} bytes`);
         }
       };
       
       mediaRecorder.onstop = async () => {
         if (audioChunksRef.current.length === 0) {
-          setError('No audio was recorded. Please try again.');
+          setError('No audio was recorded. Please try again and speak clearly into the microphone.');
           cleanup(); // Make sure to clean up even if no audio was recorded
           return;
         }
@@ -115,10 +129,17 @@ export function useVoiceInput({
         try {
           setIsProcessing(true);
           
-          // Create audio blob with the format that was used for recording
-          const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+          // Create audio blob with WAV format explicitly for better API compatibility
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
           
           console.log(`Audio recorded as ${mediaRecorder.mimeType}, size: ${audioBlob.size} bytes`);
+          console.log(`Number of audio chunks: ${audioChunksRef.current.length}`);
+          
+          if (audioBlob.size < 2000) {
+            setError('Recording was too short or too quiet. Please try again and speak clearly.');
+            setIsProcessing(false);
+            return;
+          }
           
           // Convert to base64
           const base64Audio = await blobToBase64(audioBlob);
@@ -146,12 +167,18 @@ export function useVoiceInput({
       // Set recording start time
       recordingStartTimeRef.current = Date.now();
       
-      // Start recording
-      mediaRecorder.start(200); // Collect data every 200ms
+      // Start recording with frequent data collection
+      mediaRecorder.start(100); // Collect data every 100ms for more granular chunks
       setIsRecording(true);
     } catch (error) {
       console.error('Error starting recording:', error);
-      setError(error instanceof Error ? error.message : 'Could not start recording');
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
+        setError('Microphone access was denied. Please allow microphone access in your browser settings.');
+      } else if (error instanceof DOMException && error.name === 'NotFoundError') {
+        setError('No microphone found. Please connect a microphone and try again.');
+      } else {
+        setError(error instanceof Error ? error.message : 'Could not start recording');
+      }
       cleanup();
     }
   };

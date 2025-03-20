@@ -112,12 +112,6 @@ export default function MicrophoneButton({ onTranscription, className = '' }: Mi
         )}
       </button>
 
-      {isiOSDevice && (
-        <div className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white text-xs py-1 px-2 rounded whitespace-nowrap max-w-xs text-center">
-          iOS: Click once to start, again to stop
-        </div>
-      )}
-
       {displayError && (
         <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-red-500 text-white text-xs py-1 px-2 rounded whitespace-nowrap max-w-xs text-center">
           {displayError}

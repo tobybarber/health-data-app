@@ -25,15 +25,12 @@ export const isIOS = (): boolean => {
 
 /**
  * Get the best supported audio type for the current browser
+ * Instead of using 'audio/mp4' for iOS which has compatibility issues with Whisper API,
+ * we specifically use 'audio/wav' which is more widely compatible
  */
 export const getBestAudioMimeType = (): string => {
-  // iOS Safari doesn't support WebM, use MP4 container instead
-  if (isIOS()) {
-    return 'audio/mp4';
-  }
-  
-  // For other browsers, prefer WebM
-  return 'audio/webm';
+  // Always prefer WAV format for better Whisper API compatibility, especially on iOS
+  return 'audio/wav';
 };
 
 /**
@@ -67,21 +64,30 @@ export const transcribeAudio = async (audioBase64: string): Promise<string> => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         audio: audioBase64,
-        isIOS: isIOS() // Send flag to inform backend about iOS
+        isIOS: isIOS(), // Send flag to inform backend about iOS
+        format: 'wav'   // Explicitly specify WAV format for better compatibility
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.json();
       console.error('Transcription API error:', errorData);
-      throw new Error(errorData.message || 'Error transcribing audio');
+      
+      // More informative error messages based on common issues
+      if (errorData.message && errorData.message.includes('file format')) {
+        throw new Error('Audio format not compatible. Please try a shorter recording or restart the app.');
+      } else if (errorData.message && errorData.message.includes('too short')) {
+        throw new Error('Recording is too short. Please speak for at least 2 seconds.');
+      } else {
+        throw new Error(errorData.message || 'Error transcribing audio');
+      }
     }
 
     const data = await response.json();
     
     if (!data.text || data.text.trim() === '') {
       console.warn('Received empty transcription result');
-      throw new Error('No speech detected. Please try speaking more clearly.');
+      throw new Error('No speech detected. Please try speaking more clearly into the microphone.');
     }
     
     console.log('Transcription complete, received text:', data.text.length > 0);
