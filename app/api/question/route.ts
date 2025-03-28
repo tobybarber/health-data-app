@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { openai, validateOpenAIKey } from '../../lib/openai-server';
 import db from '../../lib/firebaseAdmin';
 import { getDietTypeDescription } from '../../utils/healthUtils';
+import { generateSpeech, calculateTTSCost } from '../../utils/ttsUtils';
 
 // Define TypeScript interfaces for the OpenAI response structure
 interface ResponseTextContent {
@@ -20,10 +21,20 @@ interface ResponseOutputItem {
   content: ResponseContent[];
 }
 
+// Interface for request body
+interface QuestionRequest {
+  question: string;
+  userId: string;
+  previousResponseId?: string;
+  generateAudio?: boolean;
+  voicePreference?: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Parse request body
-    const { question, userId, previousResponseId } = await request.json();
+    const requestBody: QuestionRequest = await request.json();
+    const { question, userId, previousResponseId, generateAudio, voicePreference } = requestBody;
 
     // Validate required fields
     if (!question) {
@@ -63,10 +74,27 @@ export async function POST(request: NextRequest) {
           // Get the response text
           const answer = response.output_text || 'No answer available';
 
+          // Generate audio if requested
+          let audioData = null;
+          let audioCost = 0;
+          if (generateAudio) {
+            try {
+              const voice = voicePreference || 'alloy';
+              const audioBuffer = await generateSpeech(answer, voice);
+              audioData = Buffer.from(audioBuffer).toString('base64');
+              audioCost = calculateTTSCost(answer);
+            } catch (ttsError) {
+              console.error('Error generating TTS:', ttsError);
+              // Continue without audio if TTS fails
+            }
+          }
+
           return NextResponse.json({
             success: true,
             answer: answer,
-            responseId: response.id
+            responseId: response.id,
+            audioData,
+            audioCost
           });
           
         } catch (error) {
@@ -202,45 +230,50 @@ INSTRUCTIONS:
           input: question
         });
 
-        // Extract the answer text from the response
+        // Get the answer from the response
         const answer = response.output_text || 'No answer available';
+
+        // Generate audio if requested
+        let audioData = null;
+        let audioCost = 0;
+        if (generateAudio) {
+          try {
+            const voice = voicePreference || 'alloy';
+            const audioBuffer = await generateSpeech(answer, voice);
+            audioData = Buffer.from(audioBuffer).toString('base64');
+            audioCost = calculateTTSCost(answer);
+          } catch (ttsError) {
+            console.error('Error generating TTS:', ttsError);
+            // Continue without audio if TTS fails
+          }
+        }
 
         return NextResponse.json({
           success: true,
           answer: answer,
-          responseId: response.id
+          responseId: response.id,
+          audioData,
+          audioCost
         });
-        
       } catch (error) {
-        console.error('Error querying OpenAI:', error);
+        console.error('Error generating response:', error);
         return NextResponse.json(
-          { 
-            success: false, 
-            error: `Error querying OpenAI: ${(error as Error).message}` 
-          },
+          { success: false, error: `Error generating response: ${(error as Error).message}` },
           { status: 500 }
         );
       }
-      
     } catch (error) {
-      console.error('Error processing user data:', error);
+      console.error('General error in question handler:', error);
       return NextResponse.json(
-        { 
-          success: false, 
-          error: `Error processing user data: ${(error as Error).message}` 
-        },
+        { success: false, error: `An unexpected error occurred: ${(error as Error).message}` },
         { status: 500 }
       );
     }
-    
-  } catch (error) {
-    console.error('Unexpected error:', error);
+  } catch (parseError) {
+    console.error('Error parsing request:', parseError);
     return NextResponse.json(
-      { 
-        success: false, 
-        error: `Unexpected error: ${(error as Error).message}` 
-      },
-      { status: 500 }
+      { success: false, error: 'Invalid request format' },
+      { status: 400 }
     );
   }
 } 

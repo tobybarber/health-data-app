@@ -693,8 +693,8 @@ export default function Analysis() {
         <Navigation />
         {/* Navigation spacer - ensures content starts below navbar */}
         <div className="h-16"></div>
-        <div className="container mx-auto px-4 py-6 pb-24">
-          <div className="flex justify-between items-center mb-6">
+        <div className="max-w-[100%] p-2 py-6 pb-24">
+          <div className="flex justify-between items-center mb-6 px-1">
             <h1 className="text-2xl font-bold text-primary-blue">My Analysis</h1>
             {/* Update Button positioned on the right side */}
             <div className="flex space-x-2">

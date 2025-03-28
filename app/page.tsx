@@ -9,11 +9,12 @@ import { useBackgroundLogo } from './layout';
 import MicrophoneButton from './components/MicrophoneButton';
 import SpeakText from './components/SpeakText';
 
-// Updated Message interface with responseId
+// Updated Message interface with responseId and audioData
 interface Message {
   user: string;
   ai: string;
   responseId?: string; // Added to track OpenAI response IDs
+  audioData?: string; // Added for TTS audio data
 }
 
 export default function Home() {
@@ -23,7 +24,6 @@ export default function Home() {
   const [isAiResponding, setIsAiResponding] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [showScrollButton, setShowScrollButton] = useState(false);
   const { showBackgroundLogo, setShowBackgroundLogo } = useBackgroundLogo();
 
   // Generate a new session ID on app load
@@ -86,7 +86,7 @@ export default function Home() {
     }
   }, [messages, currentUser]);
 
-  // Function to manually scroll to the bottom when button is clicked
+  // Function to manually scroll to the bottom - keep this for programmatic scrolling
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -99,26 +99,6 @@ export default function Home() {
       setShowBackgroundLogo(true);
     }
   }, [messages, setShowBackgroundLogo]);
-
-  // Listen for scroll events to determine if scroll button should be shown
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!messagesEndRef.current) return;
-      
-      const messagesContainer = document.querySelector('.messages-container');
-      if (messagesContainer) {
-        const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
-        // Show button if not scrolled to bottom (with small threshold)
-        setShowScrollButton(scrollHeight - scrollTop - clientHeight > 20);
-      }
-    };
-
-    const messagesContainer = document.querySelector('.messages-container');
-    if (messagesContainer) {
-      messagesContainer.addEventListener('scroll', handleScroll);
-      return () => messagesContainer.removeEventListener('scroll', handleScroll);
-    }
-  }, [messages]);
 
   // Scroll to bottom of messages when a new user message is added (but not for AI responses)
   useEffect(() => {
@@ -178,7 +158,7 @@ export default function Home() {
     return response;
   };
 
-  // Update the handleSendMessage function to use the previous response ID
+  // Update the handleSendMessage function to support audio generation
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userInput.trim() || !currentUser || isAiResponding) return;
@@ -218,23 +198,27 @@ export default function Home() {
         body: JSON.stringify({ 
           question: question,
           userId: currentUser.uid,
-          previousResponseId: previousResponseId
+          previousResponseId: previousResponseId,
+          generateAudio: true, // Request audio generation
+          voicePreference: 'alloy' // Use fixed 'alloy' voice
         }),
       });
       const data = await response.json();
       const aiResponse = data.answer || 'No response from AI';
       const responseId = data.responseId;
+      const audioData = data.audioData;
 
       // Process the AI response to remove XML tags
       const processedResponse = processChatResponse(aiResponse);
 
-      // Update the last message with processed AI response and the new response ID
+      // Update the last message with processed AI response, the new response ID, and audio data
       setMessages((prev) => {
         const newMessages = [...prev];
         newMessages[newMessages.length - 1] = {
           ...newMessages[newMessages.length - 1],
           ai: processedResponse,
-          responseId: responseId
+          responseId: responseId,
+          audioData: audioData
         };
         return newMessages;
       });
@@ -291,31 +275,34 @@ export default function Home() {
         ) : (
           <div className="p-2 pb-safe flex flex-col h-[calc(100vh-120px)]">
             
-            {/* Messages displayed directly on background */}
+            {/* Messages */}
             <div className="flex-grow overflow-y-auto hide-scrollbar mb-0 pt-4 pb-28 messages-container relative">
               {messages.length === 0 ? (
                 <div className="text-gray-200 text-center py-4">
-                  
+                  {/* Empty state content */}
                 </div>
               ) : (
-                messages.map((msg, index) => (
-                  <div key={index} className="mb-5">
-                    {/* User message - right aligned, darker gray */}
-                    <div className="flex justify-end mb-3">
-                      <div className="bg-gray-700 p-3 rounded-2xl text-gray-100 max-w-[80%]">{msg.user}</div>
-                    </div>
-                    
-                    {/* AI message - left aligned, no background/border */}
-                    {msg.ai ? (
-                      <div className="flex justify-start">
-                        <div className="relative text-white max-w-[80%] whitespace-pre-line pl-3">
-                          {msg.ai}
-                          <div className="absolute -top-1 -right-12">
-                            <SpeakText text={msg.ai} />
-                          </div>
+                messages.map((message, index) => (
+                  <div key={index} className="message-group mb-5">
+                    {message.user && (
+                      <div className="flex justify-end mb-3">
+                        <div className="bg-gray-700 p-3 rounded-2xl text-gray-100 max-w-[80%]">
+                          {message.user}
                         </div>
                       </div>
-                    ) : (
+                    )}
+                    {message.ai && (
+                      <div className="flex justify-start">
+                        <div className="relative text-white max-w-[80%] whitespace-pre-line pl-3">
+                          {message.audioData ? (
+                            <SpeakText text={message.ai} audioData={message.audioData} />
+                          ) : (
+                            <div className="whitespace-pre-wrap">{message.ai}</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {(index === messages.length - 1 && !message.ai && isAiResponding) && (
                       <div className="flex justify-start">
                         <div className="flex items-center text-white pl-3">
                           <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
@@ -330,83 +317,63 @@ export default function Home() {
                 ))
               )}
               <div ref={messagesEndRef} /> {/* Scroll anchor */}
-              
-              {/* Scroll to bottom button */}
-              {showScrollButton && (
-                <button
-                  onClick={scrollToBottom}
-                  className="fixed bottom-44 right-4 bg-gray-700 text-white rounded-full p-2 shadow-lg hover:bg-gray-600 transition-colors"
-                  aria-label="Scroll to bottom"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              )}
             </div>
             
             {/* Fixed input box at bottom */}
-            <div className="fixed bottom-0 left-0 right-0 p-2 pb-safe bg-black/90 backdrop-blur-sm border-t border-gray-800" style={{ marginBottom: 0 }}>
-              <div className="relative">
-                {/* New Chat button - now positioned above input on right */}
-                <button 
-                  onClick={handleNewChat} 
-                  className="absolute -top-12 right-2 flex items-center justify-center p-2 rounded-full text-gray-400 hover:text-white hover:bg-gray-800 transition-colors z-30 bg-black"
-                  aria-label="New chat"
-                >
-                  <FaPlus className="w-4 h-4" />
-                </button>
+            <div className="chat-input-container fixed bottom-0 left-0 right-0 bg-black-75 backdrop-blur-md border-t border-gray-800 p-4 pb-safe">
+              <form onSubmit={handleSendMessage} className="flex flex-col">
+                <div className="relative">
+                  {/* New Chat button - positioned above input on right */}
+                  <button
+                    onClick={handleNewChat}
+                    className="absolute -top-12 right-2 flex items-center justify-center p-2 rounded-full text-gray-400 hover:text-white hover:bg-gray-800 transition-colors z-30"
+                    aria-label="New chat"
+                  >
+                    <FaPlus className="w-4 h-4" />
+                  </button>
                 
-                <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-                  <div className="relative flex-grow">
-                    <textarea
+                  <div className="flex items-center space-x-2">
+                    {/* Existing input field */}
+                    <input
+                      type="text"
                       value={userInput}
                       onChange={(e) => setUserInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          if (userInput.trim() && !isAiResponding) {
-                            handleSendMessage(e);
-                          }
-                        }
-                      }}
-                      placeholder="Ask about your health records..."
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white resize-none"
-                      rows={1}
-                      style={{ minHeight: '44px', maxHeight: '120px' }}
+                      placeholder="Ask me anything..."
+                      className="flex-grow bg-gray-800 text-white rounded-full px-4 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       disabled={isAiResponding}
                     />
-                  </div>
-                  
-                  {/* Import and use the MicrophoneButton component */}
-                  <div className="flex-shrink-0 flex items-center">
-                    <MicrophoneButton
-                      onTranscription={(text) => {
+                    
+                    {/* Microphone button */}
+                    <MicrophoneButton 
+                      onTranscription={(text: string) => {
                         setUserInput(text);
-                        // Auto-submit if there's a transcription
-                        setTimeout(() => {
-                          const form = document.querySelector('form');
-                          if (form) form.dispatchEvent(new Event('submit', { cancelable: true }));
-                        }, 500);
+                        // Auto-submit if we got text from microphone
+                        if (text && !isAiResponding) {
+                          setUserInput(text);
+                          setTimeout(() => {
+                            const form = document.querySelector('form');
+                            if (form) form.dispatchEvent(new Event('submit', { cancelable: true }));
+                          }, 200);
+                        }
                       }}
                     />
+                    
+                    {/* Send button */}
+                    <button
+                      type="submit"
+                      className={`bg-blue-600 text-white rounded-full p-2 ${
+                        !userInput.trim() || isAiResponding ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
+                      }`}
+                      disabled={!userInput.trim() || isAiResponding}
+                      aria-label="Send message"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                      </svg>
+                    </button>
                   </div>
-                  
-                  <button
-                    type="submit"
-                    disabled={!userInput.trim() || isAiResponding}
-                    className={`flex items-center justify-center rounded-full p-2 flex-shrink-0 
-                      ${!userInput.trim() || isAiResponding
-                        ? 'bg-gray-700 text-gray-400'
-                        : 'bg-primary-blue text-white hover:bg-blue-600'}
-                      transition-colors
-                    `}
-                    aria-label="Send message"
-                  >
-                    <FaPaperPlane className="w-5 h-5" />
-                  </button>
-                </form>
-              </div>
+                </div>
+              </form>
             </div>
           </div>
         )}

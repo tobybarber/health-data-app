@@ -1,97 +1,81 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { FaVolumeUp, FaVolumeMute, FaSpinner } from 'react-icons/fa';
-import { speak, stopSpeaking, findBestVoice, isIOS } from '../lib/speech-utils';
+import { useEffect, useRef, useState } from 'react';
 
 interface SpeakTextProps {
   text: string;
-  className?: string;
+  audioData?: string; // Base64 encoded audio
+  autoPlay?: boolean;
 }
 
-export default function SpeakText({ text, className = '' }: SpeakTextProps) {
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasVoices, setHasVoices] = useState(false);
+export default function SpeakText({ text, audioData, autoPlay = true }: SpeakTextProps) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showControls, setShowControls] = useState(false);
 
-  // Check if we have voices available
   useEffect(() => {
-    const checkVoices = () => {
-      const bestVoice = findBestVoice();
-      if (bestVoice) {
-        setHasVoices(true);
-        return true;
-      }
-      return false;
-    };
-
-    // Check immediately
-    if (checkVoices()) return;
-
-    // If no voices yet, wait for them to load
-    const handleVoicesChanged = () => {
-      checkVoices();
-    };
-
-    // Different browsers handle voiceschanged event differently
-    if (window.speechSynthesis) {
-      if (window.speechSynthesis.onvoiceschanged !== undefined) {
-        window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
+    if (audioData && audioRef.current) {
+      const audioSrc = `data:audio/mp3;base64,${audioData}`;
+      audioRef.current.src = audioSrc;
+      
+      if (autoPlay) {
+        audioRef.current.play().catch(err => {
+          console.error("Audio playback error:", err);
+          // If autoplay fails (common on mobile), show controls so user can manually play
+          setShowControls(true);
+        });
+        setIsPlaying(true);
       } else {
-        // For browsers that don't support the event, check periodically
-        const interval = setInterval(() => {
-          if (checkVoices()) {
-            clearInterval(interval);
-          }
-        }, 100);
-        return () => clearInterval(interval);
+        setShowControls(true);
       }
     }
-  }, []);
+  }, [audioData, autoPlay]);
 
-  const handleSpeak = () => {
-    if (isSpeaking) {
-      stopSpeaking();
-      setIsSpeaking(false);
-      return;
-    }
-
-    setIsLoading(true);
-
-    // Device-specific speech options
-    const speechOptions = {
-      onStart: () => {
-        setIsLoading(false);
-        setIsSpeaking(true);
-      },
-      onEnd: () => {
-        setIsSpeaking(false);
+  const togglePlayback = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play().catch(err => console.error("Audio playback error:", err));
       }
-    };
-
-    // Speak with optimized parameters
-    speak(text, speechOptions);
+      setIsPlaying(!isPlaying);
+    }
   };
 
   return (
-    <button
-      onClick={handleSpeak}
-      className={`flex items-center justify-center p-2 rounded-full transition-colors ${
-        isSpeaking
-          ? 'bg-blue-500 text-white'
-          : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
-      } ${className}`}
-      disabled={isLoading || !hasVoices}
-      title={isSpeaking ? 'Stop speaking' : 'Speak text'}
-      aria-label={isSpeaking ? 'Stop speaking' : 'Speak text'}
-    >
-      {isLoading ? (
-        <FaSpinner className="w-5 h-5 animate-spin" />
-      ) : isSpeaking ? (
-        <FaVolumeMute className="w-5 h-5" />
-      ) : (
-        <FaVolumeUp className="w-5 h-5" />
+    <div className="speak-text-container relative">
+      <div className="speak-text-content">
+        {text}
+      </div>
+      {audioData && (
+        <>
+          <audio 
+            ref={audioRef}
+            onEnded={() => setIsPlaying(false)}
+            onError={() => {
+              setIsPlaying(false);
+              setShowControls(true);
+            }}
+            controls={showControls}
+            className={showControls ? "mt-2 w-full max-w-md" : "hidden"}
+          />
+          {!showControls && (
+            <button 
+              onClick={togglePlayback}
+              className={`absolute top-0 right-0 p-2 rounded-full ${isPlaying ? 'text-blue-500' : 'text-gray-500'}`}
+              aria-label={isPlaying ? "Pause audio" : "Play audio"}
+            >
+              {isPlaying ? (
+                <span className="flex items-center">
+                  <span className="animate-pulse">🔊</span>
+                </span>
+              ) : (
+                <span>🔈</span>
+              )}
+            </button>
+          )}
+        </>
       )}
-    </button>
+    </div>
   );
 } 
