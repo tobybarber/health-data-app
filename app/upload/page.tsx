@@ -436,39 +436,41 @@ export default function Upload() {
           )}
 
           {/* Upload Form */}
-          <form onSubmit={handleSubmit} className="bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md border border-gray-800 mt-4">
+          <form onSubmit={handleSubmit} className="bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md mt-4">
             <div className="mb-6">
               <label htmlFor="recordName" className="block text-sm font-medium text-gray-300 mb-1">
                 Record Name (optional)
               </label>
-              <input
-                type="text"
-                id="recordName"
-                value={recordName}
-                onChange={(e) => setRecordName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
-                placeholder="e.g., Annual Checkup 2023"
-              />
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  id="recordName"
+                  value={recordName}
+                  onChange={(e) => setRecordName(e.target.value)}
+                  className="flex-grow px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
+                  placeholder="e.g., Annual Checkup 2023"
+                />
+                {/* Adding an empty div for spacing to match comment box layout */}
+                <div className="w-8 h-8"></div>
+              </div>
             </div>
 
             <div className="mb-6">
               <label htmlFor="comment" className="block text-sm font-medium text-gray-300 mb-1">
                 Comment (optional)
               </label>
-              <div className="relative">
+              <div className="flex items-center space-x-2">
                 <textarea
                   id="comment"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white pr-12"
+                  className="flex-grow px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
                   placeholder="Add any comments here..."
                 />
-                <div className="absolute right-2 bottom-2">
-                  <MicrophoneButton 
-                    onTranscription={(text) => setComment(prev => prev ? `${prev} ${text}` : text)} 
-                    className="w-8 h-8"
-                  />
-                </div>
+                <MicrophoneButton 
+                  onTranscription={(text) => setComment(prev => prev ? `${prev} ${text}` : text)} 
+                  className="w-8 h-8"
+                />
               </div>
             </div>
 

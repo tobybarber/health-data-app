@@ -15,6 +15,7 @@ interface Message {
   ai: string;
   responseId?: string; // Added to track OpenAI response IDs
   audioData?: string; // Added for TTS audio data
+  wasVoiceInput?: boolean; // Track if this message was input via voice
 }
 
 export default function Home() {
@@ -25,6 +26,7 @@ export default function Home() {
   const chatRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { showBackgroundLogo, setShowBackgroundLogo } = useBackgroundLogo();
+  const [lastInputWasVoice, setLastInputWasVoice] = useState(false);
 
   // Generate a new session ID on app load
   useEffect(() => {
@@ -163,8 +165,17 @@ export default function Home() {
     e.preventDefault();
     if (!userInput.trim() || !currentUser || isAiResponding) return;
 
-    // Add user message to chat
-    setMessages((prev) => [...prev, { user: userInput, ai: '' }]);
+    // Track if this was a voice input for the response
+    const wasVoiceInput = lastInputWasVoice;
+    // Reset the flag for next message
+    setLastInputWasVoice(false);
+
+    // Add user message to chat with voice input flag
+    setMessages((prev) => [...prev, { 
+      user: userInput, 
+      ai: '',
+      wasVoiceInput: wasVoiceInput 
+    }]);
     
     // Clear input field immediately
     const question = userInput;
@@ -295,7 +306,11 @@ export default function Home() {
                       <div className="flex justify-start">
                         <div className="relative text-white max-w-[80%] whitespace-pre-line pl-3">
                           {message.audioData ? (
-                            <SpeakText text={message.ai} audioData={message.audioData} />
+                            <SpeakText 
+                              text={message.ai} 
+                              audioData={message.audioData} 
+                              voiceInput={message.wasVoiceInput || false}
+                            />
                           ) : (
                             <div className="whitespace-pre-wrap">{message.ai}</div>
                           )}
@@ -347,6 +362,7 @@ export default function Home() {
                     <MicrophoneButton 
                       onTranscription={(text: string) => {
                         setUserInput(text);
+                        setLastInputWasVoice(true); // Mark that voice input was used
                         // Auto-submit if we got text from microphone
                         if (text && !isAiResponding) {
                           setUserInput(text);
