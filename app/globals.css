@@ -39,27 +39,51 @@ body.standalone-mode {
   /* Remove any default margins and padding */
   margin: 0;
   padding: 0;
-  /* Ensure content fills the screen */
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  /* Don't use fixed position for the body in standalone mode */
+  position: static;
   width: 100%;
   height: 100%;
-  height: var(--app-height);
+  max-height: 100%;
+  min-height: 100%;
+  /* Special handling for viewport height */
   height: calc(var(--vh, 1vh) * 100);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 /* Make main content scrollable in standalone mode */
-body.standalone-mode main {
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+body.standalone-mode main,
+body.standalone-mode .overflow-y-scroll,
+body.standalone-mode .-webkit-overflow-scrolling-touch,
+body.standalone-mode .touch-pan-y {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+}
+
+/* Additional iOS standalone mode fixes for fixed containers */
+body.standalone-mode .fixed {
+  position: absolute; /* Use absolute instead of fixed in iOS standalone */
+}
+
+/* Special fix for the actual scrollable container in records page in standalone mode */
+body.standalone-mode .fixed.top-16.bottom-16 {
+  top: 56px;
+  bottom: 70px;
+  left: 0;
+  right: 0;
+  height: auto;
+  position: absolute;
+  overflow: hidden;
+}
+
+body.standalone-mode .fixed.top-16.bottom-16 > div {
   height: 100%;
-  height: var(--app-height);
-  height: calc(var(--vh, 1vh) * 100);
-  touch-action: pan-y; /* Enable vertical scrolling on touchscreens */
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
 }
 
 /* iOS select element styling fix */
@@ -180,4 +204,38 @@ select {
     width: 0px;
     background: transparent;
   }
+}
+
+/* Records page scroll container fixes */
+.records-scroll-container {
+  /* Ensure the container doesn't block scrolling */
+  position: fixed;
+  overflow: hidden;
+}
+
+.records-scroll-wrapper {
+  /* Force scrolling properties with high specificity */
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+  /* Momentum scrolling in iOS */
+  overflow-scrolling: touch !important;
+}
+
+/* Standalone mode specific overrides for records page */
+body.standalone-mode .records-scroll-container {
+  position: absolute;
+  top: 56px !important;
+  bottom: 70px !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: auto !important;
+  overflow: hidden !important;
+}
+
+body.standalone-mode .records-scroll-wrapper {
+  height: 100% !important;
+  overflow-y: scroll !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
 } 

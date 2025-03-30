@@ -9,7 +9,18 @@ const ClientWrapper = dynamic(() => import('./components/ClientWrapper'), { ssr:
 // Define metadata with minimal properties and only ASCII characters
 export const metadata: Metadata = {
   title: 'Health Data App',
-  description: 'Track and manage your health data'
+  description: 'Track and manage your health data',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Health Data',
+  },
+  other: {
+    'apple-mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-status-bar-style': 'black-translucent',
+    'mobile-web-app-capable': 'yes',
+    'theme-color': '#000000'
+  }
 };
 
 // Define viewport with minimal properties
@@ -18,7 +29,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   userScalable: false, // Disable pinch zooming for better touch handling
   minimumScale: 1,
-  maximumScale: 1
+  maximumScale: 1,
+  viewportFit: 'cover'
 };
 
 // RootLayout is a server component
@@ -33,6 +45,8 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="theme-color" content="#000000" />
       </head>
       <body className="bg-black min-h-screen">
         <ClientWrapper>

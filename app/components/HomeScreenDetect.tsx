@@ -2,39 +2,63 @@
 
 import { useEffect, useState } from 'react';
 
-const HomeScreenDetect = () => {
+export default function HomeScreenDetect() {
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
-    // Check if the app is running in standalone mode (added to home screen)
-    const standalone = 
-      // @ts-ignore - Safari-specific property
-      window.navigator.standalone === true || 
-      window.matchMedia('(display-mode: standalone)').matches;
-    
-    setIsStandalone(standalone);
-    
-    // Add a class to the body element for CSS targeting
-    if (standalone) {
-      document.body.classList.add('standalone-mode');
-    }
-    
-    // Handle iOS viewport height issues (100vh behavior)
-    const setAppHeight = () => {
-      const doc = document.documentElement;
-      doc.style.setProperty('--app-height', `${window.innerHeight}px`);
+    // Function to check if the app is in standalone (PWA) mode
+    const checkStandalone = () => {
+      // All possible ways to detect if app is running in standalone mode
+      const isRunningStandalone = 
+        // iOS detection
+        (window.navigator as any).standalone === true ||
+        // Modern standard detection 
+        window.matchMedia('(display-mode: standalone)').matches ||
+        // Backup detection via URL parameters (if we control app launch)
+        window.location.search.includes('standalone=true');
+      
+      setIsStandalone(isRunningStandalone);
+      
+      // Apply or remove the standalone mode class
+      if (isRunningStandalone) {
+        document.body.classList.add('standalone-mode');
+        console.log('Running in standalone mode (PWA)');
+        
+        // Fix scrolling issues by disabling all touchmove event cancellation
+        document.addEventListener('touchmove', (e) => {
+          // Allow all touchmove events
+        }, { passive: false });
+        
+        // Special fix: if a container with position:fixed is blocking scrolling
+        const fixBlockedScrolling = () => {
+          const scrollContainers = document.querySelectorAll('.overflow-y-scroll, .-webkit-overflow-scrolling-touch, .touch-pan-y');
+          scrollContainers.forEach(container => {
+            container.addEventListener('touchstart', () => {
+              // Ensure touch events work properly in this container
+            }, { passive: true });
+          });
+        };
+        
+        // Apply after a short delay to ensure DOM is ready
+        setTimeout(fixBlockedScrolling, 300);
+      } else {
+        document.body.classList.remove('standalone-mode');
+        console.log('Running in browser mode');
+      }
     };
+
+    // Call immediately after component mounts
+    checkStandalone();
     
-    // Set the height initially and on resize
-    window.addEventListener('resize', setAppHeight);
-    setAppHeight();
+    // Also check when display mode changes
+    const displayModeQuery = window.matchMedia('(display-mode: standalone)');
+    displayModeQuery.addEventListener('change', checkStandalone);
     
+    // Cleanup
     return () => {
-      window.removeEventListener('resize', setAppHeight);
+      displayModeQuery.removeEventListener('change', checkStandalone);
     };
   }, []);
 
-  return null; // This component doesn't render anything visible
-};
-
-export default HomeScreenDetect; 
+  return null; // No UI rendered
+} 

@@ -408,6 +408,54 @@ export default function Records() {
     };
   }, [currentUser]);
 
+  // Additional effect for iOS standalone mode scrolling fix
+  useEffect(() => {
+    // Check if we're in iOS standalone mode
+    const isIOSStandalone = 
+      typeof window !== 'undefined' && 
+      (
+        (window.navigator as any).standalone === true || 
+        window.matchMedia('(display-mode: standalone)').matches
+      );
+    
+    if (isIOSStandalone) {
+      console.log('Applying standalone scrolling fixes for iOS');
+      
+      // Fix scrolling containers after a short delay to ensure DOM is ready
+      const fixScrollingContainers = () => {
+        // Get the main scrollable container for records page
+        const scrollContainer = document.querySelector('.fixed.top-16.bottom-16 > div');
+        if (scrollContainer) {
+          // Force scrolling properties
+          (scrollContainer as HTMLElement).style.overflowY = 'auto';
+          // Use setAttribute for non-standard properties
+          (scrollContainer as HTMLElement).setAttribute('style', 
+            `overflow-y: auto !important; 
+             -webkit-overflow-scrolling: touch !important; 
+             touch-action: pan-y !important;`
+          );
+          
+          // Ensure it doesn't stop responding to touch events
+          scrollContainer.addEventListener('touchstart', () => {}, { passive: true });
+        }
+      };
+      
+      // Apply fix after component mounts
+      setTimeout(fixScrollingContainers, 300);
+      
+      // Re-apply on orientation change
+      window.addEventListener('orientationchange', () => {
+        setTimeout(fixScrollingContainers, 300);
+      });
+      
+      return () => {
+        window.removeEventListener('orientationchange', () => {
+          setTimeout(fixScrollingContainers, 300);
+        });
+      };
+    }
+  }, []);
+
   // Filter and group records
   const filteredAndGroupedRecords = useMemo(() => {
     // Debug each record before processing
@@ -645,8 +693,8 @@ export default function Records() {
         <Navigation />
         
         {/* Main content - Structure specially for iOS scrolling */}
-        <div className="fixed top-16 bottom-16 left-0 right-0 overflow-hidden">
-          <div className="h-full w-full overflow-y-scroll touch-pan-y -webkit-overflow-scrolling-touch">
+        <div className="fixed top-16 bottom-16 left-0 right-0 overflow-hidden records-scroll-container">
+          <div className="h-full w-full overflow-y-scroll touch-pan-y -webkit-overflow-scrolling-touch records-scroll-wrapper">
             <div className="px-4 py-6 pb-24 max-w-4xl mx-auto">
               {/* Header */}
               <div className="flex justify-between items-center mb-6">
