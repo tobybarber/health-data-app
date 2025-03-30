@@ -306,7 +306,7 @@ Brief summary of key findings...
     }
     
     // Extract the FHIR resources from the response
-    const fhirResources = extractFHIRResources(analysisResponse);
+    const fhirResources = extractFHIRResources(analysisResponse) || undefined;
     
     // Get the record type from the analysis
     const recordType = extractRecordType(analysisResponse) || 'Medical Record';
@@ -315,7 +315,7 @@ Brief summary of key findings...
     const recordDate = extractRecordDate(analysisResponse);
     
     // Extract any structured data based on the record type
-    const structuredData = extractStructuredData(analysisResponse, recordType);
+    const structuredData = extractStructuredData(analysisResponse);
     
     // Get the detailed analysis
     const detailedAnalysis = extractDetailedAnalysis(analysisResponse);
