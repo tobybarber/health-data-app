@@ -162,6 +162,33 @@ export async function DELETE(
       );
     }
     
+    const recordData = recordDoc.data();
+    
+    // Delete any associated FHIR resources
+    if (recordData?.fhirResourceIds && Array.isArray(recordData.fhirResourceIds)) {
+      console.log(`Server-side: Deleting ${recordData.fhirResourceIds.length} FHIR resources for record ${recordId}`);
+      
+      for (const resourceId of recordData.fhirResourceIds) {
+        try {
+          // Parse the resource ID to get type and ID
+          const [resourceType, id] = resourceId.split('_');
+          
+          if (resourceType && id) {
+            // Delete the FHIR resource
+            await db.collection('users').doc(userId)
+              .collection('fhir_resources')
+              .doc(resourceId)
+              .delete();
+              
+            console.log(`Server-side: Deleted FHIR resource ${resourceId}`);
+          }
+        } catch (fhirError) {
+          console.error(`Server-side: Error deleting FHIR resource ${resourceId}:`, fhirError);
+          // Continue with other resources even if one fails
+        }
+      }
+    }
+    
     // Delete the record
     await recordRef.delete();
     

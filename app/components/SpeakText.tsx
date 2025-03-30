@@ -1,105 +1,94 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { FaPlayCircle, FaPauseCircle } from 'react-icons/fa';
+import { useState, useEffect } from 'react';
+import { FaVolumeUp, FaStop } from 'react-icons/fa';
 
-interface SpeakTextProps {
+export interface SpeakTextProps {
   text: string;
-  audioData?: string; // Base64 encoded audio
-  autoPlay?: boolean;
-  voiceInput?: boolean; // Whether the user used voice to input their question
+  audioData?: string;
+  voiceInput?: boolean;
 }
 
-export default function SpeakText({ text, audioData, autoPlay = true, voiceInput = false }: SpeakTextProps) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+export default function SpeakText({ text, audioData, voiceInput = false }: SpeakTextProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [showControls, setShowControls] = useState(false);
-  
-  // Generate a unique ID for this specific message's audio
-  const getAudioId = () => {
-    // Create a simple hash of the text and audio data to use as ID
-    if (!audioData) return null;
-    const textHash = text.substring(0, 20); // first 20 chars should be unique enough
-    return `audio_played_${textHash}`;
-  };
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (audioData && audioRef.current) {
-      const audioSrc = `data:audio/mp3;base64,${audioData}`;
-      audioRef.current.src = audioSrc;
-      
-      // Check if we've already played this audio
-      const audioId = getAudioId();
-      const hasPlayed = audioId ? sessionStorage.getItem(audioId) === 'played' : false;
-      
-      // Only auto-play if the user used voice input AND auto-play is enabled AND it hasn't been played before
-      if (autoPlay && !hasPlayed && voiceInput) {
-        audioRef.current.play().catch(err => {
-          console.error("Audio playback error:", err);
-          // If autoplay fails (common on mobile), show controls so user can manually play
-          setShowControls(true);
-        });
-        setIsPlaying(true);
-        
-        // Mark this audio as played in session storage
-        if (audioId) {
-          sessionStorage.setItem(audioId, 'played');
-        }
-      } else {
-        // If already played or autoplay disabled, just show controls
-        setShowControls(true);
+    // Cleanup function to stop audio when component unmounts
+    return () => {
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
       }
-    }
-  }, [audioData, autoPlay, voiceInput]);
+    };
+  }, [audio]);
 
-  const togglePlayback = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play().catch(err => console.error("Audio playback error:", err));
-        
-        // Mark as played when manually played too
-        const audioId = getAudioId();
-        if (audioId) {
-          sessionStorage.setItem(audioId, 'played');
-        }
+  const handlePlay = async () => {
+    try {
+      setError(null);
+      
+      if (!audioData) {
+        throw new Error('No audio data available');
       }
-      setIsPlaying(!isPlaying);
+
+      if (isPlaying && audio) {
+        audio.pause();
+        audio.currentTime = 0;
+        setIsPlaying(false);
+        return;
+      }
+
+      const newAudio = new Audio(audioData);
+      setAudio(newAudio);
+
+      await newAudio.play();
+      setIsPlaying(true);
+
+      newAudio.onended = () => {
+        setIsPlaying(false);
+        setAudio(null);
+      };
+
+      newAudio.onerror = () => {
+        setError('Failed to play audio');
+        setIsPlaying(false);
+        setAudio(null);
+      };
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to play audio');
+      setIsPlaying(false);
+      setAudio(null);
     }
   };
 
   return (
-    <div className="speak-text-container relative">
-      <div className="speak-text-content mb-1">
-        {text}
-      </div>
+    <div className="flex flex-col space-y-2">
+      <div className="whitespace-pre-wrap">{text}</div>
       {audioData && (
-        <div className="absolute right-0 top-0 -mr-12">
-          <button 
-            onClick={togglePlayback}
-            className="flex items-center justify-center rounded-full bg-gray-700 text-gray-200 hover:bg-gray-600 p-2 transition-colors"
-            aria-label={isPlaying ? "Pause audio" : "Play audio"}
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handlePlay}
+            className={`p-2 rounded-full ${
+              isPlaying 
+                ? 'bg-red-500 text-white' 
+                : 'bg-blue-500 text-white hover:bg-blue-600'
+            }`}
+            title={isPlaying ? 'Stop' : 'Play'}
           >
-            {isPlaying ? (
-              <FaPauseCircle className="w-5 h-5 text-blue-500 animate-pulse" />
-            ) : (
-              <FaPlayCircle className="w-5 h-5" />
-            )}
+            {isPlaying ? <FaStop /> : <FaVolumeUp />}
           </button>
+          {voiceInput && (
+            <span className="text-sm text-gray-500">
+              Voice input detected - audio response available
+            </span>
+          )}
         </div>
       )}
-      {audioData && (
-        <audio 
-          ref={audioRef}
-          onEnded={() => setIsPlaying(false)}
-          onError={() => {
-            setIsPlaying(false);
-            setShowControls(true);
-          }}
-          controls={false}
-          className="hidden"
-        />
+      {error && (
+        <div className="text-sm text-red-500">
+          {error}
+        </div>
       )}
     </div>
   );

@@ -6,8 +6,7 @@ import { existsSync, mkdirSync, createReadStream, unlinkSync, statSync } from 'f
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { PDFDocument } from 'pdf-lib';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import { db } from '../../../lib/firebase-admin';
 import fs from 'fs';
 
 // Initialize OpenAI client server-side
@@ -182,8 +181,8 @@ export async function POST(request: NextRequest) {
         // Update the record with the page count
         if (pageCount > 0) {
           console.log(`📄 Updating Firestore record ${recordId} with page count: ${pageCount}`);
-          const recordRef = doc(db, `users/${userId}/records/${recordId}`);
-          await updateDoc(recordRef, {
+          const recordRef = db.collection('users').doc(userId).collection('records').doc(recordId);
+          await recordRef.update({
             fileCount: pageCount
           });
           console.log(`✅ Updated record ${recordId} with page count: ${pageCount}`);
@@ -205,8 +204,8 @@ export async function POST(request: NextRequest) {
             // Update the record with the page count
             if (pageCount > 0) {
               console.log(`📄 Updating Firestore record ${recordId} with alternative page count: ${pageCount}`);
-              const recordRef = doc(db, `users/${userId}/records/${recordId}`);
-              await updateDoc(recordRef, {
+              const recordRef = db.collection('users').doc(userId).collection('records').doc(recordId);
+              await recordRef.update({
                 fileCount: pageCount
               });
               console.log(`✅ Updated record ${recordId} with alternative page count: ${pageCount}`);

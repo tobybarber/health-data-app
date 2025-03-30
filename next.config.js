@@ -12,7 +12,7 @@ const nextConfig = {
       '/api/**/*': ['./node_modules/**/*.wasm', './node_modules/**/*.proto', './node_modules/tesseract.js/**/*']
     }
   },
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     // Fix for tesseract.js dependency issues
     config.resolve.alias.canvas = false;
     config.resolve.alias.encoding = false;
@@ -21,6 +21,25 @@ const nextConfig = {
     config.externals.push({
       'tesseract.js-core': 'commonjs tesseract.js-core',
       'worker-loader': 'commonjs worker-loader',
+    });
+
+    // Fixes npm packages that depend on node modules
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        os: false,
+        crypto: false,
+        stream: false,
+        // Add any other Node.js built-ins that are used by dependencies
+      };
+    }
+
+    // Exclude specific problematic node modules from the bundle
+    config.module.rules.push({
+      test: /node_modules[/\\](onnxruntime-node|sharp)[/\\].+/,
+      use: 'null-loader',
     });
 
     return config;

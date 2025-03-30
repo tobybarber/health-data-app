@@ -8,7 +8,9 @@ import { isApiKeyValid } from '../lib/openai';
 import { useAuth } from '../lib/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Navigation from '../components/Navigation';
-import { useBackgroundLogo } from '../layout';
+import { useBackgroundLogo } from '../components/ClientWrapper';
+import ClientWrapper from '../components/ClientWrapper';
+import AnalysisSettings, { AnalysisSettings as AnalysisSettingsType } from '../components/AnalysisSettings';
 
 interface Question {
   id: string;
@@ -39,6 +41,7 @@ interface RecordDetail {
   detailedAnalysis: string;
   comment: string;
   comments: string[];
+  recordType?: string;
 }
 
 export default function Analysis() {
@@ -59,6 +62,11 @@ export default function Analysis() {
   const [dataLoaded, setDataLoaded] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { setShowBackgroundLogo } = useBackgroundLogo();
+  const [analysisSettings, setAnalysisSettings] = useState<AnalysisSettingsType>({
+    useRag: true,
+    includeProfile: true,
+    includeComments: true
+  });
 
   // Hide background logo
   useEffect(() => {
@@ -339,6 +347,7 @@ export default function Analysis() {
         recordDetails.push({
           id: recordId,
           name: recordName,
+          recordType: record.recordType || '',
           detailedAnalysis: record.detailedAnalysis || '',
           comment: record.comment || '',
           comments: comments
@@ -381,7 +390,11 @@ export default function Analysis() {
             userId: currentUser.uid,
             recordNames: recordNames,
             recordDetails: recordDetailsToSend, // Send the limited record details
-            timestamp: new Date().getTime() // Add timestamp to prevent caching
+            timestamp: new Date().getTime(), // Add timestamp to prevent caching
+            mode: 'standard',
+            useRag: analysisSettings.useRag,
+            includeProfile: analysisSettings.includeProfile,
+            includeComments: analysisSettings.includeComments
           }),
           signal: controller.signal
         });
@@ -498,6 +511,16 @@ export default function Analysis() {
       setUpdateError(`Error updating holistic analysis: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleSettingsChange = (newSettings: AnalysisSettingsType) => {
+    setAnalysisSettings(newSettings);
+    console.log('Analysis settings updated:', newSettings);
+    
+    // If settings changed and we have analysis, suggest updating
+    if (holisticAnalysis && holisticAnalysis !== 'No health records found. Please upload some medical records first.') {
+      setNeedsUpdate(true);
     }
   };
 
@@ -689,121 +712,81 @@ export default function Analysis() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-black">
-        <Navigation />
-        {/* Navigation spacer - ensures content starts below navbar */}
-        <div className="h-16"></div>
-        <div className="max-w-[100%] p-2 py-6 pb-24">
-          <div className="flex justify-between items-center mb-6 px-1">
-            <h1 className="text-2xl font-bold text-primary-blue">My Analysis</h1>
-            {/* Update Button positioned on the right side */}
-            <div className="flex space-x-2">
-              <button
-                onClick={handleUpdate}
-                disabled={isUpdating}
-                className={`${
-                  needsUpdate 
-                    ? "bg-yellow-100 text-yellow-700 border border-yellow-500" 
-                    : "bg-black text-white border border-primary-blue"
-                } rounded-md p-2 hover:bg-gray-800 transition`}
-                title="Refresh data and generate a new analysis based on your current records"
-              >
-                {isUpdating ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin h-5 w-5 mr-2 text-primary-blue" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 100 12v2a8 8 0 01-8-8z"></path>
-                    </svg>
-                    Updating...
-                  </span>
-                ) : (
-                  <span className="flex items-center">
-                    <svg className={`h-5 w-5 mr-1 ${needsUpdate ? "text-yellow-500" : ""}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    {needsUpdate ? "Update required" : "Refresh"}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Add this after the Update button */}
-          {updateError && (
-            <div className="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-md">
-              <p className="flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                {updateError}
-              </p>
-            </div>
-          )}
-
-          {/* Debug Information */}
-          {showDebug && (
-            <div className="mt-4 p-4 bg-gray-100 border border-gray-300 rounded-md">
-              <h3 className="text-lg font-semibold mb-2">Debug Information</h3>
-              
-              <div className="mb-2">
-                <p><strong>Analysis Source:</strong> {analysisSource || 'None'}</p>
-                <p><strong>Record Count:</strong> {recordCount}</p>
-                <p><strong>Last Updated:</strong> {lastUpdated || 'Never'}</p>
-                <p><strong>Needs Update:</strong> {needsUpdate ? 'Yes' : 'No'}</p>
-              </div>
-              
-              {performanceMetrics && (
-                <div className="mb-2">
-                  <h4 className="font-medium mb-1">Performance Metrics:</h4>
-                  <p><strong>Total Time:</strong> {performanceMetrics.totalTime}ms</p>
-                  <p><strong>Records Fetched:</strong> {performanceMetrics.recordsFetched}</p>
-                </div>
-              )}
-              
-              {updateError && (
-                <div className="mb-2">
-                  <h4 className="font-medium mb-1">Error:</h4>
-                  <p className="text-red-600">{updateError}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="mb-6 p-6">
-            {isLoading ? (
-              <div className="flex justify-center items-center py-8">
-                <svg className="animate-spin h-8 w-8 text-primary-blue" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 100 12v2a8 8 0 01-8-8z"></path>
-                </svg>
-                <span className="ml-2 text-gray-600">Loading your health analysis...</span>
-              </div>
-            ) : holisticAnalysis === 'No analysis available yet. Please upload some medical records first.' || 
-               holisticAnalysis === 'No health records found. Please upload some medical records first.' ? (
-              <p className="text-white text-lg font-normal">{holisticAnalysis}</p>
-            ) : (
-              <div className="text-white">
-                <div className="mb-4 text-sm text-gray-500 flex justify-between">
-                  <div>
-                    Analysis by: <span className="font-semibold">{analysisSource === 'openai' ? 'OpenAI' : 'Health App'}</span>
-                    {recordCount > 0 && <div className="mt-1">Based on {recordCount} health records</div>}
+      <ClientWrapper>
+        <div className="container mx-auto px-4 py-8 bg-black text-white">
+          <Navigation />
+          
+          <h1 className="text-3xl font-bold mb-6 text-white">Health Analysis</h1>
+          
+          {/* Analysis Settings Section */}
+          <AnalysisSettings onChange={handleSettingsChange} />
+          
+          {/* Analysis Content Section - Changed background to black */}
+          <div className="bg-black border border-gray-700 rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-6 px-1">
+              <h1 className="text-2xl font-bold text-primary-blue">My Analysis</h1>
+              <div className="flex space-x-2 items-center">
+                <button
+                  className={`px-4 py-2 rounded text-white ${
+                    isUpdating ? 'bg-gray-600' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                  onClick={handleUpdate}
+                  disabled={isUpdating}
+                >
+                  {isUpdating ? 'Updating...' : needsUpdate ? 'Update Analysis' : 'Refresh Analysis'}
+                </button>
+                {needsUpdate && (
+                  <div className="bg-yellow-500 text-black px-3 py-1 rounded text-xs font-medium">
+                    Update needed
                   </div>
-                  {lastUpdated && (
-                    <div>
-                      Updated: <span className="font-semibold">{lastUpdated.split(',')[0]}</span>
+                )}
+                {recordCount > 0 && (
+                  <div className="bg-gray-700 text-white px-3 py-1 rounded text-xs font-medium">
+                    {recordCount} record{recordCount === 1 ? '' : 's'}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Analysis display */}
+            {isLoading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-pulse text-gray-300">Loading analysis...</div>
+              </div>
+            ) : (
+              <div>
+                {updateError ? (
+                  <div className="bg-red-900 text-white p-4 rounded">
+                    {updateError}
+                  </div>
+                ) : (
+                  <div className="prose text-white max-w-none">
+                    <div className="mb-4">
+                      {lastUpdated && (
+                        <div className="text-xs text-gray-400 mb-2">
+                          Last updated: {lastUpdated}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                {formatAnalysisText(holisticAnalysis)}
+                    {formatAnalysisText(holisticAnalysis)}
+                    
+                    {/* Display info about analysis source */}
+                    {analysisSource && (
+                      <div className="mt-4 text-xs text-gray-400">
+                        <p>Analysis generated using: {
+                          analysisSource === 'rag+llamaindex' 
+                            ? 'Structured FHIR data with RAG approach' 
+                            : 'Text summaries with OpenAI'
+                        }</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
-
-          {/* Bottom overlay to prevent seeing content */}
-          <div className="fixed bottom-0 left-0 right-0 h-16 bg-black z-10"></div>
-
         </div>
-      </div>
+      </ClientWrapper>
     </ProtectedRoute>
   );
 } 

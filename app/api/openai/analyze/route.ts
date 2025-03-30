@@ -3,6 +3,14 @@ import OpenAI from 'openai';
 import { db } from '../../../lib/firebase-admin';
 import { PDFDocument } from 'pdf-lib';
 import axios from 'axios';
+import { 
+  extractBriefSummary, 
+  extractDetailedAnalysis, 
+  extractRecordType, 
+  extractRecordDate,
+  extractStructuredData,
+  extractFHIRResources
+} from '../../../lib/analysis-utils';
 
 // Initialize OpenAI client server-side
 const openai = new OpenAI({
@@ -36,6 +44,68 @@ async function downloadFileFromOpenAI(fileId: string): Promise<Buffer> {
     return Buffer.from(arrayBuffer);
   } catch (error) {
     console.error('Error downloading file from OpenAI:', error);
+    throw error;
+  }
+}
+
+/**
+ * Ensure a patient record exists for the user
+ * @param userId The user ID
+ * @returns The patient ID
+ */
+async function ensurePatientRecord(userId: string): Promise<string> {
+  try {
+    // Check if user already has a Patient resource
+    const patientQuery = await db.collection('users').doc(userId)
+      .collection('fhir_resources')
+      .where('resourceType', '==', 'Patient')
+      .limit(1)
+      .get();
+    
+    if (!patientQuery.empty) {
+      const patientId = patientQuery.docs[0].id.split('_')[1];
+      return patientId;
+    } else {
+      // Create a new Patient resource if none exists
+      const admin = await import('firebase-admin');
+      if (!admin.apps.length) {
+        admin.initializeApp();
+      }
+      
+      const userDoc = await db.collection('users').doc(userId).get();
+      const userData = userDoc.data() || {};
+      
+      const patientId = admin.firestore().collection('_').doc().id;
+      
+      const patientResource = {
+        resourceType: 'Patient',
+        id: patientId,
+        active: true,
+        name: [
+          {
+            use: 'official',
+            family: userData.lastName || '',
+            given: [userData.firstName || ''],
+            text: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown'
+          }
+        ],
+        gender: userData.gender || undefined,
+        birthDate: userData.birthDate || undefined,
+        meta: {
+          lastUpdated: new Date().toISOString()
+        }
+      };
+      
+      // Save the Patient resource
+      await db.collection('users').doc(userId)
+        .collection('fhir_resources')
+        .doc(`Patient_${patientId}`)
+        .set(patientResource);
+      
+      return patientId;
+    }
+  } catch (error) {
+    console.error('Error ensuring patient record:', error);
     throw error;
   }
 }
@@ -118,13 +188,39 @@ This is important for ensuring the patient receives complete and accurate medica
     if (question) {
       queryText = question + (multiFileInstruction ? `\n\n${multiFileInstruction}` : '');
     } else {
-      // For PDFs and images, use the detailed instruction - note these are identical in the original code
-      defaultQuestion = 'Please review this document and provide the following information in clearly labeled sections with XML-like tags:\n\n' +
-                       '<DETAILED_ANALYSIS>\nList all information in the document, please ensure it is a complete list containing ALL information available. Ignore any personal identifiers like name, address.\n</DETAILED_ANALYSIS>\n\n' +
-                       '<BRIEF_SUMMARY>\nProvide a user-friendly summary of all information in plain language.\n</BRIEF_SUMMARY>\n\n' +
-                       '<DOCUMENT_TYPE>\nIdentify the specific type of document, keep it short (e.g., "Blood Test", "MRI", "Echocardiogram", "Pathology Report").\n</DOCUMENT_TYPE>\n\n' +
-                       '<DATE>\nExtract the date of the report or document. Format as mmm yyyy.\n</DATE>\n\n' +
-                       'It is CRITICAL that you use these exact XML-like tags in your response to ensure proper formatting. Do not use asterisks or other special formatting characters in your response. This will be used for informational purposes only, medical professionals will be consulted before taking any action.';
+      // For PDFs and images, use the detailed instruction with enhanced structure for different record types
+      defaultQuestion = 'You are a medical data extraction specialist. Your task is to analyze this medical document and:\n\n' +
+                       '1. Extract structured FHIR R4 resources based on the content\n' +
+                       '2. Provide an analysis summary of the document\n\n' +
+                       'INSTRUCTIONS FOR FHIR EXTRACTION:\n' +
+                       '- Extract Patient, Observation, DiagnosticReport, Medication, MedicationStatement, Condition, AllergyIntolerance, Immunization, or any other relevant FHIR resources\n' +
+                       '- Follow standard FHIR R4 resource structures with all required fields\n' +
+                       '- Use appropriate coding systems (LOINC for labs, RxNorm for medications, ICD-10 for conditions)\n' +
+                       '- Include proper units, reference ranges, and dates where available\n' +
+                       '- Link related resources using proper references\n\n' +
+                       'INSTRUCTIONS FOR DOCUMENT ANALYSIS:\n' +
+                       '- Provide a detailed analysis of the medical information\n' +
+                       '- Include a brief summary of key findings\n' +
+                       '- Identify the document type\n' +
+                       '- Note the date of the document\n\n' +
+                       'FORMAT YOUR RESPONSE AS FOLLOWS:\n\n' +
+                       '<FHIR_RESOURCES>\n' +
+                       '[\n' +
+                       '  {\n' +
+                       '    "resourceType": "TYPE",\n' +
+                       '    ... valid FHIR JSON resource ...\n' +
+                       '  },\n' +
+                       '  ... additional resources ...\n' +
+                       ']\n' +
+                       '</FHIR_RESOURCES>\n\n' +
+                       '<DOCUMENT_TYPE>Document type classification</DOCUMENT_TYPE>\n\n' +
+                       '<DOCUMENT_DATE>YYYY-MM-DD</DOCUMENT_DATE>\n\n' +
+                       '<DETAILED_ANALYSIS>\n' +
+                       'Detailed analysis text here...\n' +
+                       '</DETAILED_ANALYSIS>\n\n' +
+                       '<BRIEF_SUMMARY>\n' +
+                       'Brief summary of key findings...\n' +
+                       '</BRIEF_SUMMARY>';
       
       // The query text to use (default with any multi-file instruction)
       queryText = multiFileInstruction ? `${multiFileInstruction}\n\n${defaultQuestion}` : defaultQuestion;
@@ -160,7 +256,7 @@ This is important for ensuring the patient receives complete and accurate medica
             // Use a simpler prompt for individual image analysis
             const singleImagePrompt = 'Please analyze this medical image and provide the following information in clearly labeled sections with XML-like tags:\n\n' +
                        '<DETAILED_ANALYSIS>\nList all information visible in this image, ensuring it is complete and detailed.\n</DETAILED_ANALYSIS>\n\n' +
-                       '<DOCUMENT_TYPE>\nIdentify the specific type of document (e.g., "Blood Test", "MRI", "X-Ray").\n</DOCUMENT_TYPE>\n\n' +
+                       '<DOCUMENT_TYPE>\nReturn the FHIR resource type that best matches this document. The main types are "Laboratory Report" (including pathology reports, biopsies, and all test results), "Medication List", "Immunization Record", "Allergy List", "Problem List", or "Radiology Report".\n</DOCUMENT_TYPE>\n\n' +
                        '<DATE>\nExtract any date visible in the image. Format as mmm yyyy.\n</DATE>';
             
             // Analyze main image
@@ -392,9 +488,9 @@ This is important for ensuring the patient receives complete and accurate medica
           console.log('Debug: Sending content to OpenAI with structure:', JSON.stringify(messageContent.map(m => m.type)));
           
           // Add a timeout mechanism
-          const timeoutMs = 90000; // 90 seconds
+          const timeoutMs = 180000; // 3 minutes
           const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('OpenAI API request timed out after 90 seconds')), timeoutMs);
+            setTimeout(() => reject(new Error('OpenAI API request timed out after 3 minutes')), timeoutMs);
           });
           
           // Create the API call promise
@@ -414,7 +510,59 @@ This is important for ensuring the patient receives complete and accurate medica
             response = await Promise.race([apiCallPromise, timeoutPromise]);
           } catch (timeoutError: any) {
             console.error('OpenAI API call timed out:', timeoutError.message);
-            throw new Error('The analysis request took too long to complete. Please try again later.');
+            
+            // Implement a simpler fallback for timeout cases
+            try {
+              console.log('Attempting simplified analysis as fallback...');
+              
+              // Create a simpler prompt that focuses just on extracting basic metadata
+              const fallbackPrompt = `Please quickly extract basic information from this medical document. 
+              Only focus on:
+              
+              1. Document type (lab report, radiology, etc.)
+              2. Document date
+              3. Very brief summary (1-2 sentences)
+              
+              Format your response using these tags:
+              <DOCUMENT_TYPE>Type goes here</DOCUMENT_TYPE>
+              <DATE>Date goes here</DATE>
+              <BRIEF_SUMMARY>Brief summary goes here</BRIEF_SUMMARY>`;
+              
+              // Use a smaller model with stricter token limits for faster processing
+              const fallbackAPICall = openai.responses.create({
+                model: 'gpt-4o',
+                input: [
+                  {
+                    role: 'user',
+                    content: [
+                      { type: 'input_file' as const, file_id: fileId },
+                      { type: 'input_text' as const, text: fallbackPrompt }
+                    ],
+                  },
+                ],
+              });
+              
+              // Give the fallback a shorter timeout
+              const fallbackTimeout = new Promise<never>((_, reject) => {
+                setTimeout(() => reject(new Error('Fallback analysis timed out')), 60000); // 1 minute
+              });
+              
+              // Execute the fallback
+              const fallbackResponse = await Promise.race([fallbackAPICall, fallbackTimeout]);
+              
+              if (fallbackResponse && 'output_text' in fallbackResponse && fallbackResponse.output_text) {
+                analysisResponse = fallbackResponse.output_text;
+                console.log('Fallback analysis successful');
+                
+                // Add a note that this is a simplified analysis
+                analysisResponse += "\n\n<DETAILED_ANALYSIS>This document required simplified analysis due to processing limitations. Please view the original document for complete details.</DETAILED_ANALYSIS>";
+              } else {
+                throw new Error('Fallback analysis failed to extract information');
+              }
+            } catch (fallbackError) {
+              console.error('Fallback analysis also failed:', fallbackError);
+              throw new Error('The analysis request took too long to complete. Please try again later.');
+            }
           }
           
           console.log('Debug: OpenAI Responses API response received for PDF');
@@ -437,6 +585,11 @@ This is important for ensuring the patient receives complete and accurate medica
           
           // Extract the text content from the response
           try {
+            if (!response) {
+              console.error('Response is undefined');
+              throw new Error('Empty response from OpenAI');
+            }
+            
             console.log('Response format:', typeof response);
             console.log('Response preview:', JSON.stringify(response).substring(0, 500) + '...');
             
@@ -446,7 +599,7 @@ This is important for ensuring the patient receives complete and accurate medica
               console.log('Using output_text field from response:', analysisResponse.substring(0, 100) + '...');
             }
             // Check if the response has the output array (old format)
-            else if ('output' in response && Array.isArray(response.output)) {
+            else if ('output' in response && Array.isArray((response as any).output)) {
               console.log('Using output array from response, length:', (response as any).output.length);
               
               // The OpenAI Responses API returns an array of content items
@@ -506,34 +659,128 @@ This is important for ensuring the patient receives complete and accurate medica
         recordDate = recordDateMatch ? recordDateMatch[1].trim() : '';
       }
       
-      // Update the record in Firestore if we have userId and recordId
-      if (userId && recordId && (detailedAnalysis || briefSummary)) {
-        try {
-          console.log(`Updating record ${recordId} with analysis results`);
-          
-          // Use admin SDK for Firestore updates in API routes
-          const recordRef = db.collection('users').doc(userId).collection('records').doc(recordId);
-          
-          // Prepare the update data
-          const updateData: Record<string, any> = {
-            analyzed: true,
-            analyzedAt: new Date()
-          };
-          
-          // Only add fields that have values
-          if (detailedAnalysis) updateData.detailedAnalysis = detailedAnalysis;
-          if (briefSummary) updateData.briefSummary = briefSummary;
-          if (briefSummary) updateData.summary = briefSummary;
-          if (recordType) updateData.recordType = recordType;
-          if (recordDate) updateData.recordDate = recordDate;
-          
-          // Update the record
-          await recordRef.update(updateData);
-          
-          console.log(`✅ Updated record ${recordId} with analysis results`);
-        } catch (updateError) {
-          console.error('Error updating record with analysis results:', updateError);
+      // Update the record in Firestore with the new fields
+      try {
+        const recordRef = db.collection('users').doc(userId).collection('records').doc(recordId);
+        
+        // Check if the analysis field contains a JSON string (new OpenAI response format)
+        let analysis = analysisResponse;
+        let extractedRecordType = "";
+        let extractedRecordDate = "";
+        let briefSummary = '';
+        let detailedAnalysis = '';
+        let structuredData = {};
+        
+        // Check if the analysis is a JSON string, try to parse it and extract the output_text
+        if (typeof analysis === 'string' && analysis.startsWith('{') && analysis.includes('output_text')) {
+          try {
+            const parsedAnalysis = JSON.parse(analysis);
+            
+            // Extract the output_text if it exists
+            if (parsedAnalysis.output_text) {
+              analysis = parsedAnalysis.output_text;
+            }
+          } catch (parseError) {
+            console.error('Error parsing JSON from analysis field:', parseError);
+            // Continue with the original values
+          }
         }
+        
+        // Extract sections from the analysis text only if we have a string
+        if (typeof analysis === 'string') {
+          // Extract all sections at once to avoid redundant regex operations
+          detailedAnalysis = extractDetailedAnalysis(analysis);
+          briefSummary = extractBriefSummary(analysis);
+          
+          // Extract additional fields
+          extractedRecordType = extractRecordType(analysis);
+          extractedRecordDate = extractRecordDate(analysis);
+          
+          // Extract structured data based on document type
+          structuredData = extractStructuredData(analysis);
+        }
+        
+        const updateData: {
+          analysis: string;
+          analyzedAt: Date;
+          recordType: string;
+          recordDate: string;
+          briefSummary: string;
+          detailedAnalysis: string;
+          structuredData: any;
+          name?: string;
+        } = {
+          analysis: analysis || "Analysis could not be completed.",
+          analyzedAt: new Date(),
+          recordType: extractedRecordType || "Medical Record",
+          recordDate: extractedRecordDate || "",
+          briefSummary: briefSummary || "",
+          detailedAnalysis: detailedAnalysis || "",
+          structuredData: structuredData || {}
+        };
+        
+        // Make sure we don't store the FHIR resources in the name field
+        if (recordRef) {
+          try {
+            // Get the current record data
+            const recordData = await recordRef.get();
+            if (recordData.exists) {
+              const currentData = recordData.data() || {};
+              
+              // Check if the name looks like it might be FHIR data
+              if (currentData.name && (
+                String(currentData.name).includes('<FHIR_RESOURCES>') || 
+                String(currentData.name).includes('resourceType') || 
+                String(currentData.name).includes('Patient') ||
+                String(currentData.name).includes('Observation') ||
+                String(currentData.name).length > 100
+              )) {
+                // Reset to a sensible name
+                updateData.name = extractedRecordType || "Medical Record";
+              }
+            }
+          } catch (nameCheckError) {
+            console.error('Error checking record name:', nameCheckError);
+            // Continue with update anyway
+          }
+        }
+        
+        await recordRef.update(updateData);
+        console.log(`✅ Record ${recordId} updated with analysis`);
+        
+        // Extract FHIR resources
+        let fhirResources = null;
+        try {
+          // First clean up the analysis text to remove any ```json markers
+          // This handles the case where OpenAI adds markdown code block syntax
+          const cleanedAnalysis = analysis
+            .replace(/```json\s*/g, '')
+            .replace(/```\s*$/g, '');
+            
+          fhirResources = extractFHIRResources(cleanedAnalysis);
+        } catch (fhirError) {
+          console.error('Error extracting FHIR resources:', fhirError);
+          fhirResources = null;
+        }
+        
+        // Log the extracted FHIR resources
+        if (fhirResources && fhirResources.length > 0) {
+          console.log(`✅ Extracted ${fhirResources.length} FHIR resources from analysis`);
+          
+          // Process and store FHIR resources if user ID provided
+          if (userId) {
+            // We need to ensure a patient resource exists
+            const patientId = await ensurePatientRecord(userId);
+            
+            // Store the FHIR resources in Firestore
+            await storeFHIRResourcesDirectly(userId, patientId, fhirResources, recordId);
+          }
+        } else {
+          console.log(`⚠️ No FHIR resources extracted from analysis`);
+        }
+      } catch (updateError) {
+        console.error('❌ Error updating record with analysis:', updateError);
+        // Continue even if update fails, so we still return the analysis
       }
       
       // Return the analysis results
@@ -558,4 +805,100 @@ This is important for ensuring the patient receives complete and accurate medica
       message: error.message
     }, { status: 500 });
   }
-} 
+}
+
+/**
+ * Store FHIR resources directly extracted from OpenAI
+ * @param userId The user ID
+ * @param patientId The patient ID
+ * @param resources Array of FHIR resources
+ * @param recordId Optional record ID to link with
+ */
+async function storeFHIRResourcesDirectly(
+  userId: string,
+  patientId: string,
+  resources: any[],
+  recordId?: string
+) {
+  try {
+    if (!resources || resources.length === 0) {
+      console.log('No FHIR resources to store');
+      return;
+    }
+    
+    console.log(`Storing ${resources.length} FHIR resources for user ${userId}`);
+    
+    // Prepare output to track created resources
+    const createdResources: Record<string, string[]> = {};
+    
+    // Process each resource
+    for (const resource of resources) {
+      try {
+        // Skip invalid resources
+        if (!resource || !resource.resourceType) {
+          console.warn('Skipping invalid FHIR resource (missing resourceType)');
+          continue;
+        }
+        
+        const resourceType = resource.resourceType;
+        
+        // Skip Patient resources as we already have one
+        if (resourceType === 'Patient') {
+          console.log('Skipping Patient resource as we already have one');
+          continue;
+        }
+        
+        // Add patient reference if not already present
+        if (resourceType !== 'Patient' && !resource.subject && !resource.patient) {
+          // Different FHIR resources use different fields for patient reference
+          if (['Observation', 'DiagnosticReport', 'Procedure', 'Condition', 'Immunization'].includes(resourceType)) {
+            resource.subject = { reference: `Patient/${patientId}` };
+          } else if (['MedicationStatement', 'AllergyIntolerance'].includes(resourceType)) {
+            resource.patient = { reference: `Patient/${patientId}` };
+          }
+        }
+        
+        // Make sure the resource has an ID
+        if (!resource.id) {
+          resource.id = crypto.randomUUID().replace(/-/g, '');
+        }
+        
+        // Add metadata
+        resource.meta = {
+          ...(resource.meta || {}),
+          lastUpdated: new Date().toISOString(),
+          source: recordId ? `Record/${recordId}` : 'AI Analysis'
+        };
+        
+        // Store the resource
+        const userDocRef = db.collection('users').doc(userId);
+        const fhirCollectionRef = userDocRef.collection('fhir_resources');
+        const resourceDocRef = fhirCollectionRef.doc(`${resourceType}_${resource.id}`);
+        await resourceDocRef.set(resource);
+        
+        // Track created resources by type
+        if (!createdResources[resourceType]) {
+          createdResources[resourceType] = [];
+        }
+        createdResources[resourceType].push(resource.id);
+        
+        console.log(`Created ${resourceType} resource with ID ${resource.id}`);
+      } catch (resourceError) {
+        console.error(`Error storing FHIR resource of type ${resource?.resourceType || 'unknown'}:`, resourceError);
+      }
+    }
+    
+    // Log summary of created resources
+    const summary = Object.entries(createdResources)
+      .map(([type, ids]) => `${type}: ${ids.length}`)
+      .join(', ');
+    
+    console.log(`FHIR resources created: ${summary}`);
+    
+    // Return the created resources
+    return createdResources;
+  } catch (error) {
+    console.error('Error storing FHIR resources:', error);
+    throw error;
+  }
+}

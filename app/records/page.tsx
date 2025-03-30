@@ -1,82 +1,345 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import { collection, getDocs, doc, deleteDoc, getDoc, setDoc, serverTimestamp, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { ref, deleteObject } from 'firebase/storage';
-import { db, storage } from '../lib/firebase';
+import { collection, getDocs, query, orderBy, onSnapshot, doc, deleteDoc, Firestore, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Navigation from '../components/Navigation';
-import { FaPlus, FaFileAlt } from 'react-icons/fa';
-import { invalidateRecordsCache, isRecordsCacheValid } from '../lib/cache-utils';
-import { extractTagContent, extractBriefSummary, extractDetailedAnalysis, extractRecordType, extractRecordDate } from '../lib/analysis-utils';
+import { FaPlus, FaSearch, FaFilter, FaFileAlt, FaFilePdf, FaFileImage, FaFileMedical, FaExternalLinkAlt, FaTrash, FaChartBar } from 'react-icons/fa';
+import { extractRecordDate, extractRecordType } from '../lib/analysis-utils';
+import { Observation, DiagnosticReport } from '../types/fhir';
+import { ActivityIcon, AlertCircle } from 'lucide-react';
 
-interface Record {
+// Add a new interface for cached data
+interface CachedObservationData {
+  observations: Observation[];
+  timestamp: number;
+}
+
+// Interface for SimpleRecord
+interface SimpleRecord {
   id: string;
   name: string;
   url?: string;
   urls?: string[];
   isMultiFile?: boolean;
-  fileCount?: number;
-  analysis: string;
   briefSummary?: string;
-  detailedAnalysis?: string;
-  recordType?: string;
-  recordDate?: string;
-  createdAt?: any;
-  isManual?: boolean;
-  hasPhoto?: boolean;
-  comment?: string;
-  openaiFileId?: string;
-  openaiFileIds?: string[];
-  combinedImagesToPdf?: boolean;
-  simpleTestResult?: string;
-  analyzed?: boolean;
+  recordType: string;
+  recordDate: string;
+  fhirResourceIds?: string[] | Record<string, any>;
+  createdAt: any;
+  analysisStatus?: 'pending' | 'complete' | 'error';
+  analysisInProgress?: boolean;
+  analysisError?: string;
 }
 
-// Cache duration in milliseconds (5 minutes)
-const CACHE_DURATION = 300000;
+// Category icons mapping
+const categoryIcons: Record<string, JSX.Element> = {
+  'lab': <FaFileMedical className="text-blue-400" />,
+  'imaging': <FaFileImage className="text-purple-400" />,
+  'prescription': <FaFileMedical className="text-green-400" />,
+  'report': <FaFilePdf className="text-red-400" />,
+  'document': <FaFileAlt className="text-yellow-400" />,
+  'default': <FaFileAlt className="text-gray-400" />
+};
+
+// A very simple gauge component to guarantee it renders
+function SimpleGauge({ value, low, high, unit, name }: { 
+  value: number | undefined, 
+  low?: number | undefined, 
+  high?: number | undefined, 
+  unit?: string,
+  name?: string
+}) {
+  // Ensure numeric value
+  const numericValue = typeof value === 'number' && !isNaN(value) ? value : 1.7;
+  
+  // Default ranges if not provided or invalid
+  const actualLow = (typeof low === 'number' && !isNaN(low)) ? low : numericValue * 0.7;
+  const actualHigh = (typeof high === 'number' && !isNaN(high)) ? high : numericValue * 1.3;
+  
+  // Ensure we show values that fall outside the normal range
+  // Create a scale that extends 25% beyond normal range on both sides
+  const minScale = Math.min(actualLow * 0.75, numericValue * 0.75);
+  const maxScale = Math.max(actualHigh * 1.25, numericValue * 1.25);
+  const range = maxScale - minScale;
+  
+  // Calculate position percentage
+  const position = Math.min(100, Math.max(0, ((numericValue - minScale) / range) * 100));
+  
+  // Calculate position of normal range markers
+  const lowPosition = ((actualLow - minScale) / range) * 100;
+  const highPosition = ((actualHigh - minScale) / range) * 100;
+  
+  // Determine if value is in range
+  const inRange = numericValue >= actualLow && numericValue <= actualHigh;
+  
+  return (
+    <div className="mb-2 text-sm">
+      {/* Gauge container */}
+      <div className="h-4 bg-gray-800 rounded-full relative overflow-hidden shadow-inner">
+        {/* Normal range background - green area */}
+        <div 
+          className="absolute top-0 bottom-0 bg-green-500/50"
+          style={{ 
+            left: `${lowPosition}%`, 
+            width: `${highPosition - lowPosition}%` 
+          }}
+        ></div>
+        
+        {/* Range markers */}
+        <div className="absolute inset-y-0 border-l border-white/60" style={{ left: `${lowPosition}%` }}></div>
+        <div className="absolute inset-y-0 border-l border-white/60" style={{ left: `${highPosition}%` }}></div>
+        
+        {/* Position marker */}
+        <div 
+          className="absolute top-0 bottom-0 flex items-center" 
+          style={{ left: `${position}%` }}
+        >
+          <div className={`w-3 h-3 rounded-full ${inRange ? 'bg-green-500' : 'bg-yellow-500'} border border-white shadow transform -translate-x-1/2 z-10`}></div>
+        </div>
+      </div>
+      
+      {/* Range indicators */}
+      <div className="flex justify-between text-xs text-gray-400 mt-1">
+        <div>{actualLow.toFixed(1)}</div>
+        <div>{actualHigh.toFixed(1)}</div>
+      </div>
+    </div>
+  );
+}
+
+// Function to properly format the test name from FHIR Observation
+function getFormattedTestName(observation: Observation): string {
+  // Check for specific observation IDs we want to map to readable names
+  const idMappings: Record<string, string> = {
+    'observation-hemoglobin': 'Hemoglobin',
+    'observation-wcc': 'White Cell Count',
+    'observation-platelets': 'Platelets',
+    'observation-neutrophils': 'Neutrophils',
+    'observation-lymphocytes': 'Lymphocytes',
+    'observation-sodium': 'Sodium',
+    'observation-potassium': 'Potassium',
+    'observation-creatinine': 'Creatinine',
+    'observation-glucose': 'Glucose',
+    'mild-neutropenia': 'Neutrophil Count',
+    'fbe-20250221': 'Neutrophil Count'
+  };
+
+  // If we have a direct ID mapping, use it
+  if (observation.id && idMappings[observation.id]) {
+    return idMappings[observation.id];
+  }
+
+  // Check if the observation has LOINC coding with a display name
+  if (observation.code?.coding) {
+    // Try to find LOINC code
+    const loincCoding = observation.code.coding.find(coding => 
+      coding.system === 'http://loinc.org' ||
+      coding.system?.includes('loinc')
+    );
+    
+    // If LOINC coding exists and has a display name, use it
+    if (loincCoding?.display) {
+      // Clean up the display name - some LOINC names are verbose
+      const cleanedName = loincCoding.display
+        .replace(/\[.+?\]/g, '')  // Remove anything in brackets
+        .replace(/\(.+?\)/g, '')  // Remove anything in parentheses
+        .replace(/:\s*$/, '')     // Remove trailing colons
+        .replace(/mass\/volume/i, '')
+        .replace(/in blood/i, '')
+        .replace(/in serum or plasma/i, '')
+        .replace(/\s{2,}/g, ' ')  // Replace multiple spaces with a single space
+        .trim();
+      
+      if (cleanedName) return cleanedName;
+    }
+    
+    // If no LOINC code, use any other coding system's display name
+    for (const coding of observation.code.coding) {
+      if (coding.display) {
+        return coding.display;
+      }
+    }
+  }
+  
+  // If code.text exists (plain text name), use it
+  if (observation.code?.text) {
+    return observation.code.text;
+  }
+  
+  // Extract name from observation ID if possible
+  if (observation.id) {
+    // Remove prefixes like 'observation-'
+    let idName = observation.id.replace(/^(observation-|obs-|lab-)/i, '');
+    
+    // Replace dashes with spaces and capitalize words
+    idName = idName.split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+    
+    // Expand common abbreviations
+    const abbreviations: Record<string, string> = {
+      'Hb': 'Hemoglobin',
+      'Wcc': 'White Cell Count',
+      'Plt': 'Platelets',
+      'Neut': 'Neutrophils',
+      'Lymph': 'Lymphocytes',
+      'Na': 'Sodium',
+      'K': 'Potassium',
+      'Creat': 'Creatinine',
+      'Gluc': 'Glucose',
+      'Mcv': 'Mean Cell Volume',
+      'Mchc': 'Mean Cell Hemoglobin Concentration'
+    };
+    
+    for (const [abbr, full] of Object.entries(abbreviations)) {
+      if (idName.includes(abbr)) {
+        return full;
+      }
+    }
+    
+    return idName;
+  }
+  
+  // Fallback to "Lab Test" if nothing else works
+  return 'Lab Test';
+}
 
 export default function Records() {
-  const [records, setRecords] = useState<Record[]>([]);
+  const [records, setRecords] = useState<SimpleRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
   const [expandedRecords, setExpandedRecords] = useState<string[]>([]);
-  const [viewDetailedAnalysis, setViewDetailedAnalysis] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('');
   const { currentUser } = useAuth();
+  const [recordObservations, setRecordObservations] = useState<{[recordId: string]: Observation[]}>({});
+  const [loadingObservations, setLoadingObservations] = useState<{[recordId: string]: boolean}>({});
 
-  // Function to format date to month year format
-  const formatDateToMonthYear = (dateStr: string): string => {
+  // Cache keys and expiry
+  const OBSERVATIONS_CACHE_KEY = 'health_observations_cache_';
+  const EXPANDED_RECORDS_KEY = 'health_expanded_records';
+  const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+  // Load cached observations on component mount
+  useEffect(() => {
+    if (typeof window === 'undefined' || !currentUser) return;
+    
+    // Load expanded records state from localStorage
+    const loadExpandedState = () => {
+      try {
+        const savedExpandedRecords = localStorage.getItem(EXPANDED_RECORDS_KEY);
+        if (savedExpandedRecords) {
+          const parsed = JSON.parse(savedExpandedRecords);
+          if (Array.isArray(parsed)) {
+            setExpandedRecords(parsed);
+          }
+        }
+      } catch (e) {
+        console.error("Error loading expanded records state:", e);
+      }
+    };
+    
+    // Load cached observations data
+    const loadCachedObservations = () => {
+      const cacheKey = `${OBSERVATIONS_CACHE_KEY}${currentUser.uid}`;
+      const cachedData = localStorage.getItem(cacheKey);
+      
+      if (cachedData) {
+        try {
+          const { observations, timestamp } = JSON.parse(cachedData);
+          const now = Date.now();
+          
+          // Check if cache is still valid
+          if (now - timestamp < CACHE_EXPIRY && typeof observations === 'object') {
+            console.log("Loading observations from cache");
+            setRecordObservations(observations);
+            
+            // Pre-load observations for expanded records
+            const expandedIds = localStorage.getItem(EXPANDED_RECORDS_KEY);
+            if (expandedIds) {
+              try {
+                const expandedArray = JSON.parse(expandedIds);
+                setExpandedRecords(expandedArray);
+              } catch (e) {
+                console.error("Error parsing expanded records:", e);
+              }
+            }
+          } else {
+            // Remove expired cache
+            localStorage.removeItem(cacheKey);
+          }
+        } catch (e) {
+          console.error("Error parsing cached observations:", e);
+          localStorage.removeItem(cacheKey);
+        }
+      }
+    };
+    
+    loadExpandedState();
+    loadCachedObservations();
+  }, [currentUser]);
+  
+  // Save expanded records state when it changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      localStorage.setItem(EXPANDED_RECORDS_KEY, JSON.stringify(expandedRecords));
+    } catch (e) {
+      console.error("Error saving expanded records state:", e);
+    }
+  }, [expandedRecords]);
+  
+  // Save observations to cache when they change
+  useEffect(() => {
+    if (typeof window === 'undefined' || !currentUser || Object.keys(recordObservations).length === 0) return;
+    
+    try {
+      const cacheKey = `${OBSERVATIONS_CACHE_KEY}${currentUser.uid}`;
+      localStorage.setItem(cacheKey, JSON.stringify({
+        observations: recordObservations,
+        timestamp: Date.now()
+      }));
+      console.log("Saved observations to cache");
+    } catch (e) {
+      console.error("Error caching observations:", e);
+    }
+  }, [recordObservations, currentUser]);
+
+  // Format date to year
+  const getRecordYear = (dateStr: string | undefined): number => {
+    if (!dateStr) return 0;
+    
     // Try to parse the date string
     const date = new Date(dateStr);
     
     // Check if the date is valid
     if (!isNaN(date.getTime())) {
-      // Return formatted date (e.g., "Jan 2023")
-      return date.toLocaleString('default', { month: 'short', year: 'numeric' });
+      return date.getFullYear();
     }
     
-    // If we can't parse it as a date, try to extract month and year using regex
-    const monthYearRegex = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{4}\b/i;
-    const match = dateStr.match(monthYearRegex);
+    // Try to extract year using regex
+    const yearRegex = /\b(20\d{2})\b/;
+    const match = dateStr.match(yearRegex);
     if (match) {
-      return match[0];
+      return parseInt(match[0]);
     }
     
-    // If all else fails, return the original string
-    return dateStr;
+    return 0;
   };
 
-  // Setup real-time listener to Firestore records collection
+  // Load records when component mounts
   useEffect(() => {
     if (!currentUser) return;
     
     setLoading(true);
     
     // Reference to the user's records collection
-    const recordsRef = collection(db, 'users', currentUser.uid, 'records');
+    const recordsRef = collection(db as Firestore, 'users', currentUser.uid, 'records');
     
     // Create a query to order by createdAt (newest first)
     const recordsQuery = query(recordsRef, orderBy('createdAt', 'desc'));
@@ -87,38 +350,47 @@ export default function Records() {
         const recordsList = snapshot.docs.map(doc => {
           const data = doc.data();
           
-          // Process record data
-          let recordDate = null;
-          if (data.recordDate) {
-            recordDate = data.recordDate;
-          } else if (data.analysis) {
-            recordDate = extractRecordDate(data.analysis);
+          // Determine analysis status based on available data
+          let analysisStatus: 'pending' | 'complete' | 'error' = 'complete';
+          
+          // Check if analysis is explicitly marked as in progress
+          if (data.analysisInProgress === true) {
+            analysisStatus = 'pending';
+          } 
+          // If not explicitly marked and created recently, check if briefSummary exists
+          else if (data.analysisInProgress === undefined) {
+            // If no briefSummary and record was created recently (within last 5 minutes), consider analysis pending
+            if (!data.briefSummary) {
+              const createdTime = data.createdAt?.seconds 
+                ? new Date(data.createdAt.seconds * 1000)
+                : null;
+                
+              if (createdTime && ((Date.now() - createdTime.getTime()) < 5 * 60 * 1000)) {
+                analysisStatus = 'pending';
+              }
+            }
           }
           
-          // If we still don't have a valid recordDate but have createdAt, use it
-          if ((!recordDate || recordDate === 'Unknown') && data.createdAt) {
-            recordDate = new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0];
-          }
-          
-          // Use briefSummary field if available, otherwise extract from analysis
-          let briefSummary = null;
-          if (data.briefSummary) {
-            briefSummary = data.briefSummary;
-          } else if (data.analysis) {
-            briefSummary = extractBriefSummary(data.analysis);
-          }
-          
-          // Clean any record type of ## markers
-          if (data.recordType) {
-            data.recordType = data.recordType.replace(/##/g, '');
+          // If there's an explicit analysis error message, mark as error
+          if (data.analysisError || (data.analysis && typeof data.analysis === 'string' && data.analysis.includes('Error'))) {
+            analysisStatus = 'error';
           }
           
           return {
             id: doc.id,
-            ...data,
-            recordDate,
-            briefSummary
-          } as Record;
+            name: data.name || 'Unnamed Record',
+            recordType: data.recordType,
+            recordDate: data.recordDate || new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0],
+            url: data.url,
+            urls: data.urls,
+            isMultiFile: data.isMultiFile,
+            briefSummary: data.briefSummary,
+            fhirResourceIds: data.fhirResourceIds,
+            createdAt: data.createdAt,
+            analysisStatus: analysisStatus,
+            analysisInProgress: data.analysisInProgress,
+            analysisError: data.analysisError
+          } as SimpleRecord;
         });
         
         setRecords(recordsList);
@@ -136,264 +408,582 @@ export default function Records() {
     };
   }, [currentUser]);
 
-  // Update displayedRecord function to prioritize detailedAnalysis and briefSummary fields
-  const displayedSummary = (record: Record, isDetailed: boolean): string => {
-    // Check if analysis is pending but don't return a message (will show content as it updates)
-    if (isDetailed) {
-      // For detailed view, first check detailedAnalysis field, then fallback to extraction
-      return record.detailedAnalysis || extractDetailedAnalysis(record.analysis) || 'No detailed analysis available';
+  // Filter and group records
+  const filteredAndGroupedRecords = useMemo(() => {
+    // Debug each record before processing
+    console.log('All records before filtering:', records.map(r => ({
+      id: r.id, 
+      recordType: r.recordType,
+      hasDetailedAnalysis: !!r.briefSummary
+    })));
+    
+    // Apply filters first
+    let filtered = records;
+    
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(record => 
+        record.recordType?.toLowerCase().includes(search) ||
+        record.briefSummary?.toLowerCase().includes(search)
+      );
+    }
+    
+    if (filterType) {
+      filtered = filtered.filter(record => 
+        record.recordType?.toLowerCase().includes(filterType.toLowerCase())
+      );
+    }
+    
+    // Group by year
+    const grouped: { [year: number]: SimpleRecord[] } = {};
+    
+    filtered.forEach(record => {
+      const year = getRecordYear(record.recordDate);
+      if (!year) return; // Skip records without a year
+      
+      if (!grouped[year]) {
+        grouped[year] = [];
+      }
+      grouped[year].push(record);
+    });
+    
+    // Sort years in descending order
+    return Object.entries(grouped)
+      .map(([year, records]) => ({
+        year: parseInt(year),
+        records
+      }))
+      .sort((a, b) => b.year - a.year);
+  }, [records, searchTerm, filterType]);
+
+  const getCategoryIcon = (record: SimpleRecord) => {
+    if (!record.recordType) return categoryIcons.default;
+    
+    const type = record.recordType.toLowerCase();
+    
+    if (type.includes('lab') || type.includes('test')) {
+      return categoryIcons.lab;
+    } else if (type.includes('image') || type.includes('scan') || type.includes('xray') || type.includes('mri') || type.includes('ct')) {
+      return categoryIcons.imaging;
+    } else if (type.includes('prescription') || type.includes('medication')) {
+      return categoryIcons.prescription;
+    } else if (type.includes('report') || type.includes('discharge') || type.includes('summary')) {
+      return categoryIcons.report;
     } else {
-      // For brief view, first check briefSummary field, then fallback to extraction
-      return record.briefSummary || extractBriefSummary(record.analysis) || 'No brief summary available';
+      return categoryIcons.document;
     }
   };
 
-  const handleDelete = async (record: Record) => {
-    if (!currentUser) return;
-    if (!confirm('Are you sure you want to delete this record? This action cannot be undone.')) {
+  // Fetch observations for a record
+  const fetchObservationsForRecord = useCallback(async (record: SimpleRecord) => {
+    console.log(`Fetching observations for record ${record.id}, record type: ${record.recordType}`);
+    
+    if (!currentUser || !record.fhirResourceIds) {
+      console.log(`No FHIR resources to fetch for record ${record.id}`);
       return;
     }
-
+    
+    // Check if we already have observations for this record in state
+    if (recordObservations[record.id]?.length > 0) {
+      console.log(`Using cached observations for record ${record.id}`);
+      return;
+    }
+    
+    // Track loading state for this record
+    setLoadingObservations(prev => ({ ...prev, [record.id]: true }));
+    
     try {
-      setDeleting(record.id);
+      const observations: Observation[] = [];
       
-      // Get the Firebase ID token
-      const token = await currentUser.getIdToken();
+      // Get resource IDs, handling both array and object formats
+      let resourceIds: string[] = [];
       
-      // Use the secure API endpoint to delete the record
-      const response = await fetch(`/api/records/${record.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+      if (Array.isArray(record.fhirResourceIds)) {
+        // If fhirResourceIds is already an array
+        resourceIds = record.fhirResourceIds.filter(id => id);
+      } else if (typeof record.fhirResourceIds === 'object' && record.fhirResourceIds !== null) {
+        // If fhirResourceIds is an object (from older uploads)
+        const resourceObj = record.fhirResourceIds as any;
+        
+        // Extract all string values and arrays from the object
+        const extractedIds: string[] = [];
+        Object.values(resourceObj).forEach(value => {
+          if (typeof value === 'string' && value) {
+            extractedIds.push(value);
+          } else if (Array.isArray(value)) {
+            extractedIds.push(...value.filter(id => id));
+          }
+        });
+        
+        resourceIds = extractedIds;
+      }
+      
+      if (resourceIds.length === 0) {
+        console.log(`No valid resource IDs found for record ${record.id}`);
+        return;
+      }
+      
+      // Fetch each potential FHIR resource
+      for (const resourceId of resourceIds) {
+        const resourceRef = doc(db as Firestore, 'users', currentUser.uid, 'fhir', resourceId);
+        const resourceDoc = await getDoc(resourceRef);
+        
+        if (resourceDoc.exists()) {
+          const data = resourceDoc.data();
+          
+          // Check if it's an Observation
+          if (data.resourceType === 'Observation') {
+            // Ensure we have an ID property that matches the document ID
+            const observationWithId = {
+              ...data,
+              id: resourceDoc.id
+            };
+            observations.push(observationWithId as Observation);
+          }
         }
+      }
+      
+      console.log(`Found ${observations.length} observations for record ${record.id}`);
+      
+      // Update state with observations for this record
+      setRecordObservations(prev => ({
+        ...prev,
+        [record.id]: observations
+      }));
+      
+    } catch (error) {
+      console.error("Error fetching observations:", error);
+    } finally {
+      setLoadingObservations(prev => ({ ...prev, [record.id]: false }));
+    }
+  }, [currentUser, recordObservations]);
+
+  // Check if a record has FHIR resources
+  const hasFhirResources = useCallback((record: SimpleRecord): boolean => {
+    if (!record.fhirResourceIds) return false;
+    
+    if (Array.isArray(record.fhirResourceIds)) {
+      return record.fhirResourceIds.length > 0;
+    }
+    
+    if (typeof record.fhirResourceIds === 'object' && record.fhirResourceIds !== null) {
+      return Object.keys(record.fhirResourceIds).length > 0;
+    }
+    
+    return false;
+  }, []);
+
+  // Toggle record expansion and fetch observations if needed
+  const toggleRecordExpansion = useCallback((recordId: string) => {
+    const isExpanding = !expandedRecords.includes(recordId);
+    
+    // Toggle expanded state
+    setExpandedRecords(prev => 
+      prev.includes(recordId)
+        ? prev.filter(id => id !== recordId)
+        : [...prev, recordId]
+    );
+    
+    // If expanding and record has FHIR resources, fetch the observations
+    if (isExpanding) {
+      const record = records.find(r => r.id === recordId);
+      if (record && hasFhirResources(record)) {
+        fetchObservationsForRecord(record);
+      }
+    }
+  }, [expandedRecords, records, hasFhirResources, fetchObservationsForRecord]);
+
+  // Format date to more readable format
+  const formatDate = (dateStr: string | undefined): string => {
+    if (!dateStr) return 'Unknown date';
+    
+    // Try to parse the date string
+    const date = new Date(dateStr);
+    
+    // Check if the date is valid
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric',
+        month: 'short', 
+        day: 'numeric'
+      });
+    }
+    
+    return dateStr;
+  };
+
+  const deleteRecord = useCallback(async (recordId: string) => {
+    if (!currentUser) return;
+    
+    try {
+      const recordsRef = collection(db as Firestore, 'users', currentUser.uid, 'records');
+      const recordDoc = doc(recordsRef, recordId);
+      await deleteDoc(recordDoc);
+      
+      // Remove from records state
+      setRecords(prevRecords => prevRecords.filter(record => record.id !== recordId));
+      
+      // Remove from expanded records
+      setExpandedRecords(prev => prev.filter(id => id !== recordId));
+      
+      // Remove from observations
+      setRecordObservations(prev => {
+        const newObservations = { ...prev };
+        delete newObservations[recordId];
+        return newObservations;
       });
       
-      if (!response.ok) {
-        throw new Error(`Error deleting record: ${response.status}`);
-      }
-      
-      // Remove the record from the UI
-      const updatedRecords = records.filter(r => r.id !== record.id);
-      setRecords(updatedRecords);
-      
-      // Update the cache after deletion
-      try {
-        localStorage.setItem(`records_${currentUser.uid}`, JSON.stringify(updatedRecords));
-        localStorage.setItem(`records_${currentUser.uid}_timestamp`, Date.now().toString());
-      } catch (storageError) {
-        // Silent error handling for localStorage failures
-      }
-      
-    } catch (err) {
-      setError('Failed to delete record. Please try again later.');
-    } finally {
-      setDeleting(null);
+    } catch (error) {
+      console.error("Error deleting record:", error);
+      setError("Error deleting record. Please try again.");
     }
-  };
-
-  const toggleSummary = (recordId: string) => {
-    setExpandedRecords((prev: string[]) => 
-      prev.includes(recordId) 
-        ? prev.filter((id: string) => id !== recordId) 
-        : [...prev, recordId]
-    );
-  };
-
-  const toggleDetailedView = (recordId: string) => {
-    setViewDetailedAnalysis(prev => 
-      prev.includes(recordId) 
-        ? prev.filter((id) => id !== recordId) 
-        : [...prev, recordId]
-    );
-  };
+  }, [currentUser]);
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen bg-black text-white">
         <Navigation />
-        {/* Navigation spacer - ensures content starts below navbar */}
-        <div className="h-16"></div>
-        <div className="container mx-auto px-4 py-6 pb-24">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-primary-blue">My Records</h1>
-            <div className="flex items-center gap-2">
+        
+        {/* Main content */}
+        <main className="pt-safe pb-safe px-4 max-w-4xl mx-auto">
+          <div className="mt-20 mb-24">
+            {/* Header */}
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-2xl font-bold">Records</h1>
               <Link 
                 href="/upload" 
-                className="bg-black/80 backdrop-blur-sm px-4 py-2 rounded-md text-primary-blue border border-primary-blue hover:bg-black/90 transition-colors flex items-center"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center"
               >
-                <FaPlus className="mr-2" /> New
+                <FaPlus className="mr-2" /> Upload
               </Link>
             </div>
-          </div>
-          
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="w-12 h-12 rounded-full border-4 border-gray-300 border-t-primary-blue animate-spin mb-4"></div>
-              <p className="text-gray-300 text-lg font-medium">Loading your records</p>
+            
+            {/* Search and filter */}
+            <div className="flex flex-col md:flex-row gap-3 mb-6">
+              <div className="relative flex-1">
+                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search records..."
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 text-white"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="relative md:w-48">
+                <FaFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <select
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 appearance-none text-white"
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                >
+                  <option value="">All types</option>
+                  <option value="lab">Lab Results</option>
+                  <option value="imaging">Imaging</option>
+                  <option value="prescription">Prescriptions</option>
+                  <option value="report">Reports</option>
+                  <option value="document">Documents</option>
+                </select>
+              </div>
             </div>
-          ) : records.length === 0 ? (
-            <div className="text-center py-8 bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md border border-gray-800">
-              <FaFileAlt className="mx-auto text-4xl text-gray-400 mb-2" />
-              <h2 className="text-xl font-semibold text-gray-300 mb-2">No Records Found</h2>
-              <p className="text-gray-400 mb-4">You haven't uploaded any health records yet.</p>
-              <Link 
-                href="/upload" 
-                className="inline-flex items-center px-4 py-2 bg-primary-blue text-white rounded-md hover:bg-gray-700 transition-colors"
-              >
-                <FaPlus className="mr-2" /> Upload Your First Record
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {records.map(record => (
-                <div key={record.id} className="bg-gray-800 p-3 rounded-md shadow-md border border-gray-700">
-                  <div className="flex justify-between items-start mb-1">
-                    <div>
-                      <h2 className="text-lg font-medium text-white">
-                        {record.recordType ? 
-                          record.recordType.replace(/##/g, '').replace(/\*\*/g, '') : 
-                          (record.name || 'Medical Record')}
-                      </h2>
-                    </div>
-                    <div className="text-sm text-white">
-                      {/* Display only the date in mmm yyyy format */}
-                      {record.recordDate ? (
-                        formatDateToMonthYear(record.recordDate)
-                      ) : record.createdAt && record.createdAt.seconds ? (
-                        new Date(record.createdAt.seconds * 1000).toLocaleString('default', { month: 'short', year: 'numeric' })
-                      ) : record.createdAt ? (
-                        // Handle string ISO dates
-                        new Date(record.createdAt).toLocaleString('default', { month: 'short', year: 'numeric' })
-                      ) : (
-                        'Date Unknown'
-                      )}
-                    </div>
-                  </div>
-                  
-                  {record.hasPhoto && record.url && (
-                    <div className="mb-2 mt-1">
-                      <div className="h-32 w-32 relative overflow-hidden rounded border border-gray-300">
-                        <img 
-                          src={record.url} 
-                          alt={`Photo for ${record.name}`} 
-                          className="object-cover w-full h-full"
-                        />
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="mb-2">
-                    <button 
-                      onClick={() => toggleSummary(record.id)}
-                      className="text-white hover:text-white text-sm font-medium mb-2"
+            
+            {/* Loading state */}
+            {loading && (
+              <div className="flex justify-center items-center h-48">
+                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+              </div>
+            )}
+            
+            {/* Error state */}
+            {error && (
+              <div className="bg-red-900/30 border border-red-700 rounded-lg p-4 mb-6">
+                <p className="text-red-400">{error}</p>
+              </div>
+            )}
+            
+            {/* Empty state */}
+            {!loading && filteredAndGroupedRecords.length === 0 && (
+              <div className="text-center py-12">
+                <FaFileAlt className="mx-auto text-gray-600 text-5xl mb-4" />
+                <h3 className="text-xl font-medium text-gray-400 mb-2">No records found</h3>
+                {searchTerm || filterType ? (
+                  <p className="text-gray-500">Try adjusting your search or filters</p>
+                ) : (
+                  <div>
+                    <p className="text-gray-500 mb-4">Upload your first medical record to get started</p>
+                    <Link 
+                      href="/upload" 
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg inline-flex items-center"
                     >
-                      {expandedRecords.includes(record.id) ? 'Hide Summary' : 'Show Summary'}
-                    </button>
-                    
-                    {expandedRecords.includes(record.id) && (
-                      <div className="mt-2">
-                        <div className="flex justify-end items-center mb-1">
-                          {viewDetailedAnalysis.includes(record.id) && (
-                            <h3 className="text-sm font-medium text-white mr-auto">
-                              Detailed Analysis
-                            </h3>
-                          )}
-                          <button 
-                            onClick={() => toggleDetailedView(record.id)}
-                            className="text-xs text-blue-400 hover:text-blue-300"
-                          >
-                            {viewDetailedAnalysis.includes(record.id) ? 'View Brief Summary' : 'View Detailed Analysis'}
-                          </button>
-                        </div>
-                        
-                        <p className="text-gray-300 text-sm">
-                          {displayedSummary(record, viewDetailedAnalysis.includes(record.id))}
-                        </p>
-                        
-                        {/* Display comment directly under summary if this is a comment-only record */}
-                        {record.comment && !(record.urls && record.urls.length > 0) && !record.url && (
-                          <div className="mt-2 p-2 bg-gray-700 rounded-md border border-gray-600">
-                            <h3 className="text-sm font-medium text-white mb-1">Comment:</h3>
-                            <p className="text-gray-300 text-sm">{record.comment}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                      <FaPlus className="mr-2" /> Upload Record
+                    </Link>
                   </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <button 
-                      onClick={() => handleDelete(record)}
-                      disabled={deleting === record.id}
-                      className={`text-red-500 hover:text-red-700 text-sm ${deleting === record.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      style={{ touchAction: 'manipulation' }}
-                    >
-                      {deleting === record.id ? 'Deleting...' : 'Delete'}
-                    </button>
-                    
-                    {(record.isMultiFile || record.url || record.comment) && (
-                      <button 
-                        onClick={() => {
-                          setExpandedRecords((prev) => 
-                            prev.includes(record.id) ? prev.filter((id) => id !== record.id) : [...prev, record.id]
-                          );
-                        }}
-                        className="text-white hover:text-gray-300 text-sm ml-2"
+                )}
+              </div>
+            )}
+            
+            {/* Records by year */}
+            {!loading && filteredAndGroupedRecords.map(({ year, records }) => (
+              <div key={year} className="mb-8">
+                <h2 className="text-xl font-semibold border-b border-gray-700 pb-2 mb-4">{year}</h2>
+                
+                <ul className="space-y-2">
+                  {records.map(record => (
+                    <li key={record.id} className="bg-gray-900/30 rounded-lg p-4 transition-all duration-200 hover:bg-gray-900/50">
+                      <div 
+                        className="flex items-start justify-between cursor-pointer"
+                        onClick={() => toggleRecordExpansion(record.id)}
                       >
-                        {expandedRecords.includes(record.id) ? '▲' : '▼'}
-                      </button>
-                    )}
-                  </div>
-                  
-                  {expandedRecords.includes(record.id) && (
-                    <div className="mt-2 border-t border-gray-700 pt-2">
-                      {record.isMultiFile ? (
-                        <div>
-                          <h3 className="font-semibold text-white text-sm">Files:</h3>
-                          <ul className="mt-1">
-                            {record.urls && record.urls.map((url, index) => (
-                              <li key={index}>
-                                <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-sm">
-                                  File {index + 1}
+                        <div className="flex items-start">
+                          <div className="text-xl mr-3 mt-1">
+                            {getCategoryIcon(record)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-white truncate max-w-[240px] sm:max-w-none flex items-center gap-2">
+                              {record.recordType || 'Unknown Record'}
+                              {record.analysisStatus === 'pending' && (
+                                <div className="inline-flex items-center relative group">
+                                  <span className="animate-spin h-3.5 w-3.5 border-2 border-blue-400 border-t-transparent rounded-full mr-1.5"></span>
+                                  <span className="text-xs text-blue-400">Analyzing</span>
+                                  
+                                  {/* Tooltip */}
+                                  <div className="absolute left-0 -top-8 transform scale-0 transition-transform group-hover:scale-100 origin-bottom">
+                                    <div className="bg-blue-900 text-white p-2 rounded-md shadow-lg text-xs whitespace-nowrap">
+                                      Your record is being analyzed
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              {record.analysisStatus === 'error' && (
+                                <div className="inline-flex items-center text-red-400 relative group">
+                                  <AlertCircle className="h-3.5 w-3.5 mr-1" />
+                                  <span className="text-xs">Analysis error</span>
+                                  
+                                  {/* Tooltip */}
+                                  <div className="absolute left-0 -top-8 transform scale-0 transition-transform group-hover:scale-100 origin-bottom">
+                                    <div className="bg-red-900 text-white p-2 rounded-md shadow-lg text-xs whitespace-nowrap">
+                                      There was a problem analyzing this record
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-400 flex flex-wrap items-center gap-1 sm:gap-2">
+                              <span>{formatDate(record.recordDate)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-400 p-1 ml-2">
+                          <svg 
+                            className={`w-4 h-4 transform transition-transform ${expandedRecords.includes(record.id) ? 'rotate-180' : ''}`} 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24" 
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+                      
+                      {expandedRecords.includes(record.id) && (
+                        <div className="mt-4 pt-3 border-t border-gray-700 transition-all">
+                          {/* Debug section to help troubleshoot */}
+                          <div className="text-xs text-gray-500 mb-2">
+                            Record ID: {record.id} | 
+                            Type: {record.recordType} | 
+                            Analysis: {record.analysisInProgress ? 'In Progress' : 'Complete'} |
+                            FHIR Resources: {record.fhirResourceIds ? 
+                              (Array.isArray(record.fhirResourceIds) 
+                                ? record.fhirResourceIds.length 
+                                : Object.keys(record.fhirResourceIds).length) 
+                              : 0}
+                          </div>
+                          
+                          {record.analysisStatus === 'pending' && (
+                            <div className="mb-4 p-3 bg-blue-900/30 border border-blue-800 rounded-md flex items-center text-sm text-white">
+                              <div className="animate-spin h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full mr-3"></div>
+                              <p>
+                                We're analyzing your medical record to extract lab results and measurements. 
+                                This usually takes less than a minute.
+                              </p>
+                            </div>
+                          )}
+                          
+                          {record.analysisStatus === 'error' && (
+                            <div className="mb-4 p-3 bg-red-900/30 border border-red-800 rounded-md flex items-start text-sm text-white">
+                              <AlertCircle className="h-5 w-5 mr-3 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="font-medium mb-1">There was a problem analyzing this record</p>
+                                <p className="text-gray-300">
+                                  {record.analysisError || "An unexpected error occurred during analysis. You can still view the original file."}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {record.briefSummary && (
+                            <div className="text-sm mb-4 text-gray-300">
+                              <h4 className="font-medium text-white mb-1">Summary:</h4>
+                              <p className="whitespace-pre-wrap leading-relaxed">{record.briefSummary}</p>
+                            </div>
+                          )}
+                          
+                          {/* FHIR Observations Section */}
+                          {record.fhirResourceIds && (
+                            Array.isArray(record.fhirResourceIds) 
+                              ? record.fhirResourceIds.length > 0
+                              : typeof record.fhirResourceIds === 'object' && Object.keys(record.fhirResourceIds).length > 0
+                          ) ? (
+                            <div className="my-4">
+                              <h4 className="font-medium text-white mb-2">Lab Results & Measurements:</h4>
+                              
+                              {loadingObservations[record.id] ? (
+                                <div className="flex justify-center items-center h-12">
+                                  <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
+                                </div>
+                              ) : recordObservations[record.id]?.length > 0 ? (
+                                <ul className="space-y-2">
+                                  {recordObservations[record.id].map(observation => {
+                                    // Extract observation details
+                                    const name = getFormattedTestName(observation);
+                                    const value = observation.valueQuantity?.value !== undefined 
+                                      ? `${observation.valueQuantity.value} ${observation.valueQuantity.unit || ''}`
+                                      : observation.valueString || 'No value';
+                                    
+                                    // Debug observation details
+                                    console.log('Rendering observation:', {
+                                      id: observation.id,
+                                      name,
+                                      value,
+                                      valueQuantity: observation.valueQuantity,
+                                      referenceRange: observation.referenceRange,
+                                      canVisualize: typeof observation.valueQuantity?.value === 'number' && observation.id !== undefined
+                                    });
+                                    
+                                    // Check if abnormal
+                                    const isAbnormal = observation.interpretation && 
+                                      observation.interpretation.some(i => 
+                                        i.coding && i.coding.some(c => ['H', 'L', 'HH', 'LL', 'A'].includes(c.code || ''))
+                                      );
+                                    
+                                    return (
+                                      <li key={observation.id} className="px-3 py-2 bg-gray-800/50 rounded-md">
+                                        <div className="flex justify-between items-start">
+                                          <div>
+                                            <div className="flex items-center">
+                                              <span className="text-sm font-medium text-white">{name}</span>
+                                              {isAbnormal && (
+                                                <span className="ml-2 px-1.5 py-0.5 text-xs rounded bg-red-900/50 text-red-300">
+                                                  Abnormal
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <div className={`text-sm font-medium ${isAbnormal ? 'text-red-300' : 'text-gray-200'}`}>
+                                            {value}
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Visualization Section */}
+                                        {typeof observation.valueQuantity?.value === 'number' && observation.id !== undefined && (
+                                          <div className="mt-3">
+                                            {/* Directly embed the gauge here */}
+                                            <SimpleGauge 
+                                              value={observation.valueQuantity?.value ?? 1.7} 
+                                              low={observation.referenceRange?.[0]?.low?.value}
+                                              high={observation.referenceRange?.[0]?.high?.value}
+                                              unit={observation.valueQuantity?.unit || ''}
+                                              name={name}
+                                            />
+                                            
+                                            {/* Link to the detailed page */}
+                                            <div className="flex justify-end">
+                                              <Link
+                                                href={`/observation/${observation.id}`}
+                                                className="flex items-center text-xs text-blue-300 hover:text-blue-200"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  console.log(`Navigating to observation: ${observation.id}`);
+                                                }}
+                                              >
+                                                <ActivityIcon className="h-3 w-3 mr-1" />
+                                                Detailed View
+                                              </Link>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              ) : (
+                                <p className="text-sm text-gray-400">No lab results found for this record.</p>
+                              )}
+                            </div>
+                          ) : null}
+                          
+                          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mt-3">
+                            <div className="space-y-2 sm:space-y-0 sm:space-x-2 flex flex-col sm:flex-row">
+                              {record.url && !record.isMultiFile && (
+                                <a 
+                                  href={record.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <FaExternalLinkAlt className="mr-2" size={12} />
+                                  View File
                                 </a>
-                              </li>
-                            ))}
-                          </ul>
+                              )}
+                              
+                              {record.isMultiFile && record.urls && record.urls.length > 0 && (
+                                <div className="mt-2 sm:mt-0">
+                                  <div className="text-xs text-gray-400 mb-1">
+                                    {record.urls.length} files available:
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {record.urls.map((url, index) => (
+                                      <a
+                                        key={`${record.id}-file-${index}`}
+                                        href={url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center text-xs bg-gray-800 hover:bg-gray-700 text-white px-2 py-1 rounded"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <FaExternalLinkAlt className="mr-1" size={10} />
+                                        File {index + 1}
+                                      </a>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm('Are you sure you want to delete this record?')) {
+                                  deleteRecord(record.id);
+                                }
+                              }}
+                              className="inline-flex items-center justify-center text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md sm:w-auto w-full"
+                            >
+                              <FaTrash className="mr-2" size={12} />
+                              Delete Record
+                            </button>
+                          </div>
                         </div>
-                      ) : (record.url || (record.urls && record.urls.length === 1)) ? (
-                        <div>
-                          <h3 className="font-semibold text-white text-sm">File:</h3>
-                          <ul className="mt-1">
-                            <li>
-                              <a 
-                                href={record.url || (record.urls ? record.urls[0] : '')} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="text-blue-400 hover:text-blue-300 text-sm"
-                              >
-                                {(record.url || (record.urls && record.urls[0] || '')).includes('.pdf') || 
-                                 (record.url || (record.urls && record.urls[0] || '')).includes('pdf') ? 
-                                  'View PDF' : 'View File'}
-                              </a>
-                            </li>
-                          </ul>
-                        </div>
-                      ) : record.comment && (record.urls && record.urls.length > 0 || record.url) ? (
-                        <div>
-                          <h3 className="font-semibold text-white text-sm">Comment:</h3>
-                          <div className="text-gray-300 text-sm mt-1">{record.comment}</div>
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        {/* Background fill for the bottom space */}
-        <div className="fixed bottom-0 left-0 right-0 h-[40px] bg-black z-[5]"></div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </main>
       </div>
     </ProtectedRoute>
   );

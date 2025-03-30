@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../lib/AuthContext';
@@ -11,7 +11,35 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, currentUser, authInitialized } = useAuth();
+  const [redirecting, setRedirecting] = useState(false);
+
+  // Check for cached auth on mount
+  useEffect(() => {
+    const checkCachedAuth = () => {
+      if (typeof window !== 'undefined') {
+        const cachedAuthUser = localStorage.getItem('authUser');
+        if (cachedAuthUser && cachedAuthUser !== 'null') {
+          try {
+            console.log('Found cached auth user, redirecting to home');
+            setRedirecting(true);
+            router.replace('/');
+          } catch (e) {
+            console.error('Error with cached auth state:', e);
+          }
+        }
+      }
+    };
+    
+    checkCachedAuth();
+  }, [router]);
+  
+  // Redirect if user is already logged in
+  useEffect(() => {
+    if (currentUser) {
+      router.replace('/');
+    }
+  }, [currentUser, router]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -36,6 +64,16 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Show loading state when redirecting to prevent flash
+  if (redirecting) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-6">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-blue mb-4"></div>
+        <p className="text-white">Redirecting to home...</p>
+      </div>
+    );
   }
 
   return (

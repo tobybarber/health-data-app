@@ -4,6 +4,26 @@ import { db, storage } from '../../../lib/firebase-admin';
 import { verifyAuthToken } from '../../../lib/auth-middleware';
 import fs from 'fs';
 import { FieldValue } from 'firebase-admin/firestore';
+import { 
+  analyzeDocumentText 
+} from '../../../lib/openai-utils';
+import {
+  extractDocumentReference,
+  extractProcedure,
+  extractFamilyMemberHistory,
+  extractImagingStudy,
+  extractDiagnosticReportImaging,
+  extractAllFromDocument
+} from '../../../lib/data-extraction';
+import {
+  createDocumentReference,
+  createProcedure,
+  createFamilyMemberHistory,
+  createImagingStudy,
+  createDiagnosticReportImaging
+} from '../../../lib/fhir-service';
+import { extractTextFromPdf, performOCR } from '../../../lib/pdf-utils';
+import { updateDoc } from 'firebase/firestore';
 
 /**
  * POST handler for uploading files and creating records
@@ -72,6 +92,7 @@ export async function POST(request: NextRequest) {
         recordType: recordName.trim() || 'Comment',
         recordDate: new Date().toISOString().split('T')[0],
         fileTypes: [],
+        analysisInProgress: true  // Flag to indicate analysis is in progress
       };
       
       const docRef = await db.collection('users').doc(userId).collection('records').add(recordData);
@@ -186,21 +207,17 @@ export async function POST(request: NextRequest) {
     }
     
     // Create record in Firestore with basic information initially
-    const recordData: Record<string, any> = {
+    const recordData = {
       name: recordName.trim() || 'Medical Record',
       comment: comment,
       urls: fileUrls,
-      fileCount: fileUrls.length,
-      isMultiFile: fileUrls.length > 1,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-      analysis: "This record is being analyzed...",
-      briefSummary: "This record is being analyzed...",
-      detailedAnalysis: "This record is being analyzed...",
-      recordType: "Medical Record",
+      fileCount: files.length,
+      isMultiFile: files.length > 1,
+      createdAt: new Date(),
+      fileTypes: fileTypes,
+      recordType: recordName.trim() || 'Medical Record',
       recordDate: new Date().toISOString().split('T')[0],
-      fileTypes: files.map(file => file.type),
-      userId: userId
+      analysisInProgress: true  // Flag to indicate analysis is in progress
     };
     
     // Only add url field if there's exactly one file
@@ -297,7 +314,8 @@ export async function POST(request: NextRequest) {
               await recordRef.update({
                 openaiFileId: primaryFileId,
                 additionalFileIds: additionalIds.length > 0 ? additionalIds : [],
-                openaiFileIds: openaiFileIds
+                openaiFileIds: openaiFileIds,
+                analysisInProgress: true
               });
               
               // Now trigger analysis, but limit the number of additional files to avoid timeouts
@@ -335,14 +353,87 @@ export async function POST(request: NextRequest) {
                 
                 console.log('Analysis complete with result:', result);
                 
-                // If we limited the analysis files, update the record to note this
-                if (additionalIds.length > maxAdditionalFilesForAnalysis) {
+                // Extract and save FHIR resources if they're in the analysis output
+                if (result && result.analysis) {
+                  try {
+                    // Extract FHIR resources from analysis
+                    const fhirMatch = result.analysis.match(/<FHIR_RESOURCES>\s*([\s\S]*?)\s*<\/FHIR_RESOURCES>/i);
+                    
+                    if (fhirMatch && fhirMatch[1]) {
+                      const fhirResourcesJson = fhirMatch[1].trim();
+                      
+                      try {
+                        // Parse the JSON array of resources
+                        const fhirResources = JSON.parse(fhirResourcesJson);
+                        console.log(`Found ${fhirResources.length} FHIR resources in analysis output`);
+                        
+                        // Save each resource to Firestore
+                        const savedResourceIds: string[] = [];
+                        
+                        for (const resource of fhirResources) {
+                          // Skip resources without resourceType or invalid types
+                          if (!resource.resourceType) continue;
+                          
+                          // Add a timestamp to avoid conflicts
+                          const timestamp = new Date().getTime();
+                          const resourceId = `${resource.id || `${resource.resourceType.toLowerCase()}-${timestamp}`}`;
+                          
+                          try {
+                            // Save the FHIR resource to Firestore
+                            const fhirRef = db.collection('users').doc(userId).collection('fhir').doc(resourceId);
+                            await fhirRef.set(resource);
+                            console.log(`Saved FHIR resource ${resource.resourceType}/${resourceId}`);
+                            
+                            // Add to our list of saved resources
+                            savedResourceIds.push(resourceId);
+                          } catch (saveError) {
+                            console.error(`Error saving FHIR resource ${resource.resourceType}:`, saveError);
+                          }
+                        }
+                        
+                        // Update the record with the FHIR resource IDs
+                        if (savedResourceIds.length > 0) {
+                          console.log(`Updating record ${docRef.id} with ${savedResourceIds.length} FHIR resource IDs`);
+                          await recordRef.update({
+                            fhirResourceIds: savedResourceIds,
+                            analysisInProgress: false // Mark analysis as complete
+                          });
+                        } else {
+                          // Even if no resources were saved, mark analysis as complete
+                          await recordRef.update({
+                            analysisInProgress: false
+                          });
+                        }
+                      } catch (jsonError) {
+                        console.error('Error parsing FHIR resources JSON:', jsonError);
+                        // Mark analysis as complete even if there was an error
+                        await recordRef.update({
+                          analysisInProgress: false,
+                          analysisError: `Error parsing FHIR resources: ${jsonError}`
+                        });
+                      }
+                    } else {
+                      console.log('No FHIR resources found in analysis output');
+                      // Mark analysis as complete
+                      await recordRef.update({
+                        analysisInProgress: false
+                      });
+                    }
+                  } catch (fhirExtractionError) {
+                    console.error('Error extracting FHIR resources from analysis:', fhirExtractionError);
+                    // Mark analysis as complete with error
+                    await recordRef.update({
+                      analysisInProgress: false,
+                      analysisError: `Error extracting FHIR resources: ${fhirExtractionError}`
+                    });
+                  }
+                } else {
+                  // Mark analysis as complete even if there's no result
                   await recordRef.update({
-                    briefSummary: "Note: Due to system limitations, only some files have been analyzed together. The analysis includes the most important findings across all available files.",
-                    analysisNote: `Analyzed ${maxAdditionalFilesForAnalysis + 1} out of ${openaiFileIds.length} files in this record.`
+                    analysisInProgress: false
                   });
                 }
-
+                
                 // After analysis is complete, update the record with the suggested name if appropriate
                 try {
                   // Check if the analysis result contains a suggested record name
@@ -370,6 +461,7 @@ export async function POST(request: NextRequest) {
                 // Update record to indicate analysis error
                 await recordRef.update({
                   analysis: `Error during analysis: ${analysisError.message || 'Unknown error'}. Files were uploaded successfully.`,
+                  analysisInProgress: false,
                   analyzedAt: new Date()
                 });
               }
@@ -380,6 +472,7 @@ export async function POST(request: NextRequest) {
               const recordRef = db.collection('users').doc(userId).collection('records').doc(docRef.id);
               await recordRef.update({
                 analysis: "Error: Failed to upload files to OpenAI for analysis.",
+                analysisInProgress: false,
                 analyzedAt: new Date()
               });
             }
@@ -392,6 +485,172 @@ export async function POST(request: NextRequest) {
       console.error('Error setting up automatic analysis:', autoAnalysisError);
     }
     
+    // Extract text from the uploaded document using existing methods
+    let documentText = '';
+    if (fileTypes[0].includes('pdf')) {
+      // Use existing PDF text extraction
+      const pdfText = await extractTextFromPdf(fileUrls[0]);
+      documentText = pdfText;
+    } else if (fileTypes[0].includes('image')) {
+      // Use existing OCR for images
+      const ocrText = await performOCR(fileUrls[0]);
+      documentText = ocrText;
+    }
+
+    // If we have text content, analyze it to determine document type and extract data
+    if (documentText) {
+      try {
+        const analysis = await analyzeDocumentText(documentText, recordName, fileUrls[0]);
+        
+        // Create document metadata for FHIR resource creation
+        const documentData = {
+          name: recordName,
+          recordType: analysis.recordType,
+          recordDate: new Date().toISOString(), // Use extracted date if available
+          briefSummary: analysis.summary,
+          extractedData: analysis.extractedData,
+          comment: comment || '',
+          createdAt: new Date().toISOString(),
+          provider: analysis.extractedData?.provider || ''
+        };
+        
+        // Try to extract a date from the analysis
+        if (analysis.extractedData && analysis.extractedData.date) {
+          documentData.recordDate = new Date(analysis.extractedData.date).toISOString();
+        }
+        
+        // Extract FHIR resources based on document type
+        const patientId = 'default-patient-id'; // In a real app, this would be linked to the user
+        
+        // Use the extractAllFromDocument function to get all relevant FHIR resources
+        const fhirResources = await extractAllFromDocument(documentData, fileUrls[0], patientId);
+        
+        // Save each extracted resource to Firestore
+        const savedResources = {
+          documentReferenceId: '',
+          procedureId: '',
+          imagingStudyId: '',
+          diagnosticReportIds: [] as string[]
+        };
+        
+        // Save DocumentReference
+        if (fhirResources.documentReference) {
+          try {
+            const docRef = await createDocumentReference(
+              userId,
+              fhirResources.documentReference,
+              patientId,
+              fileUrls[0],
+              fileTypes[0]
+            );
+            
+            // Check if docRef exists and has an id property
+            if (docRef && typeof docRef === 'object') {
+              savedResources.documentReferenceId = docRef.id || '';
+              console.log(`Saved DocumentReference with ID: ${docRef.id || 'unknown'}`);
+            }
+          } catch (err) {
+            console.error('Error saving DocumentReference:', err);
+          }
+        }
+        
+        // Save Procedure if detected
+        if (fhirResources.procedures && fhirResources.procedures.length > 0) {
+          try {
+            const procedureRef = await createProcedure(
+              userId,
+              fhirResources.procedures[0],
+              patientId
+            );
+            
+            // Check if procedureRef exists and has an id property
+            if (procedureRef && typeof procedureRef === 'object') {
+              savedResources.procedureId = procedureRef.id || '';
+              console.log(`Saved Procedure with ID: ${procedureRef.id || 'unknown'}`);
+            }
+          } catch (err) {
+            console.error('Error saving Procedure:', err);
+          }
+        }
+        
+        // Save ImagingStudy if detected
+        if (fhirResources.imagingStudies && fhirResources.imagingStudies.length > 0) {
+          try {
+            const imagingStudyRef = await createImagingStudy(
+              userId,
+              fhirResources.imagingStudies[0],
+              patientId
+            );
+            
+            // Check if imagingStudyRef exists and has an id property
+            if (imagingStudyRef && typeof imagingStudyRef === 'object') {
+              savedResources.imagingStudyId = imagingStudyRef.id || '';
+              console.log(`Saved ImagingStudy with ID: ${imagingStudyRef.id || 'unknown'}`);
+              
+              // Save DiagnosticReport for imaging if we have an imaging study
+              if (fhirResources.imagingReports && fhirResources.imagingReports.length > 0) {
+                try {
+                  const reportRef = await createDiagnosticReportImaging(
+                    userId,
+                    fhirResources.imagingReports[0],
+                    patientId,
+                    imagingStudyRef.id
+                  );
+                  
+                  // Check if reportRef exists and has an id property
+                  if (reportRef && typeof reportRef === 'object') {
+                    savedResources.diagnosticReportIds.push(reportRef.id || '');
+                    console.log(`Saved DiagnosticReport for imaging with ID: ${reportRef.id || 'unknown'}`);
+                  }
+                } catch (err) {
+                  console.error('Error saving DiagnosticReport for imaging:', err);
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Error saving ImagingStudy:', err);
+          }
+        }
+        
+        // Include the saved resource IDs in the record metadata
+        const allResourceIds: string[] = [];
+        
+        // Add document reference ID if present
+        if (savedResources.documentReferenceId) {
+          allResourceIds.push(savedResources.documentReferenceId);
+        }
+        
+        // Add procedure ID if present
+        if (savedResources.procedureId) {
+          allResourceIds.push(savedResources.procedureId);
+        }
+        
+        // Add imaging study ID if present
+        if (savedResources.imagingStudyId) {
+          allResourceIds.push(savedResources.imagingStudyId);
+        }
+        
+        // Add all diagnostic report IDs if present
+        if (savedResources.diagnosticReportIds && savedResources.diagnosticReportIds.length > 0) {
+          savedResources.diagnosticReportIds.forEach(id => {
+            if (id) allResourceIds.push(id);
+          });
+        }
+        
+        const recordWithFhirIds = {
+          ...documentData,
+          fhirResourceIds: allResourceIds
+        };
+        
+        // Update the record in Firestore with FHIR resource IDs
+        await updateDoc(recordRef, recordWithFhirIds);
+        
+      } catch (analysisError) {
+        console.error('Error analyzing document:', analysisError);
+        // Continue without analysis if it fails
+      }
+    }
+
     return NextResponse.json({
       success: true,
       recordId: docRef.id,

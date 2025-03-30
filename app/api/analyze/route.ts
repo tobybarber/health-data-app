@@ -2,6 +2,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '../../lib/firebase-admin';
 import admin from 'firebase-admin';
 import openai, { isApiKeyValid } from '../../lib/openai-server';
+import { generateHolisticAnalysis } from '../../lib/rag-service';
+
+// Comment out the code that tries to dynamically import the RAG service
+// let generateHolisticAnalysis: any = null;
+let ragServiceImportFailed = false;
+let ragServiceErrors: string[] = [];
+
+// No need to check dependencies since we're using direct OpenAI implementation
+// async function checkRagDependencies() {
+//   // Implementation removed
+//   return true;
+// }
+
+// No need to import the service dynamically since we import it directly
+// async function importRagService() {
+//   // Implementation removed
+// }
+
+// No need to try importing the service
+// importRagService().catch(err => {
+//   console.error('Error in importRagService:', err);
+//   ragServiceImportFailed = true;
+//   ragServiceErrors.push(`Import function error: ${err instanceof Error ? err.message : String(err)}`);
+// });
 
 // Helper function to get detailed diet description
 function getDietDescription(dietValue: string): string {
@@ -39,12 +63,14 @@ export async function POST(request: NextRequest) {
     recordsFetched: 0,
     profileFetched: false,
     openAIUsed: false,
+    ragUsed: false,
     firestoreSaved: false,
     errors: [] as string[],
     timings: {
       total: 0,
       profileFetch: 0,
       recordsFetch: 0,
+      rag: 0,
       openAI: 0,
       firestore: 0
     }
@@ -58,7 +84,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log('Request body received:', JSON.stringify(body, null, 2));
     
-    const { userId, recordNames, recordDetails: frontendRecordDetails, mode = 'standard' } = body;
+    const { userId, recordNames, recordDetails: frontendRecordDetails, mode = 'standard', useRag = true } = body;
     
     if (!userId) {
       console.error('Missing userId in request');
@@ -335,7 +361,214 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
     // Track if any records have comments
     let hasComments = false;
     
-    if (recordDetails.length > 0 && useOpenAI) {
+    // Use RAG-based analysis if enabled
+    if (useRag && useOpenAI) {
+      const ragStartTime = Date.now();
+      try {
+        console.log('Using RAG-based approach for holistic analysis...');
+        
+        // Check if FHIR collections exist for this user
+        let hasValidFhirData = false;
+        try {
+          const fhirCollectionRef = db.collection('users').doc(userId).collection('fhir_resources');
+          const snapshot = await fhirCollectionRef.limit(1).get();
+          console.log(`FHIR resources collection exists: ${!snapshot.empty}`);
+          console.log(`Collection path: users/${userId}/fhir_resources`);
+          
+          if (!snapshot.empty) {
+            hasValidFhirData = true;
+          } else {
+            // Try alternative paths if main path is empty
+            console.log("Checking alternative FHIR resource paths...");
+            
+            // Try 'fhir' collection
+            const fhirAltRef = db.collection('users').doc(userId).collection('fhir');
+            const altSnapshot = await fhirAltRef.limit(1).get();
+            console.log(`Alternative 'fhir' collection exists: ${!altSnapshot.empty}`);
+            
+            if (!altSnapshot.empty) {
+              console.log("Found FHIR resources in 'fhir' collection.");
+              hasValidFhirData = true;
+            } else {
+              console.log("No FHIR resources found in any collection, will use traditional approach");
+              // If no FHIR resources in either location, disable RAG for this analysis
+              throw new Error('No FHIR resources found for this user');
+            }
+          }
+        } catch (pathError) {
+          console.error("Error checking FHIR collections:", pathError);
+          throw new Error(`Error checking FHIR paths: ${pathError instanceof Error ? pathError.message : 'Unknown error'}`);
+        }
+        
+        // Only proceed with RAG if we have valid FHIR data
+        if (hasValidFhirData) {
+          try {
+            // Generate holistic analysis using our updated RAG service
+            analysis = await generateHolisticAnalysis(userId, profileInfo, {
+              forceRefresh: mode === 'refresh'
+            });
+            
+            // Check if the analysis indicates an error
+            if (analysis.includes("Error generating analysis:") || 
+                analysis.includes("Error: Unable to process FHIR health data")) {
+              console.log("RAG service returned an error, falling back to traditional approach");
+              throw new Error("RAG service returned an error response");
+            }
+            
+            console.log('RAG-based holistic analysis generated successfully');
+            debugInfo.ragUsed = true;
+            
+            // After generating the RAG analysis, save it to Firestore
+            if (analysis && userId) {
+              const firestoreStartTime = Date.now();
+              try {
+                console.log(`Saving RAG analysis to Firestore for user ${userId}`);
+                
+                // Save the analysis to the user's holistic analysis document
+                await db.collection('users').doc(userId).collection('analysis').doc('holistic').set({
+                  text: analysis,
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  needsUpdate: false,
+                  recordCount: recordDetails?.length || 0,
+                  generatedBy: 'rag+openai',
+                  summariesUsed: false,
+                  commentsUsed: false,
+                  usedStructuredFhir: true
+                }, { merge: true });
+                
+                console.log('RAG analysis saved to Firestore successfully');
+                debugInfo.firestoreSaved = true;
+              } catch (firestoreError) {
+                console.error('Error saving RAG analysis to Firestore:', firestoreError);
+                debugInfo.errors.push(`Firestore RAG save error: ${firestoreError instanceof Error ? firestoreError.message : 'Unknown error'}`);
+                debugInfo.firestoreSaved = false;
+              }
+              debugInfo.timings.firestore = Date.now() - firestoreStartTime;
+            }
+          } catch (ragInnerError) {
+            console.error('Error in RAG processing:', ragInnerError);
+            debugInfo.errors.push(`RAG processing error: ${ragInnerError instanceof Error ? ragInnerError.message : 'Unknown RAG error'}`);
+            
+            // If we get here, the analysis failed with RAG, so we need to fall back
+            throw new Error(`RAG analysis failed: ${ragInnerError instanceof Error ? ragInnerError.message : 'Unknown error'}`);
+          }
+        }
+      } catch (ragError) {
+        console.error('Error generating RAG-based analysis:', ragError);
+        debugInfo.errors.push(`RAG error: ${ragError instanceof Error ? ragError.message : 'Unknown error'}`);
+        
+        // Fall back to traditional approach if RAG fails
+        console.log('Falling back to traditional approach...');
+        
+        // If we have recordDetails and OpenAI is available, generate analysis using traditional approach
+        if (recordDetails && recordDetails.length > 0 && useOpenAI) {
+          const openAIStartTime = Date.now();
+          try {
+            // Check if any records have comments
+            hasComments = recordDetails.some(record => 
+              (record.comment && record.comment.trim() !== '') || 
+              (record.comments && record.comments.trim() !== '')
+            );
+            
+            // Prepare the record summaries for analysis
+            const recordSummaries = recordDetails.map(record => {
+              return `Record: ${record.name}
+Detailed Analysis: ${record.detailedAnalysis}
+Comment: ${record.comment}
+Additional Comments: ${record.comments}`;
+            });
+            
+            // Determine the analysis prompt based on mode
+            let analysisPrompt = '';
+            let systemPrompt = '';
+            
+            // Standard mode - balanced analysis
+            systemPrompt = 'You are a medical AI assistant. Analyze the provided health records and provide balanced insights using XML-like tags for structured output. Do not use any personal identifiers and avoid phrases like "the patient" or similar.';
+            analysisPrompt = `Please analyze these health records and provide your insights using these XML-like tags:
+
+<OVERVIEW>
+Provide a high level overview here.
+</OVERVIEW>
+
+<KEY_FINDINGS>
+Provide a summary of key findings here.
+</KEY_FINDINGS>
+
+<HEALTH_CONCERNS>
+List any potential health concerns here.
+</HEALTH_CONCERNS>
+
+It is CRITICAL that you use these exact XML-like tags in your response to ensure proper formatting. Do not use any personal identifiers and avoid phrases like "the patient" or similar.`;
+            
+            // Call OpenAI for analysis
+            const chatResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+              },
+              body: JSON.stringify({
+                model: 'gpt-4o',
+                messages: [
+                  {
+                    role: 'system',
+                    content: systemPrompt
+                  },
+                  {
+                    role: 'user',
+                    content: `${profileInfo}\n\nI have the following health records:\n\n${recordSummaries.join('\n\n---\n\n')}\n\n${analysisPrompt}`
+                  }
+                ]
+              })
+            });
+            
+            if (chatResponse.ok) {
+              const chatData = await chatResponse.json();
+              analysis = chatData.choices[0]?.message?.content || 'No analysis available';
+              debugInfo.openAIUsed = true;
+            } else {
+              const errorText = await chatResponse.text();
+              console.error('OpenAI API error:', errorText);
+              analysis = 'Error generating analysis. Please try again later.';
+              debugInfo.errors.push(`OpenAI API error: ${errorText}`);
+            }
+          } catch (analysisError) {
+            console.error('Error generating analysis:', analysisError);
+            analysis = 'Error generating analysis. Please try again later.';
+            debugInfo.errors.push(`Analysis error: ${analysisError instanceof Error ? analysisError.message : 'Unknown error'}`);
+          }
+          debugInfo.timings.openAI = Date.now() - openAIStartTime;
+          
+          // After generating the analysis, save it to Firestore
+          if (analysis && userId) {
+            const firestoreStartTime = Date.now();
+            try {
+              console.log(`Saving analysis to Firestore for user ${userId}`);
+              
+              // Save the analysis to the user's holistic analysis document
+              await db.collection('users').doc(userId).collection('analysis').doc('holistic').set({
+                text: analysis,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                needsUpdate: false,
+                recordCount: recordDetails.length,
+                generatedBy: 'openai',
+                summariesUsed: true,
+                commentsUsed: hasComments
+              }, { merge: true });
+              
+              console.log('Analysis saved to Firestore successfully');
+              debugInfo.firestoreSaved = true;
+            } catch (firestoreError) {
+              console.error('Error saving analysis to Firestore:', firestoreError);
+              debugInfo.errors.push(`Firestore save error: ${firestoreError instanceof Error ? firestoreError.message : 'Unknown error'}`);
+              debugInfo.firestoreSaved = false;
+            }
+            debugInfo.timings.firestore = Date.now() - firestoreStartTime;
+          }
+        }
+      }
+    } else if (recordDetails && recordDetails.length > 0 && useOpenAI) {
+      // Traditional OpenAI-based approach
       const openAIStartTime = Date.now();
       try {
         // Check if any records have comments
@@ -439,7 +672,7 @@ It is CRITICAL that you use these exact XML-like tags in your response to ensure
         }
         debugInfo.timings.firestore = Date.now() - firestoreStartTime;
       }
-    } else if (recordDetails.length > 0) {
+    } else if (recordDetails && recordDetails.length > 0) {
       // If OpenAI is not available, provide a mock analysis
       analysis = 'OpenAI API is not available. Please check your API key and try again.';
     } else {
@@ -454,11 +687,12 @@ It is CRITICAL that you use these exact XML-like tags in your response to ensure
     return NextResponse.json({
       status: 'success',
       analysis: analysis,
-      recordCount: recordDetails.length,
+      recordCount: recordDetails?.length || 0,
       mode: mode,
-      generatedBy: 'openai',
+      generatedBy: debugInfo.ragUsed ? 'rag+openai' : 'openai',
       summariesUsed: true,
       commentsUsed: hasComments,
+      usedStructuredFhir: debugInfo.ragUsed,
       firestoreSaved: debugInfo.firestoreSaved,
       debug: debugInfo
     });

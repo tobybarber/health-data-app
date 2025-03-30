@@ -28,16 +28,30 @@ interface QuestionRequest {
   previousResponseId?: string;
   generateAudio?: boolean;
   voicePreference?: string;
+  isGuest?: boolean; // Added to indicate guest users
 }
 
 export async function POST(request: NextRequest) {
+  console.log('API question route called');
+  
   try {
     // Parse request body
+    console.log('Parsing request body');
     const requestBody: QuestionRequest = await request.json();
-    const { question, userId, previousResponseId, generateAudio, voicePreference } = requestBody;
+    const { question, userId, previousResponseId, generateAudio, voicePreference, isGuest } = requestBody;
+
+    console.log('Request received:', {
+      question: question?.substring(0, 30) + '...', // Log truncated question for privacy
+      userId: userId?.substring(0, 8) + '...', // Log truncated userId for privacy
+      previousResponseId: previousResponseId ? 'Provided' : 'Not provided',
+      generateAudio: generateAudio,
+      voicePreference: voicePreference,
+      isGuest: isGuest
+    });
 
     // Validate required fields
     if (!question) {
+      console.log('Error: Question is required');
       return NextResponse.json(
         { success: false, error: 'Question is required' },
         { status: 400 }
@@ -45,6 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!userId) {
+      console.log('Error: User ID is required');
       return NextResponse.json(
         { success: false, error: 'User ID is required' },
         { status: 400 }
@@ -52,10 +67,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate OpenAI API key
-    const keyValidation = await validateOpenAIKey();
-    if (!keyValidation.success) {
+    console.log('Validating OpenAI API key');
+    try {
+      const keyValidation = await validateOpenAIKey();
+      if (!keyValidation.success) {
+        console.log('Error: OpenAI API key validation failed', keyValidation.message);
+        return NextResponse.json(
+          { success: false, error: keyValidation.message },
+          { status: 500 }
+        );
+      }
+      console.log('OpenAI API key validation successful');
+    } catch (keyValidationError) {
+      console.error('Error during OpenAI key validation:', keyValidationError);
       return NextResponse.json(
-        { success: false, error: keyValidation.message },
+        { success: false, error: 'OpenAI API key validation failed unexpectedly' },
         { status: 500 }
       );
     }
@@ -63,6 +89,7 @@ export async function POST(request: NextRequest) {
     try {
       // If we have a previous response ID, this is a follow-up question
       if (previousResponseId) {
+        console.log('Processing follow-up question with previous response ID');
         try {
           // Make request with the previous response ID for context
           const response = await openai.responses.create({
@@ -70,6 +97,8 @@ export async function POST(request: NextRequest) {
             input: question,
             previous_response_id: previousResponseId
           });
+
+          console.log('OpenAI response received for follow-up question');
 
           // Get the response text
           const answer = response.output_text || 'No answer available';
@@ -79,16 +108,19 @@ export async function POST(request: NextRequest) {
           let audioCost = 0;
           if (generateAudio) {
             try {
+              console.log('Generating TTS audio');
               const voice = voicePreference || 'alloy';
               const audioBuffer = await generateSpeech(answer, voice);
               audioData = Buffer.from(audioBuffer).toString('base64');
               audioCost = calculateTTSCost(answer);
+              console.log('TTS audio generated successfully');
             } catch (ttsError) {
               console.error('Error generating TTS:', ttsError);
               // Continue without audio if TTS fails
             }
           }
 
+          console.log('Returning successful response for follow-up question');
           return NextResponse.json({
             success: true,
             answer: answer,
@@ -109,72 +141,69 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // For a new conversation, fetch user records
-      const userRef = db.collection('users').doc(userId);
-      const userDoc = await userRef.get();
-      
-      if (!userDoc.exists) {
-        return NextResponse.json(
-          { success: false, error: 'User not found' },
-          { status: 404 }
-        );
-      }
-
-      // Get user profile data
-      const userData = userDoc.data() || {};
-      
-      // Add debug logging for the user ID
-      console.log('Querying records for user ID:', userId);
-      
-      // Initialize an empty records array
+      // For guest users or new conversations without Firebase access
+      let userData: Record<string, any> = {};
       let records: any[] = [];
-      
-      try {
-        // First try to get records without sorting to avoid any date-related issues
-        const recordsSnapshot = await db.collection('users').doc(userId).collection('records').get();
-        
-        // Debug: Log the raw query result
-        console.log('Records query returned:', recordsSnapshot.empty ? 'NO RECORDS' : `${recordsSnapshot.size} RECORDS FOUND`);
-        
-        if (recordsSnapshot.empty) {
-          // If no records, still proceed but with empty records
-          console.log('No records found for this user in the users/{userId}/records collection');
-        } else {
-          // Log the first record ID for debugging
-          console.log('First record ID:', recordsSnapshot.docs[0].id);
+
+      // Only try to fetch user data from Firebase if not a guest
+      if (!isGuest) {
+        console.log('Starting new conversation, fetching user records for user ID:', userId);
+        try {
+          const userRef = db.collection('users').doc(userId);
+          const userDoc = await userRef.get();
           
-          // Also log all record IDs to see what we have
-          console.log('All record IDs:', recordsSnapshot.docs.map(doc => doc.id));
+          if (!userDoc.exists) {
+            console.log('Warning: User not found in Firestore');
+            // For regular users, this would be an error, but we'll continue for backwards compatibility
+            // Just use empty user data
+          } else {
+            // Get user profile data
+            userData = userDoc.data() || {};
+            console.log('User data retrieved successfully');
+            
+            try {
+              // First try to get records without sorting to avoid any date-related issues
+              console.log('Querying health records for user');
+              const recordsSnapshot = await db.collection('users').doc(userId).collection('records').get();
+              
+              // Debug: Log the raw query result
+              console.log('Records query returned:', recordsSnapshot.empty ? 'NO RECORDS' : `${recordsSnapshot.size} RECORDS FOUND`);
+              
+              if (recordsSnapshot.empty) {
+                // If no records, still proceed but with empty records
+                console.log('No records found for this user in the users/{userId}/records collection');
+              } else {
+                // Log the first record ID for debugging
+                console.log('First record ID:', recordsSnapshot.docs[0].id);
+              }
+              
+              // Process health records
+              records = recordsSnapshot.docs.map((doc: any) => {
+                const data = doc.data();
+                return {
+                  id: doc.id,
+                  ...data,
+                  date: data.date?.toDate?.() || data.date
+                };
+              });
+              console.log(`Processed ${records.length} health records`);
+            } catch (firestoreError) {
+              console.error('Error accessing Firestore records:', firestoreError);
+              // Continue with empty records rather than failing
+              console.log('Continuing with empty records due to Firestore error');
+            }
+          }
+        } catch (firestoreUserError) {
+          console.error('Error accessing Firestore user data:', firestoreUserError);
+          // For regular users, continue with empty data rather than failing
+          console.log('Continuing with empty user data due to Firestore error');
         }
-        
-        // Process health records
-        records = recordsSnapshot.docs.map((doc: any) => {
-          const data = doc.data();
-          // Debug: Log each record's data structure
-          console.log('Record data structure:', JSON.stringify({
-            id: doc.id,
-            hasDate: !!data.date,
-            dateType: data.date ? typeof data.date : 'undefined',
-            fields: Object.keys(data)
-          }));
-          return {
-            id: doc.id,
-            ...data,
-            date: data.date?.toDate?.() || data.date
-          };
-        });
-      } catch (firestoreError) {
-        console.error('Error accessing Firestore records:', firestoreError);
-        console.log('Firestore error details:', JSON.stringify({
-          code: (firestoreError as any).code,
-          message: (firestoreError as Error).message,
-          stack: (firestoreError as Error).stack
-        }));
-        // Continue with empty records rather than failing
-        console.log('Continuing with empty records due to Firestore error');
+      } else {
+        console.log('Guest user detected, skipping Firebase data fetching');
       }
-      
+        
       // Create health record summaries
+      console.log('Creating health record summaries');
       const recordSummaries = records.map((record: any) => {
         return `Type: ${record.type || record.recordType || 'Not specified'}
 Date: ${record.date instanceof Date ? record.date.toISOString().split('T')[0] : record.date}
@@ -199,8 +228,17 @@ Stress Level: ${userData.stressLevel || 'Unknown'}
 `;
 
       // Create a prompt for the AI
-      const systemPrompt = `
-You are a health assistant for Wattle, an AI-powered health application. You provide personalized health insights based on a user's health records and profile information.
+      const systemPrompt = isGuest 
+        ? `You are a health assistant for Wattle, an AI-powered health application. You are talking to a guest user who has not logged in or provided any health information.
+        
+INSTRUCTIONS:
+- You are speaking to a guest who is trying out the app without an account.
+- Be helpful and informative about general health topics.
+- Encourage the user to create an account to access personalized health features and record storage.
+- If asked about personal health records or data, politely explain that health record features require an account.
+- Keep your response concise and focused on the user's question.
+- If you don't have enough information to answer a health question, suggest reliable general resources.`
+        : `You are a health assistant for Wattle, an AI-powered health application. You provide personalized health insights based on a user's health records and profile information.
 
 USER PROFILE:
 ${userProfile}
@@ -224,11 +262,14 @@ INSTRUCTIONS:
 
       try {
         // Create a new response using the Responses API
+        console.log('Making OpenAI API request');
         const response = await openai.responses.create({
           model: 'gpt-4o',
           instructions: systemPrompt,
           input: question
         });
+
+        console.log('OpenAI API response received successfully');
 
         // Get the answer from the response
         const answer = response.output_text || 'No answer available';
@@ -238,16 +279,19 @@ INSTRUCTIONS:
         let audioCost = 0;
         if (generateAudio) {
           try {
+            console.log('Generating TTS audio');
             const voice = voicePreference || 'alloy';
             const audioBuffer = await generateSpeech(answer, voice);
             audioData = Buffer.from(audioBuffer).toString('base64');
             audioCost = calculateTTSCost(answer);
+            console.log('TTS audio generated successfully');
           } catch (ttsError) {
             console.error('Error generating TTS:', ttsError);
             // Continue without audio if TTS fails
           }
         }
 
+        console.log('Returning successful response');
         return NextResponse.json({
           success: true,
           answer: answer,
@@ -255,24 +299,28 @@ INSTRUCTIONS:
           audioData,
           audioCost
         });
-      } catch (error) {
-        console.error('Error generating response:', error);
+      
+      } catch (openaiError) {
+        console.error('Error with OpenAI API:', openaiError);
         return NextResponse.json(
-          { success: false, error: `Error generating response: ${(error as Error).message}` },
+          { 
+            success: false, 
+            error: `Error communicating with OpenAI: ${(openaiError as Error).message}` 
+          },
           { status: 500 }
         );
       }
     } catch (error) {
-      console.error('General error in question handler:', error);
+      console.error('Unexpected error in question processing:', error);
       return NextResponse.json(
-        { success: false, error: `An unexpected error occurred: ${(error as Error).message}` },
+        { success: false, error: `Unexpected error: ${(error as Error).message}` },
         { status: 500 }
       );
     }
-  } catch (parseError) {
-    console.error('Error parsing request:', parseError);
+  } catch (requestParseError) {
+    console.error('Error parsing request:', requestParseError);
     return NextResponse.json(
-      { success: false, error: 'Invalid request format' },
+      { success: false, error: `Invalid request: ${(requestParseError as Error).message}` },
       { status: 400 }
     );
   }

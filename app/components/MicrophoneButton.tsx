@@ -1,122 +1,78 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useVoiceInput } from '../hooks/useVoiceInput';
-import { FaMicrophone, FaSpinner, FaStop } from 'react-icons/fa';
-import { isIOS } from '../lib/voice-utils';
+import { useState, useEffect, useCallback } from 'react';
+import { FaMicrophone } from 'react-icons/fa';
 
-interface MicrophoneButtonProps {
+export interface MicrophoneButtonProps {
   onTranscription: (text: string) => void;
-  className?: string;
+  disabled?: boolean;
 }
 
-export default function MicrophoneButton({ onTranscription, className = '' }: MicrophoneButtonProps) {
-  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
-  const { isRecording, isProcessing, error, startRecording, stopRecording } = useVoiceInput({
-    onTranscription,
-  });
+export default function MicrophoneButton({ onTranscription, disabled = false }: MicrophoneButtonProps) {
+  const [isListening, setIsListening] = useState(false);
+  const [recognition, setRecognition] = useState<any>(null);
 
-  // Handle errors
-  const [displayError, setDisplayError] = useState<string | null>(null);
-  const [isiOSDevice, setIsIOSDevice] = useState(false);
-  
-  // Timer ref for cleanup
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Check if iOS device on client side
   useEffect(() => {
-    setIsIOSDevice(isIOS());
-  }, []);
+    if (typeof window !== 'undefined') {
+      // @ts-ignore
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
 
-  // Show error for 3 seconds then clear it
-  useEffect(() => {
-    if (error && error !== displayError) {
-      setDisplayError(error);
-      const timer = setTimeout(() => setDisplayError(null), 3000);
-      return () => clearTimeout(timer);
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          onTranscription(transcript);
+          setIsListening(false);
+        };
+
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsListening(false);
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        setRecognition(recognition);
+      }
     }
-  }, [error, displayError]);
-  
-  // Safety cleanup on unmount
-  useEffect(() => {
-    return () => {
-      // Stop any ongoing recording if component unmounts
-      if (isRecording) {
-        console.log('Component unmounting, stopping recording');
-        stopRecording();
-      }
-      
-      // Clear any pending timers
-      if (recordingTimerRef.current) {
-        clearTimeout(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-    };
-  }, [isRecording, stopRecording]);
+  }, [onTranscription]);
 
-  // Toggle recording on/off
-  const toggleRecording = () => {
-    if (isProcessing) return; // Don't do anything while processing
+  const toggleListening = useCallback(() => {
+    if (disabled) return;
     
-    if (isRecording) {
-      // Stop recording if already recording
-      stopRecording();
-      setRecordingStartTime(null);
-      
-      // Clear any existing timers
-      if (recordingTimerRef.current) {
-        clearTimeout(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-    } else {
-      // Start recording
-      setRecordingStartTime(Date.now());
-      startRecording();
+    if (isListening) {
+      recognition?.stop();
+      setIsListening(false);
+    } else if (recognition) {
+      recognition.start();
+      setIsListening(true);
     }
-  };
-  
-  // Auto-stop recording after 30 seconds as a safety measure
-  useEffect(() => {
-    if (isRecording && !isProcessing) {
-      const safetyTimeout = setTimeout(() => {
-        console.log('Safety timeout reached - stopping recording after 30s');
-        stopRecording();
-        setRecordingStartTime(null);
-      }, 30000);
-      
-      return () => clearTimeout(safetyTimeout);
-    }
-  }, [isRecording, isProcessing, stopRecording]);
+  }, [isListening, recognition, disabled]);
+
+  if (!recognition) {
+    return null;
+  }
 
   return (
-    <div className="relative">
-      <button
-        type="button"
-        className={`flex items-center justify-center rounded-full p-2 ${
-          isRecording
-            ? 'bg-red-500 text-white animate-pulse'
-            : isProcessing
-            ? 'bg-yellow-500 text-white'
-            : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
-        } transition-colors ${className}`}
-        onClick={toggleRecording}
-        disabled={isProcessing}
-        aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-      >
-        {isProcessing ? (
-          <FaSpinner className="w-5 h-5 animate-spin" />
-        ) : isRecording ? (
-          <FaStop className="w-5 h-5" />
-        ) : (
-          <FaMicrophone className="w-5 h-5" />
-        )}
-      </button>
-
-      {displayError && (
-        <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-red-500 text-white text-xs py-1 px-2 rounded whitespace-nowrap max-w-xs text-center">
-          {displayError}
-        </div>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={toggleListening}
+      disabled={disabled}
+      className={`p-2 rounded-full ${
+        isListening 
+          ? 'bg-red-500 text-white' 
+          : disabled 
+            ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
+            : 'text-gray-500 hover:text-gray-700'
+      }`}
+      title={isListening ? 'Stop recording' : 'Start recording'}
+    >
+      <FaMicrophone className={`w-5 h-5 ${isListening ? 'animate-pulse' : ''}`} />
+    </button>
   );
 } 
