@@ -27,7 +27,11 @@ export default function MessageList({ messages, messagesEndRef, isAiResponding }
               <div className="bg-gray-200 rounded-lg p-3 max-w-[80%]">
                 {message.ai}
                 {message.audioData && (
-                  <SpeakText audioData={message.audioData} />
+                  <SpeakText 
+                    text={message.ai} 
+                    audioData={message.audioData} 
+                    voiceInput={message.wasVoiceInput}
+                  />
                 )}
               </div>
             </div>
