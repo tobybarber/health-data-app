@@ -14,6 +14,12 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'Health Data',
+    startupImage: [
+      {
+        url: '/images/apple-splash.png',
+        media: '(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)'
+      }
+    ]
   },
   other: {
     'apple-mobile-web-app-capable': 'yes',
@@ -47,6 +53,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#000000" />
+        <meta name="apple-touch-fullscreen" content="yes" />
       </head>
       <body className="bg-black min-h-screen">
         <ClientWrapper>

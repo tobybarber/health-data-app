@@ -68,70 +68,66 @@ function AppContent({ children }: { children: React.ReactNode }) {
         window.matchMedia('(display-mode: standalone)').matches;
       
       if (isStandalone) {
-        // Special handling for standalone mode
-        document.addEventListener('touchmove', (e) => {
-          // This prevents iOS from blocking touchmove events
-        }, { passive: true });
+        // Apply viewport-fit=cover again to ensure status bar is handled correctly
+        const metaViewport = document.querySelector('meta[name="viewport"]');
+        if (metaViewport) {
+          const content = metaViewport.getAttribute('content') || '';
+          if (!content.includes('viewport-fit=cover')) {
+            metaViewport.setAttribute('content', content + ', viewport-fit=cover');
+          }
+        }
         
-        // Perform additional fixes for standalone mode
-        const fixStandaloneScrolling = () => {
-          // Remove any scroll blocking elements
-          document.querySelectorAll('.fixed').forEach(el => {
-            if (!(el as HTMLElement).classList.contains('bottom-0') && 
-                !(el as HTMLElement).classList.contains('top-0')) {
-              // Make sure fixed position elements don't block scrolling
-              (el as HTMLElement).style.position = 'absolute';
-            }
-          });
+        // Handle iOS safe areas properly
+        document.documentElement.style.setProperty('--safe-area-top', 'env(safe-area-inset-top)');
+        document.documentElement.style.setProperty('--safe-area-bottom', 'env(safe-area-inset-bottom)');
+        
+        // Fix for status bar issues in landscape
+        const handleOrientationChange = () => {
+          setTimeout(() => {
+            // Force re-layout to fix status bar issues
+            document.body.style.display = 'none';
+            document.body.offsetHeight; // Trigger reflow
+            document.body.style.display = '';
+            
+            fixIOSViewportHeight();
+          }, 300);
         };
         
-        // Apply standalone fixes with a delay to ensure DOM is ready
-        setTimeout(fixStandaloneScrolling, 200);
-        
-        // Re-apply on resize or orientation change
-        window.addEventListener('resize', fixStandaloneScrolling);
-        window.addEventListener('orientationchange', fixStandaloneScrolling);
+        window.addEventListener('orientationchange', handleOrientationChange);
         
         // Cleanup for standalone-specific events
         return () => {
-          window.removeEventListener('resize', fixStandaloneScrolling);
-          window.removeEventListener('orientationchange', fixStandaloneScrolling);
+          window.removeEventListener('orientationchange', handleOrientationChange);
+          window.removeEventListener('resize', fixIOSViewportHeight);
+          window.removeEventListener('orientationchange', fixIOSViewportHeight);
         };
       }
       
       // Standard iOS fixes
-      window.addEventListener('scroll', () => {
-        setTimeout(fixIOSViewportHeight, 100);
-      });
+      const handleScroll = () => setTimeout(fixIOSViewportHeight, 100);
+      window.addEventListener('scroll', handleScroll);
       
-      // Handle iOS keyboard
-      window.addEventListener('focusin', () => {
-        // When keyboard appears
-        document.body.classList.add('keyboard-open');
-      });
+      const handleFocusIn = () => document.body.classList.add('keyboard-open');
+      window.addEventListener('focusin', handleFocusIn);
       
-      window.addEventListener('focusout', () => {
-        // When keyboard disappears
+      const handleFocusOut = () => {
         document.body.classList.remove('keyboard-open');
-        // Fix height after keyboard closes
         setTimeout(fixIOSViewportHeight, 100);
-      });
+      };
+      window.addEventListener('focusout', handleFocusOut);
+      
+      return () => {
+        window.removeEventListener('resize', fixIOSViewportHeight);
+        window.removeEventListener('orientationchange', fixIOSViewportHeight);
+        window.removeEventListener('scroll', handleScroll);
+        window.removeEventListener('focusin', handleFocusIn);
+        window.removeEventListener('focusout', handleFocusOut);
+      };
     }
 
     return () => {
       window.removeEventListener('resize', fixIOSViewportHeight);
       window.removeEventListener('orientationchange', fixIOSViewportHeight);
-      if (isIOS) {
-        window.removeEventListener('scroll', () => {
-          setTimeout(fixIOSViewportHeight, 100);
-        });
-        window.removeEventListener('focusin', () => {
-          document.body.classList.add('keyboard-open');
-        });
-        window.removeEventListener('focusout', () => {
-          document.body.classList.remove('keyboard-open');
-        });
-      }
     };
   }, []);
   

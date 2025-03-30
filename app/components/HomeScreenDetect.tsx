@@ -21,29 +21,51 @@ export default function HomeScreenDetect() {
       
       // Apply or remove the standalone mode class
       if (isRunningStandalone) {
-        document.body.classList.add('standalone-mode');
         console.log('Running in standalone mode (PWA)');
         
-        // Fix scrolling issues by disabling all touchmove event cancellation
+        // Add both classes for maximum compatibility
+        document.body.classList.add('standalone-mode');
+        document.documentElement.classList.add('standalone-mode');
+        document.documentElement.style.setProperty('--standalone-mode', '1');
+        
+        // Set minimal-ui viewport to properly handle iOS status bar
+        const metaViewport = document.querySelector('meta[name="viewport"]');
+        if (metaViewport) {
+          metaViewport.setAttribute('content', 
+            'width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no'
+          );
+        }
+        
+        // Ensure body sizing is correct in standalone mode
+        document.body.style.height = '-webkit-fill-available';
+        document.body.style.minHeight = 'calc(var(--vh, 1vh) * 100)';
+        
+        // Prevent overscroll/bounce effects in iOS
+        document.body.style.overscrollBehavior = 'none';
+        
+        // Fix scrolling issues by allowing proper touch events
         document.addEventListener('touchmove', (e) => {
-          // Allow all touchmove events
+          // Allow default touchmove behavior unless explicitly blocked
+          if ((e.target as HTMLElement)?.closest('[data-block-touch="true"]')) {
+            e.preventDefault();
+          }
         }, { passive: false });
         
-        // Special fix: if a container with position:fixed is blocking scrolling
-        const fixBlockedScrolling = () => {
-          const scrollContainers = document.querySelectorAll('.overflow-y-scroll, .-webkit-overflow-scrolling-touch, .touch-pan-y');
-          scrollContainers.forEach(container => {
-            container.addEventListener('touchstart', () => {
-              // Ensure touch events work properly in this container
-            }, { passive: true });
-          });
-        };
-        
-        // Apply after a short delay to ensure DOM is ready
-        setTimeout(fixBlockedScrolling, 300);
+        // Monitor for visibility changes (app switching)
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            // Recalculate on return to app
+            setTimeout(() => {
+              const vh = window.innerHeight * 0.01;
+              document.documentElement.style.setProperty('--vh', `${vh}px`);
+            }, 100);
+          }
+        });
       } else {
-        document.body.classList.remove('standalone-mode');
         console.log('Running in browser mode');
+        document.body.classList.remove('standalone-mode');
+        document.documentElement.classList.remove('standalone-mode');
+        document.documentElement.style.removeProperty('--standalone-mode');
       }
     };
 
@@ -54,9 +76,17 @@ export default function HomeScreenDetect() {
     const displayModeQuery = window.matchMedia('(display-mode: standalone)');
     displayModeQuery.addEventListener('change', checkStandalone);
     
+    // Recalculate on orientation changes which might affect Safari UI
+    window.addEventListener('orientationchange', () => {
+      setTimeout(checkStandalone, 100);
+    });
+    
     // Cleanup
     return () => {
       displayModeQuery.removeEventListener('change', checkStandalone);
+      window.removeEventListener('orientationchange', () => {
+        setTimeout(checkStandalone, 100);
+      });
     };
   }, []);
 

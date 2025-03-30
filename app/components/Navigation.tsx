@@ -62,8 +62,8 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
   if (isHomePage) {
     return (
       <>
-        {/* Navigation Header */}
-        <header className="bg-black/80 backdrop-blur-sm p-4 flex justify-between items-center shadow-md w-full fixed top-0 left-0 right-0 z-20">
+        {/* Navigation Header - with support for iOS safe areas */}
+        <header className="bg-black/80 backdrop-blur-sm p-4 flex justify-between items-center shadow-md w-full fixed top-0 left-0 right-0 z-20 pt-safe">
           <div className="flex items-center">
             <Link href="/about" className="flex items-center">
               <div className="mr-2 relative w-8 h-8">
@@ -93,7 +93,7 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
 
   // Standard navigation layout for other pages
   return (
-    <nav className="bg-black/80 backdrop-blur-sm p-4 mb-6 shadow-md fixed top-0 left-0 right-0 z-20">
+    <nav className="bg-black/80 backdrop-blur-sm p-4 mb-6 shadow-md fixed top-0 left-0 right-0 z-20 pt-safe">
       <div className="flex justify-between items-center">
         {currentUser ? (
           // Authenticated navigation

@@ -713,10 +713,10 @@ export default function Analysis() {
   return (
     <ProtectedRoute>
       <ClientWrapper>
-        <div className="container mx-auto px-4 py-8 bg-black text-white">
+        <div className="container mx-auto px-4 pt-20 pb-8 bg-black text-white">
           <Navigation />
           
-          <h1 className="text-3xl font-bold mb-6 text-white">Health Analysis</h1>
+          <h1 className="text-3xl font-bold mb-6 text-white mt-10">Health Analysis</h1>
           
           {/* Analysis Settings Section */}
           <AnalysisSettings onChange={handleSettingsChange} />

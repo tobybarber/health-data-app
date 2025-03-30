@@ -39,49 +39,67 @@ body.standalone-mode {
   /* Remove any default margins and padding */
   margin: 0;
   padding: 0;
-  /* Don't use fixed position for the body in standalone mode */
-  position: static;
-  width: 100%;
+  /* Keep proper height */
   height: 100%;
-  max-height: 100%;
-  min-height: 100%;
-  /* Special handling for viewport height */
-  height: calc(var(--vh, 1vh) * 100);
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  min-height: calc(var(--vh, 1vh) * 100);
+  /* Ensure content is contained */
   overflow-x: hidden;
+  /* Enable proper scrolling */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+  /* Account for iOS status bar in standalone mode */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  /* Prevent elastic bounce */
+  overscroll-behavior: none;
+}
+
+/* Proper positioning for top navigation in standalone mode */
+body.standalone-mode .fixed.top-0 {
+  position: fixed !important;
+  top: env(safe-area-inset-top) !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 50 !important;
+}
+
+/* Proper positioning for bottom navigation in standalone mode */
+body.standalone-mode .fixed.bottom-0 {
+  position: fixed !important;
+  bottom: env(safe-area-inset-bottom) !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 50 !important;
 }
 
 /* Make main content scrollable in standalone mode */
-body.standalone-mode main,
-body.standalone-mode .overflow-y-scroll,
-body.standalone-mode .-webkit-overflow-scrolling-touch,
-body.standalone-mode .touch-pan-y {
+body.standalone-mode main {
+  padding-top: calc(56px + env(safe-area-inset-top));
+  padding-bottom: calc(70px + env(safe-area-inset-bottom));
+  min-height: calc(100vh - 56px - 70px);
+  min-height: calc(var(--vh, 1vh) * 100 - 56px - 70px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch !important;
   touch-action: pan-y !important;
 }
 
-/* Additional iOS standalone mode fixes for fixed containers */
-body.standalone-mode .fixed {
-  position: absolute; /* Use absolute instead of fixed in iOS standalone */
+/* Override containers with conflicting fixed positioning in standalone mode */
+body.standalone-mode .records-scroll-container {
+  position: fixed !important;
+  top: calc(56px + env(safe-area-inset-top)) !important;
+  bottom: calc(70px + env(safe-area-inset-bottom)) !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: auto !important;
+  overflow: hidden !important;
 }
 
-/* Special fix for the actual scrollable container in records page in standalone mode */
-body.standalone-mode .fixed.top-16.bottom-16 {
-  top: 56px;
-  bottom: 70px;
-  left: 0;
-  right: 0;
-  height: auto;
-  position: absolute;
-  overflow: hidden;
-}
-
-body.standalone-mode .fixed.top-16.bottom-16 > div {
-  height: 100%;
-  overflow-y: auto !important;
+body.standalone-mode .records-scroll-wrapper {
+  height: 100% !important;
+  overflow-y: scroll !important;
   -webkit-overflow-scrolling: touch !important;
   touch-action: pan-y !important;
 }
@@ -155,12 +173,12 @@ select {
 
 /* Add padding to the bottom of the page content to account for the bottom navigation */
 .pb-safe {
-  padding-bottom: calc(1rem + 110px); /* Adjusted for the input box and bottom navigation */
+  padding-bottom: max(calc(1rem + 110px), calc(1rem + 110px + env(safe-area-inset-bottom)));
 }
 
 /* Add padding to the top of the page content to account for the fixed top navigation */
 .pt-safe {
-  padding-top: 72px; /* Height of the navigation bar (56px) + some extra space */
+  padding-top: max(72px, calc(72px + env(safe-area-inset-top)));
 }
 
 /* iOS scrolling fixes */
@@ -222,20 +240,19 @@ select {
   overflow-scrolling: touch !important;
 }
 
-/* Standalone mode specific overrides for records page */
-body.standalone-mode .records-scroll-container {
-  position: absolute;
-  top: 56px !important;
-  bottom: 70px !important;
-  left: 0 !important;
-  right: 0 !important;
-  height: auto !important;
-  overflow: hidden !important;
+/* Additional Safe Area utilities */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
 }
 
-body.standalone-mode .records-scroll-wrapper {
-  height: 100% !important;
-  overflow-y: scroll !important;
-  -webkit-overflow-scrolling: touch !important;
-  touch-action: pan-y !important;
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-left {
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-right {
+  padding-right: env(safe-area-inset-right);
 } 
