@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '../../../lib/firebase-admin';
 import { verifyTokenAndGetUserId } from '../../../lib/auth-middleware';
+import { CollectionReference, Query, DocumentData } from 'firebase-admin/firestore';
 
 // Base path for FHIR resources in Firestore
 const FHIR_COLLECTION_PATH = 'fhir';
@@ -63,7 +64,7 @@ export async function GET(
     }
     
     // Otherwise, perform a search
-    let queryRef = db.collection(`users/${userId}/${FHIR_COLLECTION_PATH}/${resourceType}`);
+    let queryRef: Query<DocumentData> = db.collection(`users/${userId}/${FHIR_COLLECTION_PATH}/${resourceType}`);
     
     // Process search parameters (excluding FHIR-specific parameters)
     searchParams.forEach((value, key) => {
