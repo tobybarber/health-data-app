@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '../../../../lib/firebase-admin';
-import { verifyAuthToken } from '../../../../lib/auth-middleware';
+import { verifyTokenAndGetUserId } from '../../../../lib/auth-middleware';
 
 // Base path for FHIR resources in Firestore
 const FHIR_COLLECTION_PATH = 'fhir';
@@ -15,7 +15,7 @@ export async function GET(
   try {
     // Verify auth token
     const token = request.headers.get('authorization')?.split('Bearer ')[1] || '';
-    const userId = await verifyAuthToken(token);
+    const userId = await verifyTokenAndGetUserId(token);
     
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -54,7 +54,7 @@ export async function PUT(
   try {
     // Verify auth token
     const token = request.headers.get('authorization')?.split('Bearer ')[1] || '';
-    const userId = await verifyAuthToken(token);
+    const userId = await verifyTokenAndGetUserId(token);
     
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -121,7 +121,7 @@ export async function DELETE(
   try {
     // Verify auth token
     const token = request.headers.get('authorization')?.split('Bearer ')[1] || '';
-    const userId = await verifyAuthToken(token);
+    const userId = await verifyTokenAndGetUserId(token);
     
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

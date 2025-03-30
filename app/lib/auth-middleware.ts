@@ -68,4 +68,28 @@ export async function verifyAuthToken(request: NextRequest, requiredUserId?: str
       { status: 500 }
     );
   }
+}
+
+/**
+ * Simpler function to verify a token and return the user ID
+ * 
+ * @param token The Firebase ID token to verify
+ * @returns The user ID if token is valid, null otherwise
+ */
+export async function verifyTokenAndGetUserId(token: string): Promise<string | null> {
+  if (!token) {
+    return null;
+  }
+  
+  try {
+    // Verify the token with Firebase Admin
+    const decodedToken = await getAuth().verifyIdToken(token);
+    return decodedToken.uid;
+  } catch (error) {
+    // Only log errors in development mode
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error verifying token:', error);
+    }
+    return null;
+  }
 } 

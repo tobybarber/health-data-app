@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { db, storage } from '../../../lib/firebase-admin';
-import { verifyAuthToken } from '../../../lib/auth-middleware';
+import { verifyTokenAndGetUserId } from '../../../lib/auth-middleware';
 import fs from 'fs';
 import { FieldValue } from 'firebase-admin/firestore';
 import { 
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Call verifyAuthToken with the token
-    const userId = await verifyIdToken(token);
+    const userId = await verifyTokenAndGetUserId(token);
     
     if (!userId) {
       return NextResponse.json(
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       console.log('Processing comment-only upload');
       
       // Create record in Firestore for comment-only upload
-      const recordData = {
+      const recordData: RecordData = {
         name: recordName.trim() || 'Medical Record',
         comment: comment,
         urls: [],
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Create record in Firestore with basic information initially
-    const recordData = {
+    const recordData: RecordData = {
       name: recordName.trim() || 'Medical Record',
       comment: comment,
       urls: fileUrls,
@@ -679,14 +679,21 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Helper function to verify Firebase ID token
-async function verifyIdToken(token: string): Promise<string | null> {
-  try {
-    const { getAuth } = require('firebase-admin/auth');
-    const decodedToken = await getAuth().verifyIdToken(token);
-    return decodedToken.uid;
-  } catch (error) {
-    console.error('Error verifying token:', error);
-    return null;
-  }
+// Define interface for record data
+interface RecordData {
+  name: string;
+  comment: string;
+  urls: string[];
+  fileCount: number;
+  isMultiFile: boolean;
+  createdAt: Date;
+  fileTypes: string[];
+  recordType: string;
+  recordDate: string;
+  analysisInProgress: boolean;
+  url?: string; // Optional URL for single-file uploads
+  analysis?: string;
+  briefSummary?: string;
+  detailedAnalysis?: string;
+  fhirResourceIds?: string[];
 } 
