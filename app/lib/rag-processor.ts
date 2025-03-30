@@ -126,7 +126,14 @@ export async function fhirResourcesToDocuments(resources: any[]): Promise<Docume
     const text = fhirResourceToText(resource);
     
     // Create metadata that will be useful for retrieval
-    const metadata = {
+    const metadata: {
+      resourceType: any;
+      id: any;
+      date: any;
+      code?: string;
+      display?: string;
+      [key: string]: any;  // Allow additional string-indexed properties
+    } = {
       resourceType: resource.resourceType,
       id: resource.id,
       date: resource.effectiveDateTime || resource.issued || resource.performedDateTime || 
