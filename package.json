@@ -9,13 +9,17 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@headlessui/react": "^1.7.17",
     "@types/nodemailer": "^6.4.17",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.16",
     "aws4": "^1.13.2",
     "axios": "^1.8.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "firebase": "^10.7.0",
     "firebase-admin": "^13.2.0",
+    "lucide-react": "^0.485.0",
     "next": "^14.0.3",
     "nodemailer": "^6.10.0",
     "openai": "^4.87.3",
@@ -24,8 +28,10 @@
     "postcss": "^8.4.31",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.5.2",
     "react-icons": "^4.12.0",
     "sharp": "^0.33.1",
+    "tailwind-merge": "^3.0.2",
     "tailwindcss": "^3.3.5",
     "tesseract.js": "^5.0.4",
     "uuid": "^11.1.0"
@@ -42,6 +48,7 @@
   },
   "optionalDependencies": {
     "@llamaindex/core": "^0.1.0",
-    "@llamaindex/openai": "^0.1.11"
+    "@llamaindex/openai": "^0.1.11",
+    "llamaindex": "^0.1.16"
   }
 }
