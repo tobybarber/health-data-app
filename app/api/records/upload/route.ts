@@ -533,10 +533,10 @@ export async function POST(request: NextRequest) {
           diagnosticReportIds: [] as string[]
         };
         
-        // Save DocumentReference
+        // Save DocumentReference if detected
         if (fhirResources.documentReference) {
           try {
-            const docRef = await createDocumentReference(
+            const docRefId = await createDocumentReference(
               userId,
               fhirResources.documentReference,
               patientId,
@@ -544,10 +544,9 @@ export async function POST(request: NextRequest) {
               fileTypes[0]
             );
             
-            // Check if docRef exists and has an id property
-            if (docRef && typeof docRef === 'object') {
-              savedResources.documentReferenceId = docRef.id || '';
-              console.log(`Saved DocumentReference with ID: ${docRef.id || 'unknown'}`);
+            if (docRefId) {
+              savedResources.documentReferenceId = docRefId;
+              console.log(`Saved DocumentReference with ID: ${docRefId}`);
             }
           } catch (err) {
             console.error('Error saving DocumentReference:', err);
@@ -557,16 +556,15 @@ export async function POST(request: NextRequest) {
         // Save Procedure if detected
         if (fhirResources.procedures && fhirResources.procedures.length > 0) {
           try {
-            const procedureRef = await createProcedure(
+            const procedureId = await createProcedure(
               userId,
               fhirResources.procedures[0],
               patientId
             );
             
-            // Check if procedureRef exists and has an id property
-            if (procedureRef && typeof procedureRef === 'object') {
-              savedResources.procedureId = procedureRef.id || '';
-              console.log(`Saved Procedure with ID: ${procedureRef.id || 'unknown'}`);
+            if (procedureId) {
+              savedResources.procedureId = procedureId;
+              console.log(`Saved Procedure with ID: ${procedureId}`);
             }
           } catch (err) {
             console.error('Error saving Procedure:', err);
@@ -576,31 +574,29 @@ export async function POST(request: NextRequest) {
         // Save ImagingStudy if detected
         if (fhirResources.imagingStudies && fhirResources.imagingStudies.length > 0) {
           try {
-            const imagingStudyRef = await createImagingStudy(
+            const imagingStudyId = await createImagingStudy(
               userId,
               fhirResources.imagingStudies[0],
               patientId
             );
             
-            // Check if imagingStudyRef exists and has an id property
-            if (imagingStudyRef && typeof imagingStudyRef === 'object') {
-              savedResources.imagingStudyId = imagingStudyRef.id || '';
-              console.log(`Saved ImagingStudy with ID: ${imagingStudyRef.id || 'unknown'}`);
+            if (imagingStudyId) {
+              savedResources.imagingStudyId = imagingStudyId;
+              console.log(`Saved ImagingStudy with ID: ${imagingStudyId}`);
               
               // Save DiagnosticReport for imaging if we have an imaging study
               if (fhirResources.imagingReports && fhirResources.imagingReports.length > 0) {
                 try {
-                  const reportRef = await createDiagnosticReportImaging(
+                  const reportId = await createDiagnosticReportImaging(
                     userId,
                     fhirResources.imagingReports[0],
                     patientId,
-                    imagingStudyRef.id
+                    imagingStudyId
                   );
                   
-                  // Check if reportRef exists and has an id property
-                  if (reportRef && typeof reportRef === 'object') {
-                    savedResources.diagnosticReportIds.push(reportRef.id || '');
-                    console.log(`Saved DiagnosticReport for imaging with ID: ${reportRef.id || 'unknown'}`);
+                  if (reportId) {
+                    savedResources.diagnosticReportIds.push(reportId);
+                    console.log(`Saved DiagnosticReport for imaging with ID: ${reportId}`);
                   }
                 } catch (err) {
                   console.error('Error saving DiagnosticReport for imaging:', err);
@@ -643,7 +639,8 @@ export async function POST(request: NextRequest) {
         };
         
         // Update the record in Firestore with FHIR resource IDs
-        await updateDoc(recordRef, recordWithFhirIds);
+        const recordRef = db.collection('users').doc(userId).collection('records').doc(docRef.id);
+        await recordRef.update(recordWithFhirIds);
         
       } catch (analysisError) {
         console.error('Error analyzing document:', analysisError);
