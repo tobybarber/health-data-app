@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, createContext, useContext } from 'react';
+import { useState, createContext, useContext, useEffect } from 'react';
 import { AuthProvider } from '../lib/AuthContext';
 import ErrorBoundary from './ErrorBoundary';
 import BottomNavigation from './BottomNavigation';
@@ -25,14 +25,40 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   const { showBackgroundLogo } = useBackgroundLogo();
   
+  // Fix for iOS viewport height issues
+  useEffect(() => {
+    const setVHVariable = () => {
+      // First we get the viewport height and we multiply it by 1% to get a value for a vh unit
+      let vh = window.innerHeight * 0.01;
+      // Then we set the value in the --vh custom property to the root of the document
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+      document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+    };
+
+    // Set the initial value
+    setVHVariable();
+
+    // Reset on orientation change and resize
+    window.addEventListener('resize', setVHVariable);
+    window.addEventListener('orientationchange', setVHVariable);
+
+    // Update immediately after load to handle Safari's address bar
+    setTimeout(setVHVariable, 100);
+    
+    return () => {
+      window.removeEventListener('resize', setVHVariable);
+      window.removeEventListener('orientationchange', setVHVariable);
+    };
+  }, []);
+  
   return (
     <>
       {/* Base black background - always present */}
-      <div className="fixed inset-0 z-0 bg-black" style={{ touchAction: 'none' }} />
+      <div className="fixed inset-0 z-0 bg-black" />
       
       {/* Logo overlay - conditionally rendered */}
       {showBackgroundLogo && (
-        <div className="absolute inset-0 z-0 fixed" style={{ touchAction: 'none' }}>
+        <div className="absolute inset-0 z-0 fixed">
           <div className="absolute inset-0 flex items-center justify-center opacity-15" style={{ paddingBottom: '15vh' }}>
             <div className="w-48 h-48 relative grayscale">
               <Image
@@ -49,7 +75,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       
       <HomeScreenDetect />
       <AppleSplashScreen />
-      <div className="relative z-10">
+      <div className="relative z-10 h-full">
         {children}
         {currentUser && <BottomNavigation />}
       </div>

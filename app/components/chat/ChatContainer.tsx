@@ -64,12 +64,14 @@ export default function ChatContainer() {
   };
 
   return (
-    <div className="flex flex-col h-full mb-20" ref={chatRef}>
-      <MessageList 
-        messages={messages} 
-        messagesEndRef={messagesEndRef}
-        isAiResponding={isAiResponding}
-      />
+    <div className="flex flex-col h-full pt-safe" ref={chatRef}>
+      <div className="flex-1 overflow-y-auto ios-scrollable pb-28">
+        <MessageList 
+          messages={messages} 
+          messagesEndRef={messagesEndRef}
+          isAiResponding={isAiResponding}
+        />
+      </div>
       <InputSection
         messages={messages}
         setMessages={setMessages}

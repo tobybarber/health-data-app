@@ -641,11 +641,11 @@ export default function Records() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-black text-white flex flex-col">
         <Navigation />
         
-        {/* Main content */}
-        <main className="pt-safe pb-safe px-4 max-w-4xl mx-auto">
+        {/* Main content - Updated for better scrolling on mobile */}
+        <main className="flex-1 pt-safe pb-safe px-4 max-w-4xl mx-auto w-full h-full overflow-y-auto -mt-2">
           <div className="mt-20 mb-24">
             {/* Header */}
             <div className="flex justify-between items-center mb-6">

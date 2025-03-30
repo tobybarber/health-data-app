@@ -61,8 +61,8 @@ export default function InputSection({
   };
 
   return (
-    <div className="border-t p-4">
-      <form onSubmit={handleSubmit} className="flex space-x-2">
+    <div className="border-t border-gray-800 p-4 pb-24 bg-black fixed bottom-0 left-0 right-0 z-20">
+      <form onSubmit={handleSubmit} className="flex space-x-2 max-w-4xl mx-auto">
         <button
           type="button"
           onClick={onNewChat}
@@ -76,7 +76,7 @@ export default function InputSection({
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
           placeholder="Type your message..."
-          className="flex-1 p-2 border rounded-lg"
+          className="flex-1 p-2 border border-gray-700 bg-gray-900 text-white rounded-lg"
           disabled={isAiResponding}
         />
         <MicrophoneButton

@@ -16,6 +16,7 @@ html {
   min-height: 100%;
   min-height: var(--app-height);
   min-height: calc(var(--vh, 1vh) * 100);
+  touch-action: manipulation; /* Improve touch handling on iOS */
 }
 
 body {
@@ -30,6 +31,7 @@ body {
   -webkit-overflow-scrolling: touch; /* Improve scrolling on iOS */
   min-height: var(--app-height);
   overscroll-behavior-y: none; /* Prevent pull-to-refresh in iOS */
+  touch-action: pan-x pan-y; /* Enable vertical and horizontal touch scrolling */
 }
 
 /* iOS standalone mode (added to home screen) */
@@ -57,6 +59,7 @@ body.standalone-mode main {
   height: 100%;
   height: var(--app-height);
   height: calc(var(--vh, 1vh) * 100);
+  touch-action: pan-y; /* Enable vertical scrolling on touchscreens */
 }
 
 /* iOS select element styling fix */
@@ -68,6 +71,14 @@ select {
   background-repeat: no-repeat;
   background-position: right 0.5rem center;
   background-size: 1em;
+}
+
+/* iOS specific scrollable content */
+.ios-scrollable {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+  touch-action: pan-y;
+  height: 100%;
 }
 
 /* Custom utility classes */
@@ -120,7 +131,7 @@ select {
 
 /* Add padding to the bottom of the page content to account for the bottom navigation */
 .pb-safe {
-  padding-bottom: calc(1rem + 94px); /* Adjusted for the new bottom navigation position */
+  padding-bottom: calc(1rem + 110px); /* Adjusted for the input box and bottom navigation */
 }
 
 /* Add padding to the top of the page content to account for the fixed top navigation */
