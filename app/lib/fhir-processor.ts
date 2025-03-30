@@ -170,7 +170,7 @@ export async function processMedicalDocument(
         );
         
         if (docRef) {
-          result.documentReferenceId = typeof docRef === 'string' ? docRef : docRef.id;
+          result.documentReferenceId = typeof docRef === 'string' ? docRef : (docRef as any).id;
           console.log(`Created DocumentReference: ${result.documentReferenceId}`);
         }
       } catch (err) {
@@ -188,7 +188,7 @@ export async function processMedicalDocument(
         );
         
         if (procedureRef) {
-          result.procedureId = typeof procedureRef === 'string' ? procedureRef : procedureRef.id;
+          result.procedureId = typeof procedureRef === 'string' ? procedureRef : (procedureRef as any).id;
           console.log(`Created Procedure: ${result.procedureId}`);
         }
       } catch (err) {
@@ -239,7 +239,7 @@ export async function processMedicalDocument(
         );
         
         if (imagingStudyRef) {
-          result.imagingStudyId = typeof imagingStudyRef === 'string' ? imagingStudyRef : imagingStudyRef.id;
+          result.imagingStudyId = typeof imagingStudyRef === 'string' ? imagingStudyRef : (imagingStudyRef as any).id;
           console.log(`Created ImagingStudy: ${result.imagingStudyId}`);
           
           // Save DiagnosticReport for imaging if we have an imaging study
@@ -253,7 +253,7 @@ export async function processMedicalDocument(
               );
               
               if (reportRef) {
-                const reportId = typeof reportRef === 'string' ? reportRef : reportRef.id;
+                const reportId = typeof reportRef === 'string' ? reportRef : (reportRef as any).id;
                 result.diagnosticReportIds.push(reportId);
                 console.log(`Created DiagnosticReport for imaging: ${reportId}`);
               }
