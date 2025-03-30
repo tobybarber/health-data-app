@@ -15,7 +15,10 @@ export const metadata: Metadata = {
 // Define viewport with minimal properties
 export const viewport: Viewport = {
   width: 'device-width',
-  initialScale: 1
+  initialScale: 1,
+  userScalable: false, // Disable pinch zooming for better touch handling
+  minimumScale: 1,
+  maximumScale: 1
 };
 
 // RootLayout is a server component
@@ -26,6 +29,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </head>
       <body className="bg-black min-h-screen">
         <ClientWrapper>
           <AuthProvider>

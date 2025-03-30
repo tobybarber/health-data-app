@@ -139,7 +139,45 @@ select {
   padding-top: 72px; /* Height of the navigation bar (56px) + some extra space */
 }
 
-/* Fix for fixed position elements */
+/* iOS scrolling fixes */
+.touch-pan-y {
+  touch-action: pan-y;
+}
+
+.-webkit-overflow-scrolling-touch {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Additional iOS scrolling fix for smooth momentum scrolling */
+@supports (-webkit-touch-callout: none) {
+  /* iOS specific styles */
+  .overflow-y-scroll {
+    overflow-y: scroll;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Fix for iOS 15+ */
+  body, .overflow-y-scroll {
+    /* Prevent scroll anchoring behavior */
+    overflow-y: auto;
+    overscroll-behavior-y: none;
+    /* Enable scrolling */
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Ensure proper fixed positioning */
 .fixed {
-  /* Safe area insets removed */
+  position: fixed;
+  /* Make sure iOS Safari doesn't apply its own positioning */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* iOS-specific scrollbar hiding */
+@supports (-webkit-touch-callout: none) {
+  ::-webkit-scrollbar {
+    width: 0px;
+    background: transparent;
+  }
 } 

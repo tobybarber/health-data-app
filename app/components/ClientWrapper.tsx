@@ -27,7 +27,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
   
   // Fix for iOS viewport height issues
   useEffect(() => {
-    const setVHVariable = () => {
+    // Helper function to fix iOS Safari's 100vh issue
+    const fixIOSViewportHeight = () => {
       // First we get the viewport height and we multiply it by 1% to get a value for a vh unit
       let vh = window.innerHeight * 0.01;
       // Then we set the value in the --vh custom property to the root of the document
@@ -35,19 +36,32 @@ function AppContent({ children }: { children: React.ReactNode }) {
       document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
     };
 
-    // Set the initial value
-    setVHVariable();
+    // Initial call
+    fixIOSViewportHeight();
 
-    // Reset on orientation change and resize
-    window.addEventListener('resize', setVHVariable);
-    window.addEventListener('orientationchange', setVHVariable);
-
-    // Update immediately after load to handle Safari's address bar
-    setTimeout(setVHVariable, 100);
+    // Add event listeners for resize and orientation change
+    window.addEventListener('resize', fixIOSViewportHeight);
+    window.addEventListener('orientationchange', fixIOSViewportHeight);
     
+    // Special fix for iOS Safari address bar appearance/disappearance
+    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+      // Wait for any UI to settle and then re-measure
+      setTimeout(fixIOSViewportHeight, 100);
+      
+      // Try again after scroll events (which often indicate address bar changes)
+      window.addEventListener('scroll', () => {
+        setTimeout(fixIOSViewportHeight, 100);
+      });
+    }
+
     return () => {
-      window.removeEventListener('resize', setVHVariable);
-      window.removeEventListener('orientationchange', setVHVariable);
+      window.removeEventListener('resize', fixIOSViewportHeight);
+      window.removeEventListener('orientationchange', fixIOSViewportHeight);
+      if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+        window.removeEventListener('scroll', () => {
+          setTimeout(fixIOSViewportHeight, 100);
+        });
+      }
     };
   }, []);
   
