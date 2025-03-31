@@ -1,11 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FaPaperPlane, FaPlus } from 'react-icons/fa';
 import MicrophoneButton from '../MicrophoneButton';
 import { Message } from '../../types/chat';
-import { sendMessage } from '../../services/messageService';
-import { useAuth } from '../../lib/AuthContext';
 
 interface InputSectionProps {
   messages: Message[];
@@ -15,6 +13,7 @@ interface InputSectionProps {
   lastInputWasVoice: boolean;
   setLastInputWasVoice: (wasVoice: boolean) => void;
   onNewChat: () => void;
+  onSendMessage: (text: string, wasVoice: boolean) => Promise<void>;
 }
 
 export default function InputSection({
@@ -24,39 +23,59 @@ export default function InputSection({
   setIsAiResponding,
   lastInputWasVoice,
   setLastInputWasVoice,
-  onNewChat
+  onNewChat,
+  onSendMessage
 }: InputSectionProps) {
   const [userInput, setUserInput] = useState('');
-  const { currentUser } = useAuth();
+  const [transcribing, setTranscribing] = useState(false);
+  const lastVoiceInputRef = useRef<boolean>(lastInputWasVoice);
+
+  // Effect to log voice input state changes and update the ref
+  useEffect(() => {
+    console.log('Voice input state changed:', lastInputWasVoice);
+    lastVoiceInputRef.current = lastInputWasVoice;
+  }, [lastInputWasVoice]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userInput.trim() || isAiResponding) return;
 
-    // Add user message
-    const newMessages = [...messages, { user: userInput, ai: '' }];
-    setMessages(newMessages);
+    // Capture the current voice input state before resetting
+    const wasVoiceInput = lastVoiceInputRef.current;
+    console.log('Submitting message, wasVoiceInput:', wasVoiceInput);
+    
+    // Save the user input and clear the input field
+    const messageText = userInput.trim();
     setUserInput('');
+    
+    // Set the responding state
     setIsAiResponding(true);
-
+    
     try {
-      const userId = currentUser?.uid || 'guest-user';
-      const response = await sendMessage(userInput, messages, userId, lastInputWasVoice);
+      // Add timestamp to the user's message for better tracking
+      const userMessage: Message = {
+        user: messageText,
+        ai: '',
+        wasVoiceInput: wasVoiceInput,
+        timestamp: Date.now()
+      };
       
-      // Update the last message with AI response
-      newMessages[newMessages.length - 1].ai = response.message;
-      if (response.responseId) newMessages[newMessages.length - 1].responseId = response.responseId;
-      if (response.audioData) newMessages[newMessages.length - 1].audioData = response.audioData;
+      // Update the messages immediately with just the user's message
+      setMessages([...messages, userMessage]);
       
-      setMessages([...newMessages]);
+      // Call the parent's onSendMessage callback
+      await onSendMessage(messageText, wasVoiceInput);
     } catch (error) {
-      console.error('Error getting AI response:', error);
-      // Update the last message with error
-      newMessages[newMessages.length - 1].ai = 'Sorry, I encountered an error. Please try again.';
-      setMessages([...newMessages]);
+      console.error('Error sending message:', error);
     } finally {
       setIsAiResponding(false);
-      setLastInputWasVoice(false);
+      
+      // Always reset voice input state after sending
+      if (lastVoiceInputRef.current) {
+        setTimeout(() => {
+          setLastInputWasVoice(false);
+        }, 300); // Small delay to ensure state changes don't conflict
+      }
     }
   };
 
@@ -74,15 +93,30 @@ export default function InputSection({
         <input
           type="text"
           value={userInput}
-          onChange={(e) => setUserInput(e.target.value)}
+          onChange={(e) => {
+            setUserInput(e.target.value);
+            // If the user types, it's not a voice input anymore
+            if (lastInputWasVoice) {
+              console.log('User is typing, setting voice input to false');
+              setLastInputWasVoice(false);
+            }
+          }}
           placeholder="Type your message..."
           className="flex-1 p-2 border border-gray-700 bg-gray-900 text-white rounded-lg"
-          disabled={isAiResponding}
+          disabled={isAiResponding || transcribing}
         />
         <MicrophoneButton
+          onTranscriptionStart={() => {
+            setTranscribing(true);
+          }}
+          onTranscriptionEnd={() => {
+            setTranscribing(false);
+          }}
           onTranscription={(text) => {
+            console.log('Transcription received, setting voice input to true');
             setUserInput(text);
             setLastInputWasVoice(true);
+            lastVoiceInputRef.current = true;
           }}
           disabled={isAiResponding}
         />

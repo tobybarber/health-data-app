@@ -5,10 +5,17 @@ import { FaMicrophone } from 'react-icons/fa';
 
 export interface MicrophoneButtonProps {
   onTranscription: (text: string) => void;
+  onTranscriptionStart?: () => void;
+  onTranscriptionEnd?: () => void;
   disabled?: boolean;
 }
 
-export default function MicrophoneButton({ onTranscription, disabled = false }: MicrophoneButtonProps) {
+export default function MicrophoneButton({ 
+  onTranscription, 
+  onTranscriptionStart,
+  onTranscriptionEnd,
+  disabled = false 
+}: MicrophoneButtonProps) {
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
 
@@ -26,21 +33,30 @@ export default function MicrophoneButton({ onTranscription, disabled = false }: 
           const transcript = event.results[0][0].transcript;
           onTranscription(transcript);
           setIsListening(false);
+          if (onTranscriptionEnd) {
+            onTranscriptionEnd();
+          }
         };
 
         recognition.onerror = (event: any) => {
           console.error('Speech recognition error:', event.error);
           setIsListening(false);
+          if (onTranscriptionEnd) {
+            onTranscriptionEnd();
+          }
         };
 
         recognition.onend = () => {
           setIsListening(false);
+          if (onTranscriptionEnd) {
+            onTranscriptionEnd();
+          }
         };
 
         setRecognition(recognition);
       }
     }
-  }, [onTranscription]);
+  }, [onTranscription, onTranscriptionEnd]);
 
   const toggleListening = useCallback(() => {
     if (disabled) return;
@@ -48,11 +64,17 @@ export default function MicrophoneButton({ onTranscription, disabled = false }: 
     if (isListening) {
       recognition?.stop();
       setIsListening(false);
+      if (onTranscriptionEnd) {
+        onTranscriptionEnd();
+      }
     } else if (recognition) {
       recognition.start();
       setIsListening(true);
+      if (onTranscriptionStart) {
+        onTranscriptionStart();
+      }
     }
-  }, [isListening, recognition, disabled]);
+  }, [isListening, recognition, disabled, onTranscriptionStart, onTranscriptionEnd]);
 
   if (!recognition) {
     return null;

@@ -416,7 +416,7 @@ export default function Upload() {
           <div className="h-16"></div>
           <div className="container mx-auto px-4 py-8 pb-24">
             <div className="flex justify-between items-center mb-6">
-              <h1 className="text-2xl font-bold text-primary-blue">Upload Health Record</h1>
+              <h1 className="text-2xl font-bold text-primary-blue">Upload Record</h1>
             </div>
             
             {apiKeyValid === false && !isLoading && (

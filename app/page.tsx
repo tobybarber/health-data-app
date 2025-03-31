@@ -87,8 +87,8 @@ export default function Home() {
   return (
     <ClientWrapper>
       <div className="flex flex-col min-h-screen bg-black">
-        <Navigation />
-        <main className="flex-1 flex flex-col overflow-hidden pt-16">
+        <Navigation isHomePage={true} />
+        <main className="flex-1 flex flex-col overflow-hidden pt-14">
           <ChatContainer />
         </main>
       </div>

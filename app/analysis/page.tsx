@@ -713,77 +713,80 @@ export default function Analysis() {
   return (
     <ProtectedRoute>
       <ClientWrapper>
-        <div className="container mx-auto px-4 pt-20 pb-8 bg-black text-white">
+        <div className="min-h-screen bg-black">
           <Navigation />
-          
-          <h1 className="text-3xl font-bold mb-6 text-white mt-10">Health Analysis</h1>
-          
-          {/* Analysis Settings Section */}
-          <AnalysisSettings onChange={handleSettingsChange} />
-          
-          {/* Analysis Content Section - Changed background to black */}
-          <div className="bg-black border border-gray-700 rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-6 px-1">
+          <div className="container mx-auto px-4 pt-20 pb-8 bg-black text-white">
+            <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold text-primary-blue">My Analysis</h1>
-              <div className="flex space-x-2 items-center">
-                <button
-                  className={`px-4 py-2 rounded text-white ${
-                    isUpdating ? 'bg-gray-600' : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-                  onClick={handleUpdate}
-                  disabled={isUpdating}
-                >
-                  {isUpdating ? 'Updating...' : needsUpdate ? 'Update Analysis' : 'Refresh Analysis'}
-                </button>
-                {needsUpdate && (
-                  <div className="bg-yellow-500 text-black px-3 py-1 rounded text-xs font-medium">
-                    Update needed
-                  </div>
-                )}
-                {recordCount > 0 && (
-                  <div className="bg-gray-700 text-white px-3 py-1 rounded text-xs font-medium">
-                    {recordCount} record{recordCount === 1 ? '' : 's'}
-                  </div>
-                )}
-              </div>
             </div>
             
-            {/* Analysis display */}
-            {isLoading ? (
-              <div className="flex justify-center items-center h-64">
-                <div className="animate-pulse text-gray-300">Loading analysis...</div>
+            {/* Analysis Settings Section */}
+            <AnalysisSettings onChange={handleSettingsChange} />
+            
+            {/* Analysis Content Section - Changed background to black */}
+            <div className="bg-black border border-gray-700 rounded-lg shadow p-6">
+              <div className="flex justify-between items-center mb-6 px-1">
+                <h2 className="text-lg font-medium text-primary-blue">Analysis Results</h2>
+                <div className="flex space-x-2 items-center">
+                  <button
+                    className={`px-4 py-2 rounded text-white ${
+                      isUpdating ? 'bg-gray-600' : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
+                    onClick={handleUpdate}
+                    disabled={isUpdating}
+                  >
+                    {isUpdating ? 'Updating...' : needsUpdate ? 'Update Analysis' : 'Refresh Analysis'}
+                  </button>
+                  {needsUpdate && (
+                    <div className="bg-yellow-500 text-black px-3 py-1 rounded text-xs font-medium">
+                      Update needed
+                    </div>
+                  )}
+                  {recordCount > 0 && (
+                    <div className="bg-gray-700 text-white px-3 py-1 rounded text-xs font-medium">
+                      {recordCount} record{recordCount === 1 ? '' : 's'}
+                    </div>
+                  )}
+                </div>
               </div>
-            ) : (
-              <div>
-                {updateError ? (
-                  <div className="bg-red-900 text-white p-4 rounded">
-                    {updateError}
-                  </div>
-                ) : (
-                  <div className="prose text-white max-w-none">
-                    <div className="mb-4">
-                      {lastUpdated && (
-                        <div className="text-xs text-gray-400 mb-2">
-                          Last updated: {lastUpdated}
+              
+              {/* Analysis display */}
+              {isLoading ? (
+                <div className="flex justify-center items-center h-64">
+                  <div className="animate-pulse text-gray-300">Loading analysis...</div>
+                </div>
+              ) : (
+                <div>
+                  {updateError ? (
+                    <div className="bg-red-900 text-white p-4 rounded">
+                      {updateError}
+                    </div>
+                  ) : (
+                    <div className="prose text-white max-w-none">
+                      <div className="mb-4">
+                        {lastUpdated && (
+                          <div className="text-xs text-gray-400 mb-2">
+                            Last updated: {lastUpdated}
+                          </div>
+                        )}
+                      </div>
+                      {formatAnalysisText(holisticAnalysis)}
+                      
+                      {/* Display info about analysis source */}
+                      {analysisSource && (
+                        <div className="mt-4 text-xs text-gray-400">
+                          <p>Analysis generated using: {
+                            analysisSource === 'rag+llamaindex' 
+                              ? 'Structured FHIR data with RAG approach' 
+                              : 'Text summaries with OpenAI'
+                          }</p>
                         </div>
                       )}
                     </div>
-                    {formatAnalysisText(holisticAnalysis)}
-                    
-                    {/* Display info about analysis source */}
-                    {analysisSource && (
-                      <div className="mt-4 text-xs text-gray-400">
-                        <p>Analysis generated using: {
-                          analysisSource === 'rag+llamaindex' 
-                            ? 'Structured FHIR data with RAG approach' 
-                            : 'Text summaries with OpenAI'
-                        }</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </ClientWrapper>

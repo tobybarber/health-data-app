@@ -4,4 +4,5 @@ export interface Message {
   responseId?: string;
   audioData?: string;
   wasVoiceInput?: boolean;
+  timestamp?: number;
 } 

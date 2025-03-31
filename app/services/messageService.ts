@@ -62,31 +62,60 @@ export const saveMessages = (userId: string, messages: Message[]): void => {
   }
 };
 
-export const sendMessage = async (
-  message: string,
-  history: Message[],
-  userId: string,
-  wasVoiceInput: boolean = false
-): Promise<{ message: string; responseId?: string; audioData?: string }> => {
-  const response = await fetch('/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message,
-      history,
-      wasVoiceInput,
-      userId
-    }),
-  });
+interface MessageResponse {
+  message: string;
+  responseId?: string;
+  audioData?: string;
+}
 
-  if (!response.ok) {
-    throw new Error('Failed to get AI response');
+/**
+ * Sends a message to the AI service and returns the response
+ */
+export async function sendMessage(
+  text: string, 
+  previousMessages: Message[], 
+  userId: string, 
+  wasVoiceInput: boolean
+): Promise<MessageResponse> {
+  try {
+    // Get the previous response ID if it exists in the last message
+    const previousResponseId = previousMessages.length > 0 ? previousMessages[previousMessages.length - 1].responseId : undefined;
+    
+    // Make the API call to your backend
+    const response = await fetch('/api/question', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        question: text,
+        userId,
+        previousResponseId,
+        generateAudio: wasVoiceInput,
+        voicePreference: 'alloy',
+        isGuest: userId === 'guest-user'
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to get AI response');
+    }
+    
+    return {
+      message: processChatResponse(data.answer),
+      responseId: data.responseId,
+      audioData: data.audioData,
+    };
+  } catch (error) {
+    console.error('Error in message service:', error);
+    return {
+      message: 'Sorry, I encountered an error. Please try again.',
+    };
   }
-
-  const data = await response.json();
-  return {
-    message: processChatResponse(data.message),
-    responseId: data.responseId,
-    audioData: data.audioData
-  };
-}; 
+} 
