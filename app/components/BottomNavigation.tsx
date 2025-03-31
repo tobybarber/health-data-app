@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { FaUpload, FaComments, FaHeartbeat, FaClipboardList, FaHome } from 'react-icons/fa';
+import StandaloneLink from './StandaloneLink';
 
 export default function BottomNavigation() {
   const pathname = usePathname();
@@ -22,7 +22,7 @@ export default function BottomNavigation() {
           paddingTop: '12px' 
         }}
       >
-        <Link
+        <StandaloneLink
           href="/"
           className="flex flex-col items-center justify-center text-center hover:scale-110 transition-all duration-200"
           style={{ height: '45px' }}
@@ -31,9 +31,9 @@ export default function BottomNavigation() {
             <FaHome />
           </div>
           <h2 className={`text-xs font-medium ${isActive('/')}`}>Home</h2>
-        </Link>
+        </StandaloneLink>
         
-        <Link
+        <StandaloneLink
           href="/upload"
           className="flex flex-col items-center justify-center text-center hover:scale-110 transition-all duration-200"
           style={{ height: '45px' }}
@@ -42,9 +42,9 @@ export default function BottomNavigation() {
             <FaUpload />
           </div>
           <h2 className={`text-xs font-medium ${isActive('/upload')}`}>Upload</h2>
-        </Link>
+        </StandaloneLink>
         
-        <Link
+        <StandaloneLink
           href="/records"
           className="flex flex-col items-center justify-center text-center hover:scale-110 transition-all duration-200"
           style={{ height: '45px' }}
@@ -53,9 +53,9 @@ export default function BottomNavigation() {
             <FaClipboardList />
           </div>
           <h2 className={`text-xs font-medium ${isActive('/records')}`}>My Records</h2>
-        </Link>
+        </StandaloneLink>
         
-        <Link
+        <StandaloneLink
           href="/analysis"
           className="flex flex-col items-center justify-center text-center hover:scale-110 transition-all duration-200"
           style={{ height: '45px' }}
@@ -64,9 +64,9 @@ export default function BottomNavigation() {
             <FaComments />
           </div>
           <h2 className={`text-xs font-medium ${isActive('/analysis')}`}>My Analysis</h2>
-        </Link>
+        </StandaloneLink>
         
-        <Link
+        <StandaloneLink
           href="/wearables"
           className="flex flex-col items-center justify-center text-center hover:scale-110 transition-all duration-200"
           style={{ height: '45px' }}
@@ -75,7 +75,7 @@ export default function BottomNavigation() {
             <FaHeartbeat />
           </div>
           <h2 className={`text-xs font-medium ${isActive('/wearables')}`}>My Wearables</h2>
-        </Link>
+        </StandaloneLink>
       </div>
     </>
   );

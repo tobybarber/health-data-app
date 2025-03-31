@@ -60,18 +60,27 @@ function SimpleGauge({ value, low, high, unit, name }: {
   const actualLow = (typeof low === 'number' && !isNaN(low)) ? low : numericValue * 0.7;
   const actualHigh = (typeof high === 'number' && !isNaN(high)) ? high : numericValue * 1.3;
   
+  // Calculate the normal range span
+  const normalRangeSpan = actualHigh - actualLow;
+  
   // Ensure we show values that fall outside the normal range
-  // Create a scale that extends 25% beyond normal range on both sides
-  const minScale = Math.min(actualLow * 0.75, numericValue * 0.75);
-  const maxScale = Math.max(actualHigh * 1.25, numericValue * 1.25);
-  const range = maxScale - minScale;
+  // Create a scale that extends 50% of the normal range beyond both sides
+  const minScale = actualLow - (normalRangeSpan * 0.5);
+  const maxScale = actualHigh + (normalRangeSpan * 0.5);
+  
+  // Ensure the value is still within the display scale
+  // If value is outside our calculated scale, adjust the scale to include it
+  const finalMinScale = Math.min(minScale, numericValue);
+  const finalMaxScale = Math.max(maxScale, numericValue);
+  
+  const range = finalMaxScale - finalMinScale;
   
   // Calculate position percentage
-  const position = Math.min(100, Math.max(0, ((numericValue - minScale) / range) * 100));
+  const position = Math.min(100, Math.max(0, ((numericValue - finalMinScale) / range) * 100));
   
   // Calculate position of normal range markers
-  const lowPosition = ((actualLow - minScale) / range) * 100;
-  const highPosition = ((actualHigh - minScale) / range) * 100;
+  const lowPosition = ((actualLow - finalMinScale) / range) * 100;
+  const highPosition = ((actualHigh - finalMinScale) / range) * 100;
   
   // Determine if value is in range
   const inRange = numericValue >= actualLow && numericValue <= actualHigh;
@@ -104,8 +113,8 @@ function SimpleGauge({ value, low, high, unit, name }: {
       
       {/* Range indicators */}
       <div className="flex justify-between text-xs text-gray-400 mt-1">
-        <div>{actualLow.toFixed(1)}</div>
-        <div>{actualHigh.toFixed(1)}</div>
+        <div>{finalMinScale.toFixed(1)}</div>
+        <div>{finalMaxScale.toFixed(1)}</div>
       </div>
     </div>
   );
@@ -695,13 +704,13 @@ export default function Records() {
         {/* Main content - Structure specially for iOS scrolling */}
         <div className="fixed top-16 bottom-16 left-0 right-0 overflow-hidden records-scroll-container">
           <div className="h-full w-full overflow-y-scroll touch-pan-y -webkit-overflow-scrolling-touch records-scroll-wrapper">
-            <div className="px-4 py-6 pb-24 max-w-4xl mx-auto">
+            <div className="px-2 py-6 pb-24 max-w-4xl mx-auto">
               {/* Header */}
               <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold text-primary-blue">My Records</h1>
                 <Link 
                   href="/upload" 
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center"
+                  className="text-blue-400 hover:text-blue-300 flex items-center"
                 >
                   <FaPlus className="mr-2" /> Upload
                 </Link>
@@ -762,7 +771,7 @@ export default function Records() {
                       <p className="text-gray-500 mb-4">Upload your first medical record to get started</p>
                       <Link 
                         href="/upload" 
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg inline-flex items-center"
+                        className="text-blue-400 hover:text-blue-300 inline-flex items-center"
                       >
                         <FaPlus className="mr-2" /> Upload Record
                       </Link>
@@ -790,6 +799,9 @@ export default function Records() {
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-white truncate max-w-[240px] sm:max-w-none flex items-center gap-2">
                                 {record.recordType || 'Unknown Record'}
+                                <span className="text-sm text-gray-400 ml-2">
+                                  {new Date(record.recordDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                                </span>
                                 {record.analysisStatus === 'pending' && (
                                   <div className="inline-flex items-center relative group">
                                     <span className="animate-spin h-3.5 w-3.5 border-2 border-blue-400 border-t-transparent rounded-full mr-1.5"></span>
@@ -818,7 +830,7 @@ export default function Records() {
                                 )}
                               </div>
                               <div className="text-sm text-gray-400 flex flex-wrap items-center gap-1 sm:gap-2">
-                                <span>{formatDate(record.recordDate)}</span>
+                                {/* Date moved to be on the same line as the record type */}
                               </div>
                             </div>
                           </div>
@@ -907,7 +919,14 @@ export default function Records() {
                                         );
                                       
                                       return (
-                                        <li key={observation.id} className="px-3 py-2 bg-gray-800/50 rounded-md">
+                                        <li 
+                                          key={observation.id} 
+                                          className="px-3 py-2 bg-gray-800/50 rounded-md cursor-pointer hover:bg-gray-800/80 transition-colors"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            window.location.href = `/observation/${observation.id}`;
+                                          }}
+                                        >
                                           <div className="flex justify-between items-start">
                                             <div>
                                               <div className="flex items-center">
@@ -935,21 +954,6 @@ export default function Records() {
                                                 unit={observation.valueQuantity?.unit || ''}
                                                 name={name}
                                               />
-                                              
-                                              {/* Link to the detailed page */}
-                                              <div className="flex justify-end">
-                                                <Link
-                                                  href={`/observation/${observation.id}`}
-                                                  className="flex items-center text-xs text-blue-300 hover:text-blue-200"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    console.log(`Navigating to observation: ${observation.id}`);
-                                                  }}
-                                                >
-                                                  <ActivityIcon className="h-3 w-3 mr-1" />
-                                                  Detailed View
-                                                </Link>
-                                              </div>
                                             </div>
                                           )}
                                         </li>
@@ -969,7 +973,7 @@ export default function Records() {
                                     href={record.url} 
                                     target="_blank" 
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md"
+                                    className="inline-flex items-center text-sm text-blue-400 hover:text-blue-300"
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     <FaExternalLinkAlt className="mr-2" size={12} />
@@ -989,7 +993,7 @@ export default function Records() {
                                           href={url}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="inline-flex items-center text-xs bg-gray-800 hover:bg-gray-700 text-white px-2 py-1 rounded"
+                                          className="inline-flex items-center text-xs text-blue-400 hover:text-blue-300 mr-3"
                                           onClick={(e) => e.stopPropagation()}
                                         >
                                           <FaExternalLinkAlt className="mr-1" size={10} />
@@ -1008,10 +1012,10 @@ export default function Records() {
                                     deleteRecord(record.id);
                                   }
                                 }}
-                                className="inline-flex items-center justify-center text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md sm:w-auto w-full"
+                                className="inline-flex items-center text-sm text-red-500 hover:text-red-400 cursor-pointer"
                               >
                                 <FaTrash className="mr-2" size={12} />
-                                Delete Record
+                                Delete
                               </button>
                             </div>
                           </div>

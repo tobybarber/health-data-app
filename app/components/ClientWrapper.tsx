@@ -8,11 +8,13 @@ import { useAuth } from '../lib/AuthContext';
 import HomeScreenDetect from './HomeScreenDetect';
 import AppleSplashScreen from './AppleSplashScreen';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 
 // Extend Window interface to include our custom properties
 declare global {
   interface Window {
     initialViewportHeight?: number;
+    fixIOSStandalone?: () => void;
   }
 }
 
@@ -31,6 +33,7 @@ export function useBackgroundLogo() {
 function AppContent({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   const { showBackgroundLogo } = useBackgroundLogo();
+  const pathname = usePathname();
   
   // Fix for iOS viewport height issues
   useEffect(() => {
@@ -68,6 +71,50 @@ function AppContent({ children }: { children: React.ReactNode }) {
         window.matchMedia('(display-mode: standalone)').matches;
       
       if (isStandalone) {
+        // Define a global function to fix standalone mode issues that can be called from anywhere
+        const fixIOSStandalone = () => {
+          console.log('Applying iOS standalone mode fixes');
+          
+          // Apply viewport-fit=cover again to ensure status bar is handled correctly
+          const metaViewport = document.querySelector('meta[name="viewport"]');
+          if (metaViewport) {
+            const content = metaViewport.getAttribute('content') || '';
+            if (!content.includes('viewport-fit=cover')) {
+              metaViewport.setAttribute('content', 
+                'width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no'
+              );
+            }
+          }
+          
+          // Re-add standalone mode classes
+          document.body.classList.add('standalone-mode');
+          document.documentElement.classList.add('standalone-mode');
+          document.documentElement.style.setProperty('--standalone-mode', '1');
+          
+          // Handle iOS safe areas properly
+          document.documentElement.style.setProperty('--safe-area-top', 'env(safe-area-inset-top)');
+          document.documentElement.style.setProperty('--safe-area-bottom', 'env(safe-area-inset-bottom)');
+          
+          // Fix Safari height calculation
+          document.body.style.height = '-webkit-fill-available';
+          document.body.style.minHeight = 'calc(var(--vh, 1vh) * 100)';
+          
+          // Force viewport height recalculation
+          fixIOSViewportHeight();
+          
+          // Force-hide Safari UI
+          if (window.scrollY === 0) {
+            window.scrollTo(0, 1);
+            setTimeout(() => window.scrollTo(0, 0), 50);
+          }
+        };
+        
+        // Make the function globally available
+        window.fixIOSStandalone = fixIOSStandalone;
+        
+        // Call immediately
+        fixIOSStandalone();
+        
         // Apply viewport-fit=cover again to ensure status bar is handled correctly
         const metaViewport = document.querySelector('meta[name="viewport"]');
         if (metaViewport) {
@@ -90,6 +137,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
             document.body.style.display = '';
             
             fixIOSViewportHeight();
+            
+            // Call our global fix function
+            if (window.fixIOSStandalone) {
+              window.fixIOSStandalone();
+            }
           }, 300);
         };
         
@@ -130,6 +182,14 @@ function AppContent({ children }: { children: React.ReactNode }) {
       window.removeEventListener('orientationchange', fixIOSViewportHeight);
     };
   }, []);
+  
+  // Apply fixes after page navigation
+  useEffect(() => {
+    // If we're in standalone mode, reapply fixes after each page navigation
+    if (window.fixIOSStandalone) {
+      window.fixIOSStandalone();
+    }
+  }, [pathname]);
   
   return (
     <>

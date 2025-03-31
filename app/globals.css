@@ -255,4 +255,14 @@ select {
 
 .safe-right {
   padding-right: env(safe-area-inset-right);
+}
+
+/* iOS specific profile name fix */
+@supports (-webkit-touch-callout: none) {
+  .text-primary-blue span {
+    color: white !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
 } 
