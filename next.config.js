@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const webpack = require('webpack');
+
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
@@ -38,7 +40,7 @@ const nextConfig = {
       // Suppress React DevTools prompt
       if (process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_DISABLE_LOGS === 'true') {
         config.plugins.push(
-          new config.webpack.DefinePlugin({
+          new webpack.DefinePlugin({
             '__REACT_DEVTOOLS_GLOBAL_HOOK__': '({ isDisabled: true })'
           })
         );
@@ -54,8 +56,6 @@ const nextConfig = {
     return config;
   },
   env: {
-    // Set Tesseract data directory location
-    TESSDATA_PREFIX: 'C:\\Program Files\\Tesseract-OCR\\tessdata',
     // Disable console logging in browser
     NEXT_PUBLIC_DISABLE_LOGS: 'true',
   },

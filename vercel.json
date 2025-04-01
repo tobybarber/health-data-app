@@ -3,9 +3,14 @@
     "app/api/analyze/route.ts": {
       "memory": 1024,
       "maxDuration": 60
+    },
+    "app/api/openai/analyze/route.ts": {
+      "memory": 1024,
+      "maxDuration": 60
     }
   },
   "routes": [
-    { "src": "/api/analyze", "dest": "/api/analyze" }
+    { "src": "/api/analyze", "dest": "/api/analyze" },
+    { "src": "/api/openai/analyze", "dest": "/api/openai/analyze" }
   ]
 } 
