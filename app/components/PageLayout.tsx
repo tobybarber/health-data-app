@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useState } from 'react';
 import Navigation from './Navigation';
+import { usePathname } from 'next/navigation';
 
 interface PageLayoutProps {
   children: ReactNode;
@@ -17,6 +18,7 @@ export default function PageLayout({
   showBackgroundLogo = false
 }: PageLayoutProps) {
   const [isStandalone, setIsStandalone] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     // Check if the app is running in standalone mode
@@ -30,7 +32,7 @@ export default function PageLayout({
     <div className="min-h-screen bg-gray-950">
       <Navigation isHomePage={isHomePage} isStandalone={isStandalone} />
       <main 
-        className={`pb-24 transition-all duration-200 ${
+        className={`transition-all duration-200 ${
           isStandalone 
             ? 'pt-[calc(env(safe-area-inset-top)+60px)]' // Account for status bar + nav height in standalone
             : 'pt-16' // Regular nav height in browser

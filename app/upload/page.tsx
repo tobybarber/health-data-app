@@ -560,7 +560,7 @@ export default function Upload() {
                 <div className="flex items-center justify-between">
                   <Link
                     href="/records"
-                    className="inline-flex items-center px-4 py-2 border border-gray-700 text-sm font-medium rounded-md text-gray-300 bg-black hover:bg-gray-900"
+                    className="inline-flex items-center px-4 py-2 border border-gray-700 text-sm font-medium rounded-md text-gray-300 bg-gray-950 hover:bg-gray-900"
                   >
                     Cancel
                   </Link>

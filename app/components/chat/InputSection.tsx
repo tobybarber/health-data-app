@@ -81,7 +81,7 @@ export default function InputSection({
 
   return (
     <div className="p-4 pb-24 bg-gray-950 fixed bottom-0 left-0 right-0 z-20">
-      <form onSubmit={handleSubmit} className="flex space-x-2 max-w-4xl mx-auto">
+      <div className="flex justify-end mb-2">
         <button
           type="button"
           onClick={onNewChat}
@@ -90,6 +90,8 @@ export default function InputSection({
         >
           <FaPlus />
         </button>
+      </div>
+      <form onSubmit={handleSubmit} className="flex space-x-2 max-w-4xl mx-auto">
         <input
           type="text"
           value={userInput}
@@ -101,7 +103,7 @@ export default function InputSection({
               setLastInputWasVoice(false);
             }
           }}
-          placeholder="Type your message..."
+          placeholder="Ask about your health records..."
           className="flex-1 p-2 border border-gray-700 bg-gray-900 text-white rounded-lg"
           disabled={isAiResponding || transcribing}
         />
