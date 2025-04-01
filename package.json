@@ -12,8 +12,6 @@
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
-    "@llamaindex/core": "0.1.0",
-    "@llamaindex/openai": "0.1.11",
     "@types/nodemailer": "^6.4.17",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.16",
@@ -24,14 +22,12 @@
     "clsx": "^2.1.1",
     "firebase": "^10.7.0",
     "firebase-admin": "^13.2.0",
-    "llamaindex": "0.1.16",
     "lucide-react": "^0.485.0",
     "next": "^14.0.3",
     "node-fetch": "^3.3.2",
     "nodemailer": "^6.10.0",
     "openai": "^4.87.3",
     "pdf-lib": "^1.17.1",
-    "pdf-parse": "^1.1.1",
     "postcss": "^8.4.31",
     "react": "^18.2.0",
     "react-chartjs-2": "^5.3.0",
@@ -41,7 +37,6 @@
     "sharp": "^0.33.1",
     "tailwind-merge": "^3.0.2",
     "tailwindcss": "^3.3.5",
-    "tesseract.js": "^5.0.4",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

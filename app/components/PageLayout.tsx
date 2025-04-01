@@ -30,19 +30,23 @@ export default function PageLayout({
     <div className="min-h-screen bg-gray-950">
       <Navigation isHomePage={isHomePage} isStandalone={isStandalone} />
       <main 
-        className={`${isStandalone ? 'pt-0' : 'pt-16'} pb-24 transition-all duration-200`}
+        className={`pb-24 transition-all duration-200 ${
+          isStandalone 
+            ? 'pt-[calc(env(safe-area-inset-top)+60px)]' // Account for status bar + nav height in standalone
+            : 'pt-16' // Regular nav height in browser
+        }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-4">
             {title && (
-              <h1 className={`text-2xl font-bold text-white ${isStandalone ? 'mt-2' : 'mt-0'}`}>
+              <h1 className="text-2xl font-bold text-white">
                 {title}
               </h1>
             )}
             {subtitle && (
               <p className="mt-1 text-gray-400">{subtitle}</p>
             )}
-            <div className={`${title ? 'mt-4' : ''} ${isStandalone ? 'space-y-4' : 'space-y-6'}`}>
+            <div className={`${title ? 'mt-4' : ''} space-y-6`}>
               {children}
             </div>
           </div>

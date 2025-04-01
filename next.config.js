@@ -9,22 +9,12 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    serverComponentsExternalPackages: ['pdf-parse', 'sharp', 'tesseract.js'],
+    serverComponentsExternalPackages: ['sharp'],
     outputFileTracingIncludes: {
-      '/api/**/*': ['./node_modules/**/*.wasm', './node_modules/**/*.proto', './node_modules/tesseract.js/**/*']
+      '/api/**/*': ['./node_modules/**/*.wasm', './node_modules/**/*.proto']
     }
   },
   webpack: (config, { isServer }) => {
-    // Fix for tesseract.js dependency issues
-    config.resolve.alias.canvas = false;
-    config.resolve.alias.encoding = false;
-
-    // Avoid worker script resolution issues by marking these as externals
-    config.externals.push({
-      'tesseract.js-core': 'commonjs tesseract.js-core',
-      'worker-loader': 'commonjs worker-loader',
-    });
-
     // Fixes npm packages that depend on node modules
     if (!isServer) {
       config.resolve.fallback = {
@@ -34,10 +24,9 @@ const nextConfig = {
         os: false,
         crypto: false,
         stream: false,
-        // Add any other Node.js built-ins that are used by dependencies
       };
 
-      // Suppress React DevTools prompt
+      // Suppress React DevTools prompt in production
       if (process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_DISABLE_LOGS === 'true') {
         config.plugins.push(
           new webpack.DefinePlugin({
@@ -47,25 +36,11 @@ const nextConfig = {
       }
     }
 
-    // Exclude specific problematic node modules from the bundle
+    // Exclude sharp from the bundle as it's used server-side
     config.module.rules.push({
-      test: /node_modules[/\\](onnxruntime-node|sharp)[/\\].+/,
+      test: /node_modules[/\\]sharp[/\\].+/,
       use: 'null-loader',
     });
-
-    // Add verbose logging for imports
-    config.infrastructureLogging = {
-      level: 'verbose',
-      debug: /webpack/
-    };
-    
-    // Log modules that are being processed
-    config.stats = {
-      logging: 'verbose',
-      modules: true,
-      modulesSpace: 100,
-      reasons: true
-    };
 
     return config;
   },
