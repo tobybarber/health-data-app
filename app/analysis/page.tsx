@@ -88,22 +88,6 @@ export default function Analysis() {
   }, [setShowBackgroundLogo]);
 
   useEffect(() => {
-    // Check if OpenAI API key is valid
-    async function checkApiKey() {
-      try {
-        const isValid = await isApiKeyValid();
-        if (!isValid) {
-          console.error('OpenAI API key is invalid or not configured properly.');
-        }
-      } catch (err) {
-        console.error('Error checking API key:', err);
-      }
-    }
-    
-    checkApiKey();
-  }, []);
-
-  useEffect(() => {
     async function fetchAnalysis() {
       if (!currentUser) return;
       

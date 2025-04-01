@@ -11,10 +11,15 @@ let ragServiceErrors: string[] = [];
 // Function to dynamically import the RAG service when needed
 async function importRagService() {
   try {
-    const module = await import('../../lib/rag-service');
-    generateHolisticAnalysis = module.generateHolisticAnalysis;
-    console.log('Successfully imported RAG service');
-    return true;
+    // Use dynamic import with catch to prevent build failure
+    const module = await import('../../lib/rag-service').catch(() => null);
+    if (module) {
+      generateHolisticAnalysis = module.generateHolisticAnalysis;
+      console.log('Successfully imported RAG service');
+      return true;
+    }
+    console.log('RAG service module not available');
+    return false;
   } catch (error) {
     console.error('Failed to import RAG service:', error);
     ragServiceImportFailed = true;

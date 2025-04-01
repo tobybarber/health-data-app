@@ -5,12 +5,34 @@ export const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+// Cache for API key validation
+let apiKeyValidationCache: {
+  success: boolean;
+  message: string;
+  timestamp: number;
+} | null = null;
+
+// Cache duration in milliseconds (5 minutes)
+const CACHE_DURATION = 5 * 60 * 1000;
+
 // Function to validate OpenAI API key
 export async function validateOpenAIKey() {
+  const now = Date.now();
+  
+  // If we have a cached result that's still valid, return it
+  if (apiKeyValidationCache && now - apiKeyValidationCache.timestamp < CACHE_DURATION) {
+    return {
+      success: apiKeyValidationCache.success,
+      message: apiKeyValidationCache.message
+    };
+  }
+  
   const apiKey = process.env.OPENAI_API_KEY;
   
   if (!apiKey) {
-    return { success: false, message: 'OpenAI API key not found' };
+    const result = { success: false, message: 'OpenAI API key not found' };
+    apiKeyValidationCache = { ...result, timestamp: now };
+    return result;
   }
   
   try {
@@ -21,12 +43,16 @@ export async function validateOpenAIKey() {
       max_tokens: 5
     });
     
-    return { success: true, message: 'OpenAI API key is valid' };
+    const result = { success: true, message: 'OpenAI API key is valid' };
+    apiKeyValidationCache = { ...result, timestamp: now };
+    return result;
   } catch (error) {
-    return { 
+    const result = { 
       success: false, 
       message: `OpenAI API key validation error: ${(error as Error).message}` 
     };
+    apiKeyValidationCache = { ...result, timestamp: now };
+    return result;
   }
 }
 

@@ -75,18 +75,21 @@ export default function Upload() {
     // Check if OpenAI API key is valid
     async function checkApiKey() {
       try {
-        const isValid = await isApiKeyValid();
-        setApiKeyValid(isValid);
-        setApiKeyChecked(true);
-        if (!isValid) {
-          setError(
-            'OpenAI API Key Issue\n\n' +
-            'The OpenAI API key is missing or invalid. Files will be uploaded but analysis will be skipped.\n\n' +
-            'How to fix this\n' +
-            '1. Check the .env.local file in the project root\n' +
-            '2. Ensure your OpenAI API key is correctly configured\n' +
-            '3. Restart the development server if you make changes'
-          );
+        // Only check if we haven't checked before or if the cache is invalid
+        if (!apiKeyChecked) {
+          const isValid = await isApiKeyValid();
+          setApiKeyValid(isValid);
+          setApiKeyChecked(true);
+          if (!isValid) {
+            setError(
+              'OpenAI API Key Issue\n\n' +
+              'The OpenAI API key is missing or invalid. Files will be uploaded but analysis will be skipped.\n\n' +
+              'How to fix this\n' +
+              '1. Check the .env.local file in the project root\n' +
+              '2. Ensure your OpenAI API key is correctly configured\n' +
+              '3. Restart the development server if you make changes'
+            );
+          }
         }
       } catch (err) {
         // Only log errors in development mode
@@ -105,7 +108,7 @@ export default function Upload() {
     if (currentUser) {
       testFirestoreWrite(currentUser.uid);
     }
-  }, [currentUser]);
+  }, []); // Remove currentUser dependency since it's not needed for API key check
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
