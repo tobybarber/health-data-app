@@ -903,8 +903,7 @@ export default function Analysis() {
       <ClientWrapper>
         <div className="min-h-screen bg-gray-900 text-white">
           <Navigation />
-          
-          <main className="container mx-auto px-4 py-8 max-w-4xl pt-24 pb-16">
+          <div className="container mx-auto px-4 pt-16 pb-8 bg-black text-white">
             <header className="mb-6">
               <h1 className="text-3xl font-bold">Health Analysis</h1>
               <p className="text-gray-400">
@@ -987,7 +986,7 @@ export default function Analysis() {
                 </div>
               </div>
             )}
-          </main>
+          </div>
         </div>
       </ClientWrapper>
     </ProtectedRoute>

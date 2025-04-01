@@ -78,10 +78,10 @@ body.standalone-mode .fixed.bottom-0 {
 
 /* Main content in standalone mode */
 body.standalone-mode main {
-  padding-top: calc(56px + var(--safe-area-top));
-  padding-bottom: calc(70px + var(--safe-area-bottom));
-  min-height: calc(100vh - 56px - 70px);
-  min-height: calc(var(--vh, 1vh) * 100 - 56px - 70px - var(--safe-area-top) - var(--safe-area-bottom));
+  padding-top: calc(48px + var(--safe-area-top));
+  padding-bottom: calc(60px + var(--safe-area-bottom));
+  min-height: calc(100vh - 48px - 60px);
+  min-height: calc(var(--vh, 1vh) * 100 - 48px - 60px - var(--safe-area-top) - var(--safe-area-bottom));
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch !important;
   touch-action: pan-y !important;
@@ -158,11 +158,11 @@ select {
 
 /* Safe area padding utilities */
 .pb-safe {
-  padding-bottom: max(calc(1rem + 110px), calc(1rem + 110px + var(--safe-area-bottom)));
+  padding-bottom: max(calc(1rem + 90px), calc(1rem + 90px + var(--safe-area-bottom)));
 }
 
 .pt-safe {
-  padding-top: max(72px, calc(72px + var(--safe-area-top)));
+  padding-top: max(60px, calc(60px + var(--safe-area-top)));
 }
 
 /* iOS scrolling utilities */
