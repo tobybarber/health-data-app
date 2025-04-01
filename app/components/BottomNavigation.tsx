@@ -3,9 +3,28 @@
 import { usePathname } from 'next/navigation';
 import { FaUpload, FaComments, FaHeartbeat, FaClipboardList, FaHome } from 'react-icons/fa';
 import StandaloneLink from './StandaloneLink';
+import { useEffect, useState } from 'react';
 
 export default function BottomNavigation() {
   const pathname = usePathname();
+  const [isStandalone, setIsStandalone] = useState(false);
+  
+  useEffect(() => {
+    const checkStandalone = () => {
+      const standalone = typeof window !== 'undefined' && (
+        (window.navigator as any).standalone === true || 
+        window.matchMedia('(display-mode: standalone)').matches
+      );
+      setIsStandalone(standalone);
+    };
+
+    checkStandalone();
+    
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    mediaQuery.addEventListener('change', checkStandalone);
+    
+    return () => mediaQuery.removeEventListener('change', checkStandalone);
+  }, []);
   
   const isActive = (path: string) => {
     return pathname === path ? 'text-primary-blue' : 'text-gray-400';
@@ -15,10 +34,12 @@ export default function BottomNavigation() {
     <>
       <div className="fixed bottom-0 left-0 right-0 h-[1px] bg-gray-800 z-10"></div>
       <nav 
-        className="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-sm border-t border-gray-800 z-10" 
+        className={`fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-sm border-t border-gray-800 z-10 ${
+          isStandalone ? 'standalone-nav' : ''
+        }`}
         style={{ 
-          paddingBottom: 'env(safe-area-inset-bottom)',
-          height: 'calc(60px + env(safe-area-inset-bottom))'
+          height: isStandalone ? 'calc(60px + env(safe-area-inset-bottom))' : '60px',
+          paddingBottom: isStandalone ? 'env(safe-area-inset-bottom)' : '0'
         }}
       >
         <div className="h-[60px] flex justify-around items-center">
