@@ -20,8 +20,8 @@ export default function PageLayout({
     <div className="min-h-screen bg-black">
       <Navigation isHomePage={isHomePage} />
       
-      {/* Main content container with dynamic padding for iOS safe areas */}
-      <main className="container mx-auto px-4 pt-safe pb-safe">
+      {/* Main content container */}
+      <main className="container mx-auto px-4">
         {/* Optional header section */}
         {(title || subtitle) && (
           <header className="mb-6">
