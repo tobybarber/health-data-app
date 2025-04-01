@@ -81,7 +81,7 @@ export async function sendMessage(
     // Get the previous response ID if it exists in the last message
     const previousResponseId = previousMessages.length > 0 ? previousMessages[previousMessages.length - 1].responseId : undefined;
     
-    // Make the API call to your backend
+    // Make the API call to the question endpoint
     const response = await fetch('/api/question', {
       method: 'POST',
       headers: {
@@ -109,8 +109,8 @@ export async function sendMessage(
     
     return {
       message: processChatResponse(data.answer),
-      responseId: data.responseId,
-      audioData: data.audioData,
+      responseId: data.id,
+      audioData: data.audioUrl,
     };
   } catch (error) {
     console.error('Error in message service:', error);

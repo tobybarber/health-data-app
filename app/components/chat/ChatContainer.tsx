@@ -98,7 +98,6 @@ export default function ChatContainer() {
 
   // Handle sending messages
   const handleSendMessage = async (text: string, wasVoice: boolean) => {
-    // Note: The user message is now added in InputSection component
     setIsAiResponding(true);
     
     try {
@@ -130,9 +129,6 @@ export default function ChatContainer() {
         
         return updatedMessages;
       });
-      
-      // Save to session storage after updating
-      saveSessionMessages(userId, messages);
       
     } catch (error) {
       console.error('Error getting AI response:', error);
