@@ -806,21 +806,21 @@ export default function Analysis() {
   // Just add this in the return statement after the main analysis section
   // and before any existing modals
   const indexStatusSection = (
-    <div className="mt-6 bg-gray-800 rounded-lg p-4">
-      <h3 className="text-xl font-semibold text-white mb-2">AI Chat Vector Index</h3>
-      <p className="text-sm text-gray-300 mb-4">
+    <div className="mt-6 bg-tertiary rounded-lg p-4">
+      <h3 className="text-xl font-semibold text-primary mb-2">AI Chat Vector Index</h3>
+      <p className="text-sm text-secondary mb-4">
         This index enables the AI to quickly search through your health data when answering questions in the AI Chat.
         Building the index may take several minutes, especially if you have a large amount of health data.
       </p>
       
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-gray-300">Status:</span>
+          <span className="text-secondary">Status:</span>
           <span className={`px-2 py-1 rounded text-xs font-semibold ${
-            indexStatus === 'complete' ? 'bg-green-600 text-white' :
-            indexStatus === 'building' ? 'bg-blue-600 text-white' :
-            indexStatus === 'error' ? 'bg-red-600 text-white' :
-            'bg-gray-600 text-gray-200'
+            indexStatus === 'complete' ? 'bg-success text-primary' :
+            indexStatus === 'building' ? 'bg-info text-primary' :
+            indexStatus === 'error' ? 'bg-error text-primary' :
+            'bg-tertiary text-secondary'
           }`}>
             {indexStatus === 'complete' ? 'Built' : 
              indexStatus === 'building' ? 'Building...' :
@@ -828,28 +828,28 @@ export default function Analysis() {
           </span>
           
           {indexNeedsRebuild && indexStatus !== 'building' && (
-            <span className="ml-2 text-orange-500">(Needs rebuilding)</span>
+            <span className="ml-2 text-warning">(Needs rebuilding)</span>
           )}
         </div>
         
         {indexLastUpdated && (
           <div className="flex justify-between items-center text-sm mb-2">
-            <span className="text-gray-400">Last updated:</span>
-            <span className="text-gray-300">{indexLastUpdated}</span>
+            <span className="text-secondary">Last updated:</span>
+            <span className="text-secondary">{indexLastUpdated}</span>
           </div>
         )}
         
         {indexOptions.onlySummaryReports !== undefined && (
           <div className="flex justify-between items-center text-sm mb-2">
-            <span className="text-gray-400">Wearable data:</span>
-            <span className="text-gray-300">
+            <span className="text-secondary">Wearable data:</span>
+            <span className="text-secondary">
               {indexOptions.onlySummaryReports ? 'Summary reports only' : 'All data points'}
             </span>
           </div>
         )}
         
         {indexError && (
-          <div className="bg-red-900/30 text-red-200 p-2 rounded mt-2 text-sm">
+          <div className="bg-error text-error p-2 rounded mt-2 text-sm">
             Error: {indexError}
           </div>
         )}
@@ -857,8 +857,8 @@ export default function Analysis() {
         <div className="mt-4 mb-4">
           <label className="flex items-center cursor-pointer">
             <div className="mr-3">
-              <span className="text-sm text-gray-300">Include only wearable summary reports</span>
-              <p className="text-xs text-gray-400 mt-1">
+              <span className="text-sm text-secondary">Include only wearable summary reports</span>
+              <p className="text-xs text-secondary mt-1">
                 Filtering out individual data points reduces index size and improves performance
               </p>
             </div>
@@ -870,7 +870,7 @@ export default function Analysis() {
                 onChange={() => setOnlySummaryReports(!onlySummaryReports)}
                 disabled={isBuildingIndex || indexStatus === 'building'}
               />
-              <div className={`block w-14 h-8 rounded-full ${onlySummaryReports ? 'bg-blue-600' : 'bg-gray-600'}`}></div>
+              <div className={`block w-14 h-8 rounded-full ${onlySummaryReports ? 'bg-blue-600' : 'bg-tertiary'}`}></div>
               <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition ${onlySummaryReports ? 'transform translate-x-6' : ''}`}></div>
             </div>
           </label>
@@ -882,8 +882,8 @@ export default function Analysis() {
         disabled={isBuildingIndex || indexStatus === 'building'}
         className={`w-full py-2 px-4 rounded font-medium 
           ${(isBuildingIndex || indexStatus === 'building') ? 
-            'bg-blue-500/50 text-gray-300 cursor-not-allowed' : 
-            'bg-blue-600 hover:bg-blue-700 text-white'
+            'bg-blue-500/50 text-secondary cursor-not-allowed' : 
+            'bg-blue-600 hover:bg-blue-700 text-primary'
           } transition-colors`}
       >
         {isBuildingIndex || indexStatus === 'building' ? 
@@ -892,7 +892,7 @@ export default function Analysis() {
       </button>
       
       {(isBuildingIndex || indexStatus === 'building') && (
-        <p className="text-xs text-gray-400 mt-2">
+        <p className="text-xs text-secondary mt-2">
           This process runs in the background and may take several minutes. You can leave this page and come back later.
         </p>
       )}
@@ -906,21 +906,19 @@ export default function Analysis() {
           title="My Analysis"
           subtitle="Track your health trends and patterns"
         >
-          <button
-            onClick={() => setShowSettingsModal(true)}
-            className="px-4 py-2 rounded-md transition-colors text-white border border-primary-blue hover:bg-black/20 mb-6"
-          >
-            Settings
-          </button>
-
           {/* Analysis Content Section */}
-          <div className="bg-black border border-gray-700 rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-6 px-1">
-              <h2 className="text-lg font-medium text-primary-blue">Analysis Results</h2>
-              <div className="flex space-x-2 items-center">
+          <div className="bg-gray-950/80 backdrop-blur-sm rounded-lg shadow p-6">
+            <div className="flex justify-end mb-3 px-1">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowSettingsModal(true)}
+                  className="text-sm text-secondary hover:text-primary"
+                >
+                  Settings
+                </button>
                 <button
                   className={`px-4 py-2 rounded text-white flex items-center space-x-1 ${
-                    isUpdating ? 'bg-gray-600' : 'bg-blue-600 hover:bg-blue-700'
+                    isUpdating ? 'bg-tertiary' : 'bg-blue-600 hover:bg-blue-700'
                   }`}
                   onClick={handleUpdate}
                   disabled={isUpdating}
@@ -936,19 +934,19 @@ export default function Analysis() {
             {/* Analysis display */}
             {isLoading ? (
               <div className="flex justify-center items-center h-64">
-                <div className="animate-pulse text-gray-300">Loading analysis...</div>
+                <div className="animate-pulse text-secondary">Loading analysis...</div>
               </div>
             ) : (
               <div>
                 {updateError ? (
-                  <div className="bg-red-900 text-white p-4 rounded">
+                  <div className="bg-error text-error p-4 rounded">
                     {updateError}
                   </div>
                 ) : (
-                  <div className="prose text-white max-w-none">
-                    <div className="mb-4">
+                  <div className="prose text-primary max-w-none">
+                    <div className="mb-2">
                       {lastUpdated && (
-                        <div className="text-xs text-gray-400 mb-2">
+                        <div className="text-xs text-secondary">
                           Last updated: {lastUpdated} {recordCount > 0 && `• ${recordCount} record${recordCount === 1 ? '' : 's'}`}
                         </div>
                       )}
@@ -957,7 +955,7 @@ export default function Analysis() {
                     
                     {/* Display info about analysis source */}
                     {analysisSource && (
-                      <div className="mt-4 text-xs text-gray-400">
+                      <div className="mt-4 text-xs text-secondary">
                         <p>Analysis generated using: {
                           analysisSource.includes('structured') 
                             ? `Structured health data${analysisSource.includes('wearables') ? ' with wearables integration' : ''}` 
@@ -976,12 +974,12 @@ export default function Analysis() {
           
           {/* Settings Modal */}
           {showSettingsModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-              <div className="bg-gray-800 p-4 rounded-lg shadow-md max-w-xs w-full border border-gray-700">
+            <div className="fixed inset-0 bg-overlay flex items-center justify-center z-50 p-4">
+              <div className="bg-tertiary p-4 rounded-lg shadow-md max-w-xs w-full border border-primary">
                 <AnalysisSettings onChange={handleSettingsChange} />
                 <button
                   onClick={() => setShowSettingsModal(false)}
-                  className="mt-3 w-full px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                  className="mt-3 w-full px-3 py-1.5 text-sm bg-blue-600 text-primary rounded hover:bg-blue-700"
                 >
                   Close
                 </button>

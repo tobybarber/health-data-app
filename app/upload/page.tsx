@@ -417,21 +417,21 @@ export default function Upload() {
           subtitle="Upload your medical records for analysis"
         >
           {apiKeyValid === false && !isLoading && (
-            <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-md shadow-md">
+            <div className="p-4 bg-red-900/30 text-red-400 rounded-md shadow-md">
               <p className="font-medium">OpenAI API Key Issue</p>
               <p>The OpenAI API key is invalid or not configured properly. You can still upload files, but analysis may not work correctly.</p>
             </div>
           )}
           
           {error && (
-            <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-md shadow-md">
+            <div className="p-4 bg-red-900/30 text-red-400 rounded-md shadow-md">
               <p className="font-medium">Error</p>
               <p>{error}</p>
             </div>
           )}
           
           {uploadStatus === 'success' ? (
-            <div className="bg-gradient-to-br from-blue-900 to-indigo-900 p-6 rounded-md shadow-lg text-center">
+            <div className="bg-gray-950/80 backdrop-blur-sm p-6 rounded-md shadow-lg text-center">
               <div className="mb-4 text-green-400">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -462,128 +462,121 @@ export default function Upload() {
               </div>
             </div>
           ) : (
-            <div className="bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md text-left">
+            <div className="bg-gray-950/80 backdrop-blur-sm p-4 rounded-md shadow-md text-left">
               <div className="flex flex-wrap gap-3">
                 <button
                   onClick={handleFileUpload}
-                  className="text-white px-4 py-2 rounded-md border border-primary-blue hover:bg-black/20 transition-colors"
+                  className="text-white px-4 py-2 rounded-md border border-primary-blue hover:bg-gray-900/20 transition-colors"
                 >
                   Upload File/Photo
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!myHealthToastShown) {
-                      toast.success('My Health Record integration coming soon...');
-                      setMyHealthToastShown(true);
-                    }
-                  }}
-                  className="text-white px-4 py-2 rounded-md border border-gray-600 hover:bg-black/20 transition-colors flex items-center"
-                >
-                  <span>Import from My Health</span>
-                  <span className="ml-2 text-xs px-2 py-0.5 bg-gray-700 rounded-full">Coming Soon</span>
                 </button>
               </div>
               <p className="mt-2 text-sm text-gray-400">
                 Supported formats: PDF, JPG, PNG (Max 10MB per file)
+                <br />
+                <span className="text-xs">My Health Record integration coming soon</span>
               </p>
             </div>
           )}
 
           {/* Upload Form */}
-          <form onSubmit={handleSubmit} className="bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md mt-4">
-            <div className="space-y-6">
-              <div className="mb-6">
-                <label htmlFor="recordName" className="block text-sm font-medium text-gray-300 mb-1">
-                  Record Type (optional)
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="recordName"
-                    value={recordName}
-                    onChange={(e) => setRecordName(e.target.value)}
-                    placeholder="e.g., Blood Test, MRI, Prescription"
-                    className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <label htmlFor="comment" className="block text-sm font-medium text-gray-300 mb-1">
-                  Comment (optional)
-                </label>
-                <div className="relative flex items-center space-x-2">
-                  <textarea
-                    id="comment"
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
-                    placeholder="Add any comments here..."
-                  />
-                  <MicrophoneButton 
-                    onTranscription={(text) => setComment(prev => prev ? `${prev} ${text}` : text)}
-                  />
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <div className="mt-1">
-                  <div className="flex flex-wrap gap-3 mb-3">
+          <form onSubmit={handleSubmit} className="mt-6">
+            <div className="bg-gray-950/80 backdrop-blur-sm p-6 rounded-md shadow-md">
+              <div className="space-y-6">
+                <div className="mb-6">
+                  <label htmlFor="recordName" className="block text-sm font-medium text-gray-300 mb-1">
+                    Record Type (optional)
+                  </label>
+                  <div className="relative flex items-center space-x-2">
+                    <div className="flex-1 max-w-[calc(100%-2rem)]">
+                      <input
+                        type="text"
+                        id="recordName"
+                        value={recordName}
+                        onChange={(e) => setRecordName(e.target.value)}
+                        placeholder="e.g., Blood Test, MRI, Prescription"
+                        className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
+                      />
+                    </div>
+                    <div className="w-8"></div>
                   </div>
-                  
-                  {/* File input for gallery photos/files */}
-                  <input
-                    id="file-upload"
-                    name="file-upload"
-                    type="file"
-                    ref={fileInputRef}
-                    className="hidden"
-                    multiple
-                    onChange={handleFileChange}
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    disabled={isUploading}
-                  />
                 </div>
-                {files.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-sm text-gray-500">
-                      {files.length} {files.length === 1 ? 'file' : 'files'} selected:
-                    </p>
-                    <ul className="mt-1 text-sm text-gray-500 list-disc list-inside">
-                      {files.map((file: File, index: number) => (
-                        <li key={index}>
-                          {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
 
-              <div className="flex items-center justify-between">
-                <Link
-                  href="/records"
-                  className="inline-flex items-center px-4 py-2 border border-gray-700 text-sm font-medium rounded-md text-gray-300 bg-black hover:bg-gray-900"
-                >
-                  Cancel
-                </Link>
-                <button
-                  type="submit"
-                  className={`inline-flex items-center px-4 py-2 rounded-md text-white border border-primary-blue hover:bg-black/20 transition-colors ${
-                    isUploadDisabled ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                  disabled={isUploadDisabled}
-                >
-                  {isUploading ? 'Uploading...' : 'Upload'}
-                </button>
+                <div className="mb-6">
+                  <label htmlFor="comment" className="block text-sm font-medium text-gray-300 mb-1">
+                    Comment (optional)
+                  </label>
+                  <div className="relative flex items-center space-x-2">
+                    <textarea
+                      id="comment"
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
+                      placeholder="Add any comments here..."
+                    />
+                    <MicrophoneButton 
+                      onTranscription={(text) => setComment(prev => prev ? `${prev} ${text}` : text)}
+                    />
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <div className="mt-1">
+                    <div className="flex flex-wrap gap-3 mb-3">
+                    </div>
+                    
+                    {/* File input for gallery photos/files */}
+                    <input
+                      id="file-upload"
+                      name="file-upload"
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      multiple
+                      onChange={handleFileChange}
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      disabled={isUploading}
+                    />
+                  </div>
+                  {files.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500">
+                        {files.length} {files.length === 1 ? 'file' : 'files'} selected:
+                      </p>
+                      <ul className="mt-1 text-sm text-gray-500 list-disc list-inside">
+                        {files.map((file: File, index: number) => (
+                          <li key={index}>
+                            {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Link
+                    href="/records"
+                    className="inline-flex items-center px-4 py-2 border border-gray-700 text-sm font-medium rounded-md text-gray-300 bg-black hover:bg-gray-900"
+                  >
+                    Cancel
+                  </Link>
+                  <button
+                    type="submit"
+                    className={`inline-flex items-center px-4 py-2 rounded-md text-white border border-primary-blue hover:bg-gray-900/20 transition-colors ${
+                      isUploadDisabled ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                    disabled={isUploadDisabled}
+                  >
+                    {isUploading ? 'Uploading...' : 'Upload'}
+                  </button>
+                </div>
               </div>
             </div>
           </form>
 
           {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') !== 'idle' && uploadStatus !== 'success' && (
-            <div className="bg-black shadow-md rounded-lg p-6">
+            <div className="bg-gray-950/80 backdrop-blur-sm shadow-md rounded-lg p-6">
               {/* Upload Progress Bar */}
               <div className="mb-4">
                 <div className="relative pt-1">

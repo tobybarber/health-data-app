@@ -62,10 +62,8 @@ export const processHeartRateData = (data: any[]) => {
         borderColor: 'rgb(255, 99, 132)',
         backgroundColor: 'rgba(255, 99, 132, 0.5)',
         tension: 0.1,
-        pointBackgroundColor: 'rgb(255, 99, 132)',
-        pointBorderColor: '#fff',
-        pointRadius: 3,
-        pointHoverRadius: 5,
+        pointRadius: 0,
+        pointHoverRadius: 0,
       }
     ]
   };

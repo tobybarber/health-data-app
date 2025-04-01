@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import Navigation from './Navigation';
 
 interface PageLayoutProps {
@@ -16,26 +16,36 @@ export default function PageLayout({
   subtitle,
   showBackgroundLogo = false
 }: PageLayoutProps) {
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    // Check if the app is running in standalone mode
+    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || 
+                            (window.navigator as any).standalone || 
+                            document.referrer.includes('android-app://');
+    setIsStandalone(isStandaloneMode);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-black">
-      <Navigation isHomePage={isHomePage} />
-      
-      {/* Main content container with proper offset for fixed navigation */}
-      <main className="container mx-auto px-4" style={{ 
-        marginTop: '60px',
-        paddingBottom: 'calc(70px + env(safe-area-inset-bottom))'
-      }}>
-        {/* Optional header section */}
-        {(title || subtitle) && (
-          <header className="mb-6">
-            {title && <h1 className="text-2xl font-bold text-primary-blue">{title}</h1>}
-            {subtitle && <p className="text-gray-400 mt-1">{subtitle}</p>}
-          </header>
-        )}
-        
-        {/* Page content */}
-        <div className="relative z-10">
-          {children}
+    <div className="min-h-screen bg-gray-950">
+      <Navigation isHomePage={isHomePage} isStandalone={isStandalone} />
+      <main 
+        className={`${isStandalone ? 'pt-0' : 'pt-16'} pb-24 transition-all duration-200`}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="py-4">
+            {title && (
+              <h1 className={`text-2xl font-bold text-white ${isStandalone ? 'mt-2' : 'mt-0'}`}>
+                {title}
+              </h1>
+            )}
+            {subtitle && (
+              <p className="mt-1 text-gray-400">{subtitle}</p>
+            )}
+            <div className={`${title ? 'mt-4' : ''} ${isStandalone ? 'space-y-4' : 'space-y-6'}`}>
+              {children}
+            </div>
+          </div>
         </div>
       </main>
     </div>
