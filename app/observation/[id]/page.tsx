@@ -116,7 +116,6 @@ export default function ObservationPage() {
   const [observation, setObservation] = useState<Observation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showTrend, setShowTrend] = useState(false);
 
   useEffect(() => {
     async function fetchObservation() {
@@ -190,28 +189,6 @@ export default function ObservationPage() {
                 <h1 className="text-2xl font-bold text-primary-blue">
                   {getFormattedTestName(observation)}
                 </h1>
-                
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => setShowTrend(false)}
-                    className={`px-3 py-1.5 rounded-md flex items-center text-sm ${
-                      !showTrend ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300'
-                    }`}
-                  >
-                    <Activity className="w-4 h-4 mr-1.5" />
-                    Range View
-                  </button>
-                  
-                  <button
-                    onClick={() => setShowTrend(true)}
-                    className={`px-3 py-1.5 rounded-md flex items-center text-sm ${
-                      showTrend ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300'
-                    }`}
-                  >
-                    <BarChart2 className="w-4 h-4 mr-1.5" />
-                    Trend View
-                  </button>
-                </div>
               </div>
               
               {/* Observation Date */}
@@ -221,93 +198,30 @@ export default function ObservationPage() {
                 </div>
               )}
               
-              {/* Observation Gauge or Chart */}
-              {!showTrend ? (
+              {/* Range View Section */}
+              <div>
+                <div className="flex items-center mb-2">
+                  <Activity className="w-5 h-5 mr-2 text-blue-400" />
+                  <h2 className="text-lg font-semibold text-white">Range View</h2>
+                </div>
                 <ObservationGauge observation={observation} title={getFormattedTestName(observation)} />
-              ) : (
+              </div>
+              
+              {/* Trend View Section */}
+              <div>
+                <div className="flex items-center mb-2">
+                  <BarChart2 className="w-5 h-5 mr-2 text-blue-400" />
+                  <h2 className="text-lg font-semibold text-white">Historical Trend</h2>
+                </div>
                 <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
-                  <h2 className="text-lg font-semibold text-white mb-4">Historical Trend</h2>
                   <FHIRObservationChart
                     patientId={observation.subject?.reference?.split('/')[1] || ''}
                     loincCode={observation.code?.coding?.find(c => c.system === 'http://loinc.org')?.code || ''}
                     title={getFormattedTestName(observation)}
-                    height={300}
+                    height={200}
                     width={600}
                   />
                 </div>
-              )}
-              
-              {/* Additional Details */}
-              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
-                <h2 className="text-lg font-semibold text-white mb-4">Additional Details</h2>
-                
-                <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  {/* Test Name */}
-                  <div className="py-1">
-                    <dt className="text-gray-400">Test Name:</dt>
-                    <dd className="text-white font-medium">{getFormattedTestName(observation)}</dd>
-                  </div>
-                  
-                  {/* Test Category */}
-                  <div className="py-1">
-                    <dt className="text-gray-400">Category:</dt>
-                    <dd className="text-white font-medium">
-                      {observation.category && observation.category.length > 0 ? 
-                        (observation.category[0]?.text || 
-                         observation.category[0]?.coding?.[0]?.display || 
-                         'Laboratory') : 'Laboratory'}
-                    </dd>
-                  </div>
-                  
-                  {observation.category?.map((cat, index) => (
-                    cat.coding && cat.coding.length > 0 && cat.coding[0]?.display !== 'Laboratory' && (
-                      <div key={`category-${index}`} className="py-1">
-                        <dt className="text-gray-400">{cat.coding[0]?.system?.split('/').pop() || 'Category'}:</dt>
-                        <dd className="text-white font-medium">{cat.coding[0]?.display || cat.text || 'Unknown'}</dd>
-                      </div>
-                    )
-                  ))}
-                  
-                  {observation.code?.coding?.map((coding, index) => (
-                    <div key={`coding-${index}`} className="py-1">
-                      <dt className="text-gray-400">{coding.system?.split('/').pop()}:</dt>
-                      <dd className="text-white font-medium">{coding.code} - {coding.display}</dd>
-                    </div>
-                  ))}
-                  
-                  {observation.valueQuantity && (
-                    <div className="py-1">
-                      <dt className="text-gray-400">Value:</dt>
-                      <dd className="text-white font-medium">
-                        {observation.valueQuantity.value} {observation.valueQuantity.unit || ''}
-                        {observation.valueQuantity.system && ` (${observation.valueQuantity.system})`}
-                      </dd>
-                    </div>
-                  )}
-                  
-                  {observation.referenceRange?.map((range, index) => (
-                    <div key={`range-${index}`} className="py-1">
-                      <dt className="text-gray-400">Reference Range:</dt>
-                      <dd className="text-white font-medium">
-                        {range.low?.value !== undefined && range.high?.value !== undefined && 
-                          `${range.low.value} - ${range.high.value} ${range.high.unit || ''}`}
-                        {range.low?.value !== undefined && range.high?.value === undefined && 
-                          `> ${range.low.value} ${range.low.unit || ''}`}
-                        {range.low?.value === undefined && range.high?.value !== undefined && 
-                          `< ${range.high.value} ${range.high.unit || ''}`}
-                      </dd>
-                    </div>
-                  ))}
-                  
-                  {observation.interpretation?.map((interp, index) => (
-                    <div key={`interp-${index}`} className="py-1">
-                      <dt className="text-gray-400">Interpretation:</dt>
-                      <dd className="text-white font-medium">
-                        {interp.text || interp.coding?.[0]?.display || interp.coding?.[0]?.code || 'Unknown'}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
               </div>
               
               {/* FHIR Details */}

@@ -21,8 +21,6 @@ export default function HomeScreenDetect() {
       
       // Apply or remove the standalone mode class
       if (isRunningStandalone) {
-        console.log('Running in standalone mode (PWA)');
-        
         // Add both classes for maximum compatibility
         document.body.classList.add('standalone-mode');
         document.documentElement.classList.add('standalone-mode');
@@ -62,7 +60,6 @@ export default function HomeScreenDetect() {
           }
         });
       } else {
-        console.log('Running in browser mode');
         document.body.classList.remove('standalone-mode');
         document.documentElement.classList.remove('standalone-mode');
         document.documentElement.style.removeProperty('--standalone-mode');

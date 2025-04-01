@@ -2,6 +2,12 @@
  * Utility functions for extracting and parsing health record analysis data
  */
 
+// Define the FHIRResource type
+type FHIRResource = {
+  resourceType: string;
+  [key: string]: any;
+};
+
 /**
  * Extract content from XML-like tags
  * @param text The text to extract from
@@ -385,7 +391,7 @@ export const extractRecordDate = (analysis: string): string => {
   if (!analysis) return '';
   
   // First try to extract using XML-like tags (new format)
-  const recordDateFromXml = extractTagContent(analysis, 'DOCUMENT_DATE');
+  const recordDateFromXml = extractTagContent(analysis, 'DATE') || extractTagContent(analysis, 'DOCUMENT_DATE');
   if (recordDateFromXml) {
     return recordDateFromXml
       .replace(/^[-–—]+\s*/, '')
@@ -964,75 +970,139 @@ const parseGenericList = (text: string): any[] => {
  * @param analysis The analysis text
  * @returns Array of FHIR resources or null if not found
  */
-export const extractFHIRResources = (analysis: string): any[] | null => {
-  if (!analysis) return null;
-  
-  // Extract FHIR resources using XML-like tags
-  const fhirResourcesContent = extractTagContent(analysis, 'FHIR_RESOURCES');
-  if (!fhirResourcesContent) return null;
-  
+export function extractFHIRResources(text: string): FHIRResource[] | null {
   try {
-    // Sanitize JSON by removing comments and invalid characters before parsing
-    const sanitizedJson = fhirResourcesContent
-      // Remove single line comments (// comment)
-      .replace(/\/\/.*$/gm, '')
-      // Remove multi-line comments (/* comment */)
-      .replace(/\/\*[\s\S]*?\*\//gm, '')
-      // Clean up any trailing commas in arrays or objects which might have been left after removing comments
-      .replace(/,(\s*[\]}])/g, '$1')
-      // Replace control characters with proper escaped versions
-      .replace(/[\u0000-\u001F\u007F-\u009F]/g, match => {
-        if (match === '\n') return '\\n';
-        if (match === '\r') return '\\r';
-        if (match === '\t') return '\\t';
-        return '';
-      })
-      // Fix escaped quotes and other common JSON issues
-      .replace(/\\"/g, '"')
-      .replace(/\\\\/g, '\\')
-      .replace(/(['"])\1\s*\1\1/g, '$1$1'); // Fix doubled quotes like ""text""
+    // First try to find FHIR resources in XML-like tags
+    const fhirMatch = text.match(/<FHIR_RESOURCES>([\s\S]*?)<\/FHIR_RESOURCES>/);
+    if (!fhirMatch) {
+      console.log('No FHIR resources found in XML tags');
+      return null;
+    }
+
+    let fhirText = fhirMatch[1].trim();
     
-    try {
-      // Try to parse the JSON array of resources
-      const resources = JSON.parse(sanitizedJson);
-      
-      // Validate that we have an array of resources
-      if (Array.isArray(resources)) {
-        // Validate each resource has a resourceType
-        const validResources = resources.filter(resource => 
-          resource && typeof resource === 'object' && resource.resourceType
-        );
-        
-        return validResources;
-      }
-    } catch (parseError) {
-      // If there's a parsing error, try a more aggressive cleaning approach
-      console.error('Initial JSON parsing failed, trying more aggressive cleaning:', parseError);
-      
-      // More aggressive cleaning - replace any character that's not valid in JSON
-      const aggressivelySanitized = sanitizedJson
-        // Keep only basic ASCII characters that are definitely valid in JSON
-        .replace(/[^\x20-\x7E]/g, '')
-        // Replace backticks with quotes
-        .replace(/`/g, '"')
-        // Fix unescaped quotes in strings
-        .replace(/"([^"]*)\\?"([^"]*)"/g, '"$1\\"$2"');
-      
-      // Try parsing again
-      const resources = JSON.parse(aggressivelySanitized);
-      
-      if (Array.isArray(resources)) {
-        const validResources = resources.filter(resource => 
-          resource && typeof resource === 'object' && resource.resourceType
-        );
-        
-        return validResources;
+    // If the text doesn't start with '[', try to find a JSON array
+    if (!fhirText.startsWith('[')) {
+      const jsonArrayMatch = fhirText.match(/\[[\s\S]*\]/);
+      if (jsonArrayMatch) {
+        fhirText = jsonArrayMatch[0];
       }
     }
-    
-    return null;
+
+    // Clean up the text to ensure valid JSON
+    fhirText = fhirText
+      .replace(/\n/g, ' ')  // Replace newlines with spaces
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      // Remove JavaScript-style comments
+      .replace(/\/\/.*$/gm, '') // Remove single-line comments
+      .replace(/\/\*[\s\S]*?\*\//g, '') // Remove multi-line comments
+      // Only add quotes to property names that don't already have them
+      .replace(/([{,]\s*)(?!")(\w+):/g, '$1"$2":')
+      // Only replace single quotes and backticks if they're not already part of a quoted string
+      .replace(/:\s*(?<!")(?:'([^']*)'|`([^`]*)`)/g, ': "$1$2"')
+      // Remove trailing commas in objects and arrays
+      .replace(/,(\s*[}\]])/g, '$1')
+      // Ensure proper comma between objects
+      .replace(/}(\s*){/g, '},{')
+      // Ensure proper array structure
+      .replace(/\[\s*\]/g, '[]')
+      .replace(/\[\s*{/g, '[{')
+      .replace(/}\s*\]/g, '}]');
+
+    // Try to parse the JSON
+    try {
+      const resources = JSON.parse(fhirText);
+      
+      // Validate that we have an array of resources
+      if (!Array.isArray(resources)) {
+        console.error('FHIR resources must be an array');
+        return null;
+      }
+
+      // Validate each resource
+      const validResources = resources.filter(resource => {
+        if (!resource || typeof resource !== 'object') {
+          console.error('Invalid resource:', resource);
+          return false;
+        }
+        if (!resource.resourceType) {
+          console.error('Resource missing resourceType:', resource);
+          return false;
+        }
+        return true;
+      });
+
+      if (validResources.length === 0) {
+        console.error('No valid FHIR resources found');
+        return null;
+      }
+
+      return validResources;
+    } catch (parseError: any) {
+      // Enhanced error logging with context
+      console.error('Error parsing FHIR resources:', parseError);
+      
+      // Extract the position from the error message if available
+      let errorPosition = -1;
+      const positionMatch = parseError.message?.match(/position (\d+)/);
+      if (positionMatch && positionMatch[1]) {
+        errorPosition = parseInt(positionMatch[1]);
+      }
+      
+      // If we have a position, extract the surrounding context
+      if (errorPosition >= 0 && fhirText) {
+        const start = Math.max(0, errorPosition - 50);
+        const end = Math.min(fhirText.length, errorPosition + 50);
+        const contextBefore = fhirText.substring(start, errorPosition);
+        const contextAfter = fhirText.substring(errorPosition, end);
+        
+        console.error(`JSON Error Context:`);
+        console.error(`...${contextBefore}👉HERE👈${contextAfter}...`);
+        
+        // Store the error details in a global variable that can be accessed by the UI
+        if (typeof window !== 'undefined') {
+          (window as any).lastFHIRParseError = {
+            message: parseError.message,
+            position: errorPosition,
+            context: `...${contextBefore}👉HERE👈${contextAfter}...`
+          };
+        }
+        
+        // Throw a more detailed error
+        throw new Error(`${parseError.message}\nContext around position ${errorPosition}: ...${contextBefore}👉HERE👈${contextAfter}...`);
+      }
+      
+      console.error('Problematic JSON text:', fhirText);
+      
+      // Try to recover partial data by extracting individual objects
+      try {
+        const objectRegex = /\{(?:[^{}]|(?:\{[^{}]*\}))*\}/g;
+        const potentialObjects = fhirText.match(objectRegex) || [];
+        const recoveredResources: FHIRResource[] = [];
+        
+        for (const objString of potentialObjects) {
+          try {
+            const obj = JSON.parse(objString);
+            if (obj && typeof obj === 'object' && obj.resourceType) {
+              recoveredResources.push(obj);
+            }
+          } catch (objParseError) {
+            // Skip objects that don't parse
+          }
+        }
+        
+        if (recoveredResources.length > 0) {
+          console.log(`Recovered ${recoveredResources.length} valid FHIR resources from partial data`);
+          return recoveredResources;
+        }
+      } catch (recoveryError) {
+        console.error('Failed to recover partial JSON objects:', recoveryError);
+      }
+      
+      return null;
+    }
   } catch (error) {
-    console.error('Error parsing FHIR resources:', error);
+    console.error('Error extracting FHIR resources:', error);
     return null;
   }
-}; 
+} 

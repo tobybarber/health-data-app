@@ -34,6 +34,15 @@ const nextConfig = {
         stream: false,
         // Add any other Node.js built-ins that are used by dependencies
       };
+
+      // Suppress React DevTools prompt
+      if (process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_DISABLE_LOGS === 'true') {
+        config.plugins.push(
+          new config.webpack.DefinePlugin({
+            '__REACT_DEVTOOLS_GLOBAL_HOOK__': '({ isDisabled: true })'
+          })
+        );
+      }
     }
 
     // Exclude specific problematic node modules from the bundle
@@ -47,6 +56,8 @@ const nextConfig = {
   env: {
     // Set Tesseract data directory location
     TESSDATA_PREFIX: 'C:\\Program Files\\Tesseract-OCR\\tessdata',
+    // Disable console logging in browser
+    NEXT_PUBLIC_DISABLE_LOGS: 'true',
   },
 }
 

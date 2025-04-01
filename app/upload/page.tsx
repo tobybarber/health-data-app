@@ -39,6 +39,7 @@ export default function Upload() {
   const [apiKeyChecked, setApiKeyChecked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [myHealthToastShown, setMyHealthToastShown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { currentUser } = useAuth();
@@ -466,12 +467,28 @@ export default function Upload() {
               </div>
             ) : (
               <div className="bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md text-left">
-                <button
-                  onClick={handleFileUpload}
-                  className="text-white px-4 py-2 rounded-md border border-primary-blue hover:bg-black/20 transition-colors"
-                >
-                  Upload File/Photo
-                </button>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={handleFileUpload}
+                    className="text-white px-4 py-2 rounded-md border border-primary-blue hover:bg-black/20 transition-colors"
+                  >
+                    Upload File/Photo
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!myHealthToastShown) {
+                        toast.success('My Health Record integration coming soon...');
+                        setMyHealthToastShown(true);
+                      }
+                    }}
+                    className="text-white px-4 py-2 rounded-md border border-gray-600 hover:bg-black/20 transition-colors flex items-center"
+                  >
+                    <span>Import from My Health</span>
+                    <span className="ml-2 text-xs px-2 py-0.5 bg-gray-700 rounded-full">Coming Soon</span>
+                  </button>
+                </div>
                 <p className="mt-2 text-sm text-gray-400">
                   Supported formats: PDF, JPG, PNG (Max 10MB per file)
                 </p>
@@ -481,30 +498,32 @@ export default function Upload() {
             {/* Upload Form */}
             <form onSubmit={handleSubmit} className="bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md mt-4">
               <div className="space-y-6">
-                <div>
+                <div className="mb-6">
                   <label htmlFor="recordName" className="block text-sm font-medium text-gray-300 mb-1">
                     Record Type (optional)
                   </label>
-                  <input
-                    type="text"
-                    id="recordName"
-                    value={recordName}
-                    onChange={(e) => setRecordName(e.target.value)}
-                    placeholder="e.g., Blood Test, MRI, Prescription"
-                    className="bg-gray-900 block w-full rounded-md border-gray-600 border px-4 py-3 text-white placeholder-gray-500 focus:border-primary-blue focus:outline-none focus:ring-1 focus:ring-primary-blue"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      id="recordName"
+                      value={recordName}
+                      onChange={(e) => setRecordName(e.target.value)}
+                      placeholder="e.g., Blood Test, MRI, Prescription"
+                      className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
+                    />
+                  </div>
                 </div>
 
                 <div className="mb-6">
                   <label htmlFor="comment" className="block text-sm font-medium text-gray-300 mb-1">
                     Comment (optional)
                   </label>
-                  <div className="flex items-center space-x-2">
+                  <div className="relative flex items-center space-x-2">
                     <textarea
                       id="comment"
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
-                      className="flex-grow px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
+                      className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
                       placeholder="Add any comments here..."
                     />
                     <MicrophoneButton 
@@ -568,9 +587,7 @@ export default function Upload() {
             </form>
 
             {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') !== 'idle' && uploadStatus !== 'success' && (
-              <div className="bg-black shadow-md rounded-lg p-6 border border-gray-800">
-                <h2 className="text-lg font-medium mb-4">Upload Status</h2>
-                
+              <div className="bg-black shadow-md rounded-lg p-6">
                 {/* Upload Progress Bar */}
                 <div className="mb-4">
                   <div className="relative pt-1">

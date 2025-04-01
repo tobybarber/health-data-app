@@ -11,6 +11,7 @@ import Navigation from '../components/Navigation';
 import { useBackgroundLogo } from '../components/ClientWrapper';
 import ClientWrapper from '../components/ClientWrapper';
 import AnalysisSettings, { AnalysisSettings as AnalysisSettingsType } from '../components/AnalysisSettings';
+import BiomarkerSummary from '../components/biomarkers/BiomarkerSummary';
 
 interface Question {
   id: string;
@@ -28,7 +29,6 @@ interface Record {
   isManual?: boolean;
   hasPhoto?: boolean;
   comment?: string;
-  comments?: string[] | string | { [key: string]: any };
   analysis?: string;
   detailedAnalysis?: string;
   recordDate?: string;
@@ -40,8 +40,8 @@ interface RecordDetail {
   name: string;
   detailedAnalysis: string;
   comment: string;
-  comments: string[];
   recordType?: string;
+  recordDate?: string;
 }
 
 export default function Analysis() {
@@ -67,6 +67,7 @@ export default function Analysis() {
     includeProfile: true,
     includeComments: true
   });
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // Hide background logo
   useEffect(() => {
@@ -290,57 +291,14 @@ export default function Analysis() {
         }
         
         // Get comments for this record (include all comments)
-        const comments: string[] = [];
+        let comment = '';
         
-        // First check if the record itself has a comment field
+        // Only check if the record itself has a comment field
         if (record.comment) {
-          comments.push(record.comment);
-          console.log(`Found comment directly in record ${recordName}: ${record.comment.substring(0, 50)}...`);
-        }
-        
-        // Check if the record has a comments field (plural)
-        if (record.comments) {
-          if (Array.isArray(record.comments)) {
-            comments.push(...record.comments);
-            console.log(`Found comments array directly in record ${recordName} with ${record.comments.length} items`);
-          } else if (typeof record.comments === 'string') {
-            comments.push(record.comments);
-            console.log(`Found comments string directly in record ${recordName}: ${record.comments.substring(0, 50)}...`);
-          } else if (typeof record.comments === 'object') {
-            comments.push(JSON.stringify(record.comments));
-            console.log(`Found comments object directly in record ${recordName}`);
-          }
-        }
-        
-        // Then check the comments collection
-        try {
-          const commentsCollection = collection(db, 'users', currentUser.uid, 'records', recordId, 'comments');
-          const commentsSnapshot = await getDocs(commentsCollection);
-          
-          // Log the raw comments data for debugging
-          console.log(`Raw comments data for ${recordName}:`, commentsSnapshot.docs.map(doc => doc.data()));
-          
-          commentsSnapshot.forEach(commentDoc => {
-            const comment = commentDoc.data();
-            // Check for both 'text' field and direct comment content
-            if (comment.text) {
-              comments.push(comment.text);
-              console.log(`Found comment with text field for record ${recordName}: ${comment.text.substring(0, 50)}...`);
-            } else if (typeof comment === 'object' && Object.keys(comment).length > 0) {
-              // If there's no text field but there is content, stringify it
-              const commentContent = JSON.stringify(comment);
-              comments.push(commentContent);
-              console.log(`Found comment without text field for record ${recordName}: ${commentContent.substring(0, 50)}...`);
-            }
-          });
-          
-          if (comments.length === 0) {
-            console.log(`No comments found for record ${recordName}`);
-          } else {
-            console.log(`Found ${comments.length} comments for record ${recordName}`);
-          }
-        } catch (commentsError) {
-          console.error(`Error fetching comments for record ${recordName}:`, commentsError);
+          comment = record.comment;
+          console.log(`Found comment for record ${recordName}: ${record.comment.substring(0, 50)}...`);
+        } else {
+          console.log(`No comment found for record ${recordName}`);
         }
         
         // Add the record details to our array
@@ -349,8 +307,8 @@ export default function Analysis() {
           name: recordName,
           recordType: record.recordType || '',
           detailedAnalysis: record.detailedAnalysis || '',
-          comment: record.comment || '',
-          comments: comments
+          comment: comment,
+          recordDate: record.recordDate || ''
         });
       }
       
@@ -392,7 +350,7 @@ export default function Analysis() {
             recordDetails: recordDetailsToSend, // Send the limited record details
             timestamp: new Date().getTime(), // Add timestamp to prevent caching
             mode: 'standard',
-            useRag: analysisSettings.useRag,
+            useRag: false, // Always use traditional approach
             includeProfile: analysisSettings.includeProfile,
             includeComments: analysisSettings.includeComments
           }),
@@ -574,7 +532,7 @@ export default function Analysis() {
         );
       }
 
-      // Check for HEALTH_CONCERNS or POTENTIAL_CONCERNS
+      // Check for HEALTH_CONCERNS or POTENTIAL_CONCERNS (now optional)
       const healthConcerns = extractTagContent(text, 'HEALTH_CONCERNS') || extractTagContent(text, 'POTENTIAL_CONCERNS');
       if (healthConcerns) {
         sections.push(
@@ -715,13 +673,32 @@ export default function Analysis() {
       <ClientWrapper>
         <div className="min-h-screen bg-black">
           <Navigation />
-          <div className="container mx-auto px-4 pt-20 pb-8 bg-black text-white">
+          <div className="container mx-auto px-4 pt-20 pb-24 bg-black text-white">
             <div className="flex justify-between items-center mb-6">
-              <h1 className="text-2xl font-bold text-primary-blue">My Analysis</h1>
+              <div>
+                <h1 className="text-2xl font-bold text-primary-blue">My Analysis</h1>
+                <div className="text-xs text-gray-400 mt-1">
+                  Patient ID: {localStorage.getItem('patientId') || 'Not set'} 
+                  <button 
+                    className="ml-2 text-blue-400 hover:text-blue-300 underline" 
+                    onClick={() => {
+                      const patients = confirm('Show current patient ID?') && alert(`Current patient ID: ${localStorage.getItem('patientId') || 'Not set'}`);
+                    }}
+                  >
+                    Debug
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="text-blue-500 hover:text-blue-400 text-sm font-medium px-2 py-1 bg-transparent border-none"
+              >
+                Analysis Settings
+              </button>
             </div>
             
-            {/* Analysis Settings Section */}
-            <AnalysisSettings onChange={handleSettingsChange} />
+            {/* Biomarker Summary Section */}
+            <BiomarkerSummary maxBiomarkers={12} />
             
             {/* Analysis Content Section - Changed background to black */}
             <div className="bg-black border border-gray-700 rounded-lg shadow p-6">
@@ -729,24 +706,17 @@ export default function Analysis() {
                 <h2 className="text-lg font-medium text-primary-blue">Analysis Results</h2>
                 <div className="flex space-x-2 items-center">
                   <button
-                    className={`px-4 py-2 rounded text-white ${
+                    className={`px-4 py-2 rounded text-white flex items-center space-x-1 ${
                       isUpdating ? 'bg-gray-600' : 'bg-blue-600 hover:bg-blue-700'
                     }`}
                     onClick={handleUpdate}
                     disabled={isUpdating}
                   >
-                    {isUpdating ? 'Updating...' : needsUpdate ? 'Update Analysis' : 'Refresh Analysis'}
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>{isUpdating ? 'Updating...' : needsUpdate ? 'Update' : 'Refresh'}</span>
                   </button>
-                  {needsUpdate && (
-                    <div className="bg-yellow-500 text-black px-3 py-1 rounded text-xs font-medium">
-                      Update needed
-                    </div>
-                  )}
-                  {recordCount > 0 && (
-                    <div className="bg-gray-700 text-white px-3 py-1 rounded text-xs font-medium">
-                      {recordCount} record{recordCount === 1 ? '' : 's'}
-                    </div>
-                  )}
                 </div>
               </div>
               
@@ -766,7 +736,7 @@ export default function Analysis() {
                       <div className="mb-4">
                         {lastUpdated && (
                           <div className="text-xs text-gray-400 mb-2">
-                            Last updated: {lastUpdated}
+                            Last updated: {lastUpdated} {recordCount > 0 && `• ${recordCount} record${recordCount === 1 ? '' : 's'}`}
                           </div>
                         )}
                       </div>
@@ -776,9 +746,9 @@ export default function Analysis() {
                       {analysisSource && (
                         <div className="mt-4 text-xs text-gray-400">
                           <p>Analysis generated using: {
-                            analysisSource === 'rag+llamaindex' 
-                              ? 'Structured FHIR data with RAG approach' 
-                              : 'Text summaries with OpenAI'
+                            analysisSource.includes('structured') 
+                              ? `Structured health data${analysisSource.includes('wearables') ? ' with wearables integration' : ''}` 
+                              : 'Text summaries from health records'
                           }</p>
                         </div>
                       )}
@@ -790,6 +760,21 @@ export default function Analysis() {
           </div>
         </div>
       </ClientWrapper>
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 p-4 rounded-lg shadow-md max-w-xs w-full border border-gray-700">
+            <AnalysisSettings onChange={handleSettingsChange} />
+            <button
+              onClick={() => setShowSettingsModal(false)}
+              className="mt-3 w-full px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </ProtectedRoute>
   );
 } 

@@ -21,7 +21,7 @@ export default function Home() {
         try {
           setPreviouslyAuthenticated(true);
         } catch (e) {
-          console.error('Error with cached auth state:', e);
+          // Error with cached auth state
         }
       }
     }
@@ -32,7 +32,6 @@ export default function Home() {
     if (typeof window !== 'undefined' && !sessionStorage.getItem('app_session_id')) {
       const sessionId = `session_${Date.now()}`;
       sessionStorage.setItem('app_session_id', sessionId);
-      console.log('New app session started:', sessionId);
     }
   }, []);
 

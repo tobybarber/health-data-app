@@ -9,6 +9,7 @@ import HomeScreenDetect from './HomeScreenDetect';
 import AppleSplashScreen from './AppleSplashScreen';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import { Toaster } from 'react-hot-toast';
 
 // Extend Window interface to include our custom properties
 declare global {
@@ -233,6 +234,17 @@ export default function ClientWrapper({ children }: { children: React.ReactNode 
           <AppContent>
             {children}
           </AppContent>
+          <Toaster 
+            position="top-center"
+            toastOptions={{
+              duration: 3000,
+              style: {
+                background: '#333',
+                color: '#fff',
+                borderRadius: '8px',
+              },
+            }}
+          />
         </AuthProvider>
       </BackgroundLogoContext.Provider>
     </ErrorBoundary>

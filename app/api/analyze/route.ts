@@ -2,12 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '../../lib/firebase-admin';
 import admin from 'firebase-admin';
 import openai, { isApiKeyValid } from '../../lib/openai-server';
-import { generateHolisticAnalysis } from '../../lib/rag-service';
 
-// Comment out the code that tries to dynamically import the RAG service
-// let generateHolisticAnalysis: any = null;
+// Instead declare the function type that will be dynamically imported if needed
+let generateHolisticAnalysis: any = null;
 let ragServiceImportFailed = false;
 let ragServiceErrors: string[] = [];
+
+// Function to dynamically import the RAG service when needed
+async function importRagService() {
+  try {
+    const module = await import('../../lib/rag-service');
+    generateHolisticAnalysis = module.generateHolisticAnalysis;
+    console.log('Successfully imported RAG service');
+    return true;
+  } catch (error) {
+    console.error('Failed to import RAG service:', error);
+    ragServiceImportFailed = true;
+    ragServiceErrors.push(`Import error: ${error instanceof Error ? error.message : String(error)}`);
+    return false;
+  }
+}
 
 // No need to check dependencies since we're using direct OpenAI implementation
 // async function checkRagDependencies() {
@@ -26,6 +40,25 @@ let ragServiceErrors: string[] = [];
 //   ragServiceImportFailed = true;
 //   ragServiceErrors.push(`Import function error: ${err instanceof Error ? err.message : String(err)}`);
 // });
+
+// Debug info interface
+interface DebugInfo {
+  recordsFetched: number;
+  profileFetched: boolean;
+  openAIUsed: boolean;
+  ragUsed: boolean;
+  firestoreSaved: boolean;
+  includeWearables?: boolean;
+  errors: string[];
+  timings: {
+    total: number;
+    profileFetch: number;
+    recordsFetch: number;
+    rag: number;
+    openAI: number;
+    firestore: number;
+  };
+}
 
 // Helper function to get detailed diet description
 function getDietDescription(dietValue: string): string {
@@ -59,13 +92,13 @@ export async function POST(request: NextRequest) {
   
   // Track performance and debugging info
   const startTime = Date.now();
-  const debugInfo = {
+  const debugInfo: DebugInfo = {
     recordsFetched: 0,
     profileFetched: false,
     openAIUsed: false,
     ragUsed: false,
     firestoreSaved: false,
-    errors: [] as string[],
+    errors: [],
     timings: {
       total: 0,
       profileFetch: 0,
@@ -175,6 +208,8 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
       detailedAnalysis: string;
       comment: string;
       comments: string;
+      recordType?: string;
+      recordDate?: string;
     }
     
     let recordDetails: RecordDetail[] = [];
@@ -191,7 +226,9 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
         name: record.name,
         detailedAnalysis: record.detailedAnalysis || '',
         comment: record.comment || '',
-        comments: Array.isArray(record.comments) ? record.comments.join('\n\n') : record.comments || ''
+        comments: Array.isArray(record.comments) ? record.comments.join('\n\n') : record.comments || '',
+        recordType: record.recordType,
+        recordDate: record.recordDate
       }));
       
       debugInfo.recordsFetched = recordDetails.length;
@@ -225,39 +262,9 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
             // Fetch the record's comments if they exist
             let comments: string[] = [];
             
-            // First check if the record itself has a comment field
+            // Only check if the record itself has a comment field
             if (record.comment) {
               comments.push(record.comment);
-            }
-            
-            // Check if the record has a comments field (plural)
-            if (record.comments) {
-              if (Array.isArray(record.comments)) {
-                comments.push(...record.comments);
-              } else if (typeof record.comments === 'string') {
-                comments.push(record.comments);
-              } else if (typeof record.comments === 'object') {
-                comments.push(JSON.stringify(record.comments));
-              }
-            }
-            
-            // Then check the comments collection
-            try {
-              const commentsSnapshot = await db.collection(`users/${userId}/records/${doc.id}/comments`).get();
-              
-              commentsSnapshot.forEach(commentDoc => {
-                const comment = commentDoc.data();
-                // Check for both 'text' field and direct comment content
-                if (comment.text) {
-                  comments.push(comment.text);
-                } else if (typeof comment === 'object' && Object.keys(comment).length > 0) {
-                  // If there's no text field but there is content, stringify it
-                  const commentContent = JSON.stringify(comment);
-                  comments.push(commentContent);
-                }
-              });
-            } catch (commentsError) {
-              console.error(`Error fetching comments for record ${recordName}:`, commentsError);
             }
             
             // Add the record details to our array
@@ -265,7 +272,9 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
               name: recordName,
               detailedAnalysis: summary,
               comment: record.comment || '',
-              comments: comments.join('\n\n')
+              comments: comments.join('\n\n'),
+              recordType: record.recordType,
+              recordDate: record.recordDate
             });
           }
         }
@@ -304,39 +313,9 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
           // Fetch the record's comments if they exist
           let comments: string[] = [];
           
-          // First check if the record itself has a comment field
+          // Only check if the record itself has a comment field
           if (record.comment) {
             comments.push(record.comment);
-          }
-          
-          // Check if the record has a comments field (plural)
-          if (record.comments) {
-            if (Array.isArray(record.comments)) {
-              comments.push(...record.comments);
-            } else if (typeof record.comments === 'string') {
-              comments.push(record.comments);
-            } else if (typeof record.comments === 'object') {
-              comments.push(JSON.stringify(record.comments));
-            }
-          }
-          
-          // Then check the comments collection
-          try {
-            const commentsSnapshot = await db.collection(`users/${userId}/records/${doc.id}/comments`).get();
-            
-            commentsSnapshot.forEach(commentDoc => {
-              const comment = commentDoc.data();
-              // Check for both 'text' field and direct comment content
-              if (comment.text) {
-                comments.push(comment.text);
-              } else if (typeof comment === 'object' && Object.keys(comment).length > 0) {
-                // If there's no text field but there is content, stringify it
-                const commentContent = JSON.stringify(comment);
-                comments.push(commentContent);
-              }
-            });
-          } catch (commentsError) {
-            console.error(`Error fetching comments for record ${recordName}:`, commentsError);
           }
           
           // Add the record details to our array
@@ -344,7 +323,9 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
             name: recordName,
             detailedAnalysis: summary,
             comment: record.comment || '',
-            comments: comments.join('\n\n')
+            comments: comments.join('\n\n'),
+            recordType: record.recordType,
+            recordDate: record.recordDate
           });
         }
         
@@ -403,10 +384,27 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
         // Only proceed with RAG if we have valid FHIR data
         if (hasValidFhirData) {
           try {
+            // Get analysis settings for whether to include wearables data
+            // The useRag setting in the UI actually controls wearables inclusion now
+            const settingsRef = db.collection('users').doc(userId).collection('settings').doc('analysis');
+            const settingsDoc = await settingsRef.get();
+            const includeWearables = settingsDoc.exists && settingsDoc.data()?.useRag !== false;
+            
+            // Dynamically import the RAG service only when needed
+            if (!generateHolisticAnalysis) {
+              const importSuccessful = await importRagService();
+              if (!importSuccessful) {
+                throw new Error('Failed to import RAG service');
+              }
+            }
+            
             // Generate holistic analysis using our updated RAG service
             analysis = await generateHolisticAnalysis(userId, profileInfo, {
-              forceRefresh: mode === 'refresh'
+              forceRefresh: mode === 'refresh',
+              includeWearables: includeWearables
             });
+            
+            console.log(`Generated analysis with includeWearables=${includeWearables}`);
             
             // Check if the analysis indicates an error
             if (analysis.includes("Error generating analysis:") || 
@@ -417,6 +415,7 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
             
             console.log('RAG-based holistic analysis generated successfully');
             debugInfo.ragUsed = true;
+            debugInfo.includeWearables = includeWearables;
             
             // After generating the RAG analysis, save it to Firestore
             if (analysis && userId) {
@@ -430,10 +429,11 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
                   updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                   needsUpdate: false,
                   recordCount: recordDetails?.length || 0,
-                  generatedBy: 'rag+openai',
+                  generatedBy: includeWearables ? 'structured+wearables' : 'structured',
                   summariesUsed: false,
                   commentsUsed: false,
-                  usedStructuredFhir: true
+                  usedStructuredFhir: true,
+                  includeWearables: includeWearables
                 }, { merge: true });
                 
                 console.log('RAG analysis saved to Firestore successfully');
@@ -466,16 +466,16 @@ ${profile?.familyHistory ? profile.familyHistory : 'Not specified'}`;
           try {
             // Check if any records have comments
             hasComments = recordDetails.some(record => 
-              (record.comment && record.comment.trim() !== '') || 
-              (record.comments && record.comments.trim() !== '')
+              record.comment && record.comment.trim() !== ''
             );
             
             // Prepare the record summaries for analysis
             const recordSummaries = recordDetails.map(record => {
               return `Record: ${record.name}
+Record Type: ${record.recordType || 'Not specified'}
+Record Date: ${record.recordDate || 'Not specified'}
 Detailed Analysis: ${record.detailedAnalysis}
-Comment: ${record.comment}
-Additional Comments: ${record.comments}`;
+Comment: ${record.comment}`;
             });
             
             // Determine the analysis prompt based on mode
@@ -483,7 +483,7 @@ Additional Comments: ${record.comments}`;
             let systemPrompt = '';
             
             // Standard mode - balanced analysis
-            systemPrompt = 'You are a medical AI assistant. Analyze the provided health records and provide balanced insights using XML-like tags for structured output. Do not use any personal identifiers and avoid phrases like "the patient" or similar.';
+            systemPrompt = 'Based on the provided health records provide some balanced insights using XML-like tags for structured output. Do not use any personal identifiers and avoid phrases like "the patient" or similar. Phrase it in a friendly way as though you are given a summary of a patients health to them to read.';
             analysisPrompt = `Please analyze these health records and provide your insights using these XML-like tags:
 
 <OVERVIEW>
@@ -491,12 +491,8 @@ Provide a high level overview here.
 </OVERVIEW>
 
 <KEY_FINDINGS>
-Provide a summary of key findings here.
+Provide a summary of key findings here. Go quite deep here about the history and any issues. Make it interesting and readable for the patient.
 </KEY_FINDINGS>
-
-<HEALTH_CONCERNS>
-List any potential health concerns here.
-</HEALTH_CONCERNS>
 
 It is CRITICAL that you use these exact XML-like tags in your response to ensure proper formatting. Do not use any personal identifiers and avoid phrases like "the patient" or similar.`;
             
@@ -551,7 +547,7 @@ It is CRITICAL that you use these exact XML-like tags in your response to ensure
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 needsUpdate: false,
                 recordCount: recordDetails.length,
-                generatedBy: 'openai',
+                generatedBy: 'text_summaries',
                 summariesUsed: true,
                 commentsUsed: hasComments
               }, { merge: true });
@@ -573,16 +569,16 @@ It is CRITICAL that you use these exact XML-like tags in your response to ensure
       try {
         // Check if any records have comments
         hasComments = recordDetails.some(record => 
-          (record.comment && record.comment.trim() !== '') || 
-          (record.comments && record.comments.trim() !== '')
+          record.comment && record.comment.trim() !== ''
         );
         
         // Prepare the record summaries for analysis
         const recordSummaries = recordDetails.map(record => {
           return `Record: ${record.name}
+Record Type: ${record.recordType || 'Not specified'}
+Record Date: ${record.recordDate || 'Not specified'}
 Detailed Analysis: ${record.detailedAnalysis}
-Comment: ${record.comment}
-Additional Comments: ${record.comments}`;
+Comment: ${record.comment}`;
         });
         
         // Determine the analysis prompt based on mode
@@ -590,7 +586,7 @@ Additional Comments: ${record.comments}`;
         let systemPrompt = '';
         
         // Standard mode - balanced analysis
-        systemPrompt = 'You are a medical AI assistant. Analyze the provided health records and provide balanced insights using XML-like tags for structured output. Do not use any personal identifiers and avoid phrases like "the patient" or similar.';
+        systemPrompt = 'Based on the provided health records provide some balanced insights using XML-like tags for structured output. Do not use any personal identifiers and avoid phrases like "the patient" or similar. Phrase it in a friendly way as though you are given a summary of a patients health to them to read.';
         analysisPrompt = `Please analyze these health records and provide your insights using these XML-like tags:
 
 <OVERVIEW>
@@ -598,12 +594,8 @@ Provide a high level overview here.
 </OVERVIEW>
 
 <KEY_FINDINGS>
-Provide a summary of key findings here.
+Provide a summary of key findings here. Go quite deep here about the history and any issues. Make it interesting and readable for the patient.
 </KEY_FINDINGS>
-
-<HEALTH_CONCERNS>
-List any potential health concerns here.
-</HEALTH_CONCERNS>
 
 It is CRITICAL that you use these exact XML-like tags in your response to ensure proper formatting. Do not use any personal identifiers and avoid phrases like "the patient" or similar.`;
         
@@ -658,7 +650,7 @@ It is CRITICAL that you use these exact XML-like tags in your response to ensure
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             needsUpdate: false,
             recordCount: recordDetails.length,
-            generatedBy: 'openai',
+            generatedBy: 'text_summaries',
             summariesUsed: true,
             commentsUsed: hasComments
           }, { merge: true });
@@ -689,10 +681,11 @@ It is CRITICAL that you use these exact XML-like tags in your response to ensure
       analysis: analysis,
       recordCount: recordDetails?.length || 0,
       mode: mode,
-      generatedBy: debugInfo.ragUsed ? 'rag+openai' : 'openai',
+      generatedBy: debugInfo.ragUsed ? 'structured+wearables' : 'text_summaries',
       summariesUsed: true,
       commentsUsed: hasComments,
       usedStructuredFhir: debugInfo.ragUsed,
+      includeWearables: debugInfo.includeWearables,
       firestoreSaved: debugInfo.firestoreSaved,
       debug: debugInfo
     });

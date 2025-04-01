@@ -993,4 +993,79 @@ export async function getResourcesByType<T extends Resource>(
     console.error(`Error fetching resources of type ${resourceType}:`, error);
     return [];
   }
+}
+
+/**
+ * Get recent observations for specific biomarkers by LOINC codes
+ */
+export async function getRecentObservationsForBiomarkers(
+  userId: string,
+  patientId: string,
+  loincCodes: string[]
+): Promise<Observation[]> {
+  if (!isBrowser) return [];
+  
+  try {
+    console.log(`Getting recent observations for biomarkers - User: ${userId}, Patient: ${patientId}`);
+    console.log(`Looking for LOINC codes:`, loincCodes);
+    
+    // Get all observations for the patient
+    const observations = await getPatientObservations(userId, patientId);
+    console.log(`Retrieved ${observations.length} total observations for the patient`);
+    
+    // Filter observations by LOINC codes and organize by code
+    const biomarkerObservations: Record<string, Observation[]> = {};
+    
+    for (const obs of observations) {
+      // Find if observation has any matching LOINC code
+      const matchingCode = obs.code?.coding?.find(c => 
+        c.system === 'http://loinc.org' && loincCodes.includes(c.code || '')
+      );
+      
+      if (matchingCode?.code) {
+        if (!biomarkerObservations[matchingCode.code]) {
+          biomarkerObservations[matchingCode.code] = [];
+        }
+        biomarkerObservations[matchingCode.code].push(obs);
+      }
+    }
+    
+    console.log(`Found biomarker observations for ${Object.keys(biomarkerObservations).length} LOINC codes`);
+    if (Object.keys(biomarkerObservations).length > 0) {
+      console.log(`Matching LOINC codes found:`, Object.keys(biomarkerObservations));
+    } else {
+      console.log(`No matching LOINC codes found in observations`);
+      // Log some sample observations for debugging
+      if (observations.length > 0) {
+        const sampleObs = observations.slice(0, Math.min(3, observations.length));
+        console.log(`Sample observations:`, sampleObs.map(o => ({
+          id: o.id,
+          code: o.code?.coding?.map(c => ({system: c.system, code: c.code}))
+        })));
+      }
+    }
+    
+    // For each biomarker, get the most recent observation
+    const recentObservations: Observation[] = [];
+    
+    Object.values(biomarkerObservations).forEach(obsArray => {
+      // Sort by date, newest first
+      const sorted = obsArray.sort((a, b) => {
+        const dateA = a.effectiveDateTime ? new Date(a.effectiveDateTime).getTime() : 0;
+        const dateB = b.effectiveDateTime ? new Date(b.effectiveDateTime).getTime() : 0;
+        return dateB - dateA;
+      });
+      
+      // Add the most recent observation
+      if (sorted.length > 0) {
+        recentObservations.push(sorted[0]);
+      }
+    });
+    
+    console.log(`Returning ${recentObservations.length} recent biomarker observations`);
+    return recentObservations;
+  } catch (error) {
+    console.error('Error fetching biomarker observations:', error);
+    return [];
+  }
 } 

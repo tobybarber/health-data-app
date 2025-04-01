@@ -197,30 +197,57 @@ This is important for ensuring the patient receives complete and accurate medica
                        '- Follow standard FHIR R4 resource structures with all required fields\n' +
                        '- Use appropriate coding systems (LOINC for labs, RxNorm for medications, ICD-10 for conditions)\n' +
                        '- Include proper units, reference ranges, and dates where available\n' +
-                       '- Link related resources using proper references\n\n' +
+                       '- Link related resources using proper references\n' +
+                       '- For laboratory reports:\n' +
+                       '  * Extract ALL test results as individual Observations\n' +
+                       '  * Include the exact test name, value, unit, and reference range\n' +
+                       '  * Use appropriate LOINC codes for each test\n' +
+                       '  * Group related tests under a DiagnosticReport resource\n' +
+                       '  * Preserve the original test names and units exactly as shown\n' +
+                       '  * Include any flags or abnormal indicators\n' +
+                       '- CRITICAL: Validate all JSON syntax before including it in the response\n' +
+                       '- CRITICAL: Ensure all JSON objects are properly closed with matching braces\n' +
+                       '- CRITICAL: Check for missing commas between array elements\n' +
+                       '- CRITICAL: Verify all property names are properly quoted\n' +
+                       '- CRITICAL: Remove any trailing commas in arrays or objects\n' +
+                       '\n' +
                        'INSTRUCTIONS FOR DOCUMENT ANALYSIS:\n' +
-                       '- Provide a detailed analysis of the medical information\n' +
+                       '- Provide a detailed analysis of the medical information. This should include ALL the medical data or information from the record and associated dates, but does not need to include any personal identifiers, meta data or information about the medical practice, practitioners or location.\n' +
                        '- Include a brief summary of key findings\n' +
                        '- Identify the document type\n' +
-                       '- Note the date of the document\n\n' +
-                       'FORMAT YOUR RESPONSE AS FOLLOWS:\n\n' +
+                       '- Note the date of the document\n' +
+                       '\n' +
+                       'FORMAT YOUR RESPONSE AS FOLLOWS:\n' +
+                       '\n' +
                        '<FHIR_RESOURCES>\n' +
                        '[\n' +
                        '  {\n' +
                        '    "resourceType": "TYPE",\n' +
                        '    ... valid FHIR JSON resource ...\n' +
                        '  },\n' +
-                       '  ... additional resources ...\n' +
+                       '  // Add more resources as needed\n' +
                        ']\n' +
-                       '</FHIR_RESOURCES>\n\n' +
-                       '<DOCUMENT_TYPE>Document type classification</DOCUMENT_TYPE>\n\n' +
-                       '<DOCUMENT_DATE>YYYY-MM-DD</DOCUMENT_DATE>\n\n' +
+                       '</FHIR_RESOURCES>\n' +
+                       '\n' +
                        '<DETAILED_ANALYSIS>\n' +
-                       'Detailed analysis text here...\n' +
-                       '</DETAILED_ANALYSIS>\n\n' +
+                       'This should include ALL the medical data or information from the record and associated dates, but should NOT include any personal identifiers, meta data or information about the medical practice, practitioners or location.\n' +
+                       '</DETAILED_ANALYSIS>\n' +
+                       '\n' +
                        '<BRIEF_SUMMARY>\n' +
-                       'Brief summary of key findings...\n' +
-                       '</BRIEF_SUMMARY>';
+                       'Provide a patient-friendly summary of the medical information with a brief interpretation of any unusual results. Do NOT include any patient identifiers, meta data, or information about the medical practice, practitioners, or location.\n' +
+                       '</BRIEF_SUMMARY>\n' +
+                       '\n' +
+                       '<DOCUMENT_TYPE>\n' +
+                       'The type of document\n' +
+                       '</DOCUMENT_TYPE>\n' +
+                       '\n' +
+                       '<DATE>\n' +
+                       'The date of the document\n' +
+                       '</DATE>\n' +
+                       '\n' +
+                       '<SUGGESTED_RECORD_NAME>\n' +
+                       'A descriptive name for this record\n' +
+                       '</SUGGESTED_RECORD_NAME>';
       
       // The query text to use (default with any multi-file instruction)
       queryText = multiFileInstruction ? `${multiFileInstruction}\n\n${defaultQuestion}` : defaultQuestion;
@@ -255,7 +282,7 @@ This is important for ensuring the patient receives complete and accurate medica
             
             // Use a simpler prompt for individual image analysis
             const singleImagePrompt = 'Please analyze this medical image and provide the following information in clearly labeled sections with XML-like tags:\n\n' +
-                       '<DETAILED_ANALYSIS>\nList all information visible in this image, ensuring it is complete and detailed.\n</DETAILED_ANALYSIS>\n\n' +
+                       '<DETAILED_ANALYSIS>\nList all medical information visible in this image, ensuring it is complete and detailed. Do NOT include any patient identifiers, meta data, or information about the medical practice, practitioners, or location.\n</DETAILED_ANALYSIS>\n\n' +
                        '<DOCUMENT_TYPE>\nReturn the FHIR resource type that best matches this document. The main types are "Laboratory Report" (including pathology reports, biopsies, and all test results), "Medication List", "Immunization Record", "Allergy List", "Problem List", or "Radiology Report".\n</DOCUMENT_TYPE>\n\n' +
                        '<DATE>\nExtract any date visible in the image. Format as mmm yyyy.\n</DATE>';
             
@@ -361,11 +388,11 @@ This is important for ensuring the patient receives complete and accurate medica
             
             Please provide your combined analysis using these XML-like tags:
             <DETAILED_ANALYSIS>
-            Comprehensive findings from ALL images, organized clearly. Make sure to include EVERY medical detail from each individual image analysis. Do not omit any information, even if it appears redundant.
+            Comprehensive findings from ALL images, organized clearly. Make sure to include EVERY medical detail from each individual image analysis. Do not omit any information, even if it appears redundant. Do NOT include any patient identifiers, meta data, or information about the medical practice, practitioners, or location.
             </DETAILED_ANALYSIS>
             
             <BRIEF_SUMMARY>
-            A concise summary of the key findings across all images.
+            Provide a patient-friendly summary of the medical information with a brief interpretation of any unusual results. Do NOT include any patient identifiers, meta data, or information about the medical practice, practitioners, or location.
             </BRIEF_SUMMARY>
             
             <DOCUMENT_TYPE>
@@ -480,8 +507,20 @@ This is important for ensuring the patient receives complete and accurate medica
               throw new Error('Not all additional files are ready for processing yet.');
             }
             
-            // Use the updated files array in the request
-            // NOTE: We're not actually modifying messageContent here to avoid TypeScript issues
+            // Add all additional files to the messageContent array
+            additionalFileObjects.forEach(fileObj => {
+              // Insert file objects before the text prompt to ensure all files are processed together
+              messageContent.splice(messageContent.length - 1, 0, fileObj);
+            });
+            
+            // Update the prompt to emphasize that multiple files should be analyzed together
+            const multiFileNote = "\n\nIMPORTANT: You have been provided with multiple documents (multiple PDFs) that belong together. Please analyze ALL documents as a complete set and provide a comprehensive analysis of all the files together.";
+            messageContent[messageContent.length - 1] = { 
+              type: 'input_text' as const, 
+              text: messageContent[messageContent.length - 1].text + multiFileNote 
+            };
+            
+            console.log(`Debug: Updated message content with ${additionalFileObjects.length} additional files and multi-file note`);
           }
           
           // Create the API request
@@ -515,18 +554,29 @@ This is important for ensuring the patient receives complete and accurate medica
             try {
               console.log('Attempting simplified analysis as fallback...');
               
-              // Create a simpler prompt that focuses just on extracting basic metadata
-              const fallbackPrompt = `Please quickly extract basic information from this medical document. 
-              Only focus on:
-              
-              1. Document type (lab report, radiology, etc.)
-              2. Document date
-              3. Very brief summary (1-2 sentences)
-              
-              Format your response using these tags:
-              <DOCUMENT_TYPE>Type goes here</DOCUMENT_TYPE>
-              <DATE>Date goes here</DATE>
-              <BRIEF_SUMMARY>Brief summary goes here</BRIEF_SUMMARY>`;
+              // Create a simpler prompt that focuses on essential information
+              const fallbackPrompt = `Please analyze this medical document and extract the following information:
+
+1. Document type (e.g., lab report, radiology, etc.)
+2. Document date
+3. Key test results and their values
+4. Any abnormal findings
+5. Brief summary
+
+Format your response using these tags:
+<DOCUMENT_TYPE>Type goes here</DOCUMENT_TYPE>
+<DATE>Date goes here</DATE>
+<DETAILED_ANALYSIS>Detailed findings go here. Do NOT include any patient identifiers, meta data, or information about the medical practice, practitioners, or location.</DETAILED_ANALYSIS>
+<BRIEF_SUMMARY>Provide a patient-friendly summary of the medical information with a brief interpretation of any unusual results. Do NOT include any patient identifiers, meta data, or information about the medical practice, practitioners, or location.</BRIEF_SUMMARY>
+
+For lab reports, please include:
+- Test name
+- Value
+- Unit
+- Reference range
+- Any flags or abnormal indicators
+
+Keep the analysis concise but informative.`;
               
               // Use a smaller model with stricter token limits for faster processing
               const fallbackAPICall = openai.responses.create({
@@ -544,7 +594,7 @@ This is important for ensuring the patient receives complete and accurate medica
               
               // Give the fallback a shorter timeout
               const fallbackTimeout = new Promise<never>((_, reject) => {
-                setTimeout(() => reject(new Error('Fallback analysis timed out')), 60000); // 1 minute
+                setTimeout(() => reject(new Error('Fallback analysis timed out')), 30000); // 30 seconds
               });
               
               // Execute the fallback
@@ -554,14 +604,34 @@ This is important for ensuring the patient receives complete and accurate medica
                 analysisResponse = fallbackResponse.output_text;
                 console.log('Fallback analysis successful');
                 
+                // Extract sections from the fallback response
+                const detailedAnalysisMatch = analysisResponse.match(/<DETAILED_ANALYSIS>\s*([\s\S]*?)\s*<\/DETAILED_ANALYSIS>/i);
+                detailedAnalysis = detailedAnalysisMatch ? detailedAnalysisMatch[1].trim() : '';
+                
+                const briefSummaryMatch = analysisResponse.match(/<BRIEF_SUMMARY>\s*([\s\S]*?)\s*<\/BRIEF_SUMMARY>/i);
+                briefSummary = briefSummaryMatch ? briefSummaryMatch[1].trim() : '';
+                
+                const recordTypeMatch = analysisResponse.match(/<DOCUMENT_TYPE>\s*([\s\S]*?)\s*<\/DOCUMENT_TYPE>/i);
+                recordType = recordTypeMatch ? recordTypeMatch[1].trim() : '';
+                
+                const recordDateMatch = analysisResponse.match(/<DATE>\s*([\s\S]*?)\s*<\/DATE>/i);
+                recordDate = recordDateMatch ? recordDateMatch[1].trim() : '';
+                
                 // Add a note that this is a simplified analysis
-                analysisResponse += "\n\n<DETAILED_ANALYSIS>This document required simplified analysis due to processing limitations. Please view the original document for complete details.</DETAILED_ANALYSIS>";
+                if (detailedAnalysis) {
+                  detailedAnalysis += "\n\nNote: This is a simplified analysis due to processing limitations. Please view the original document for complete details.";
+                }
               } else {
                 throw new Error('Fallback analysis failed to extract information');
               }
             } catch (fallbackError) {
               console.error('Fallback analysis also failed:', fallbackError);
-              throw new Error('The analysis request took too long to complete. Please try again later.');
+              // Set some default values to ensure we don't return empty results
+              analysisResponse = "The document analysis could not be completed due to processing limitations. Please try again later.";
+              detailedAnalysis = "Unable to complete full analysis. Please try again or view the original document.";
+              briefSummary = "Analysis incomplete. Please try again.";
+              recordType = "Medical Document";
+              recordDate = new Date().toISOString().split('T')[0];
             }
           }
           

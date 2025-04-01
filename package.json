@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "migrate-fhir": "node scripts/migrate-fhir-data.js"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
@@ -15,6 +16,7 @@
     "autoprefixer": "^10.4.16",
     "aws4": "^1.13.2",
     "axios": "^1.8.3",
+    "chart.js": "^4.4.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "firebase": "^10.7.0",
@@ -27,6 +29,7 @@
     "pdf-parse": "^1.1.1",
     "postcss": "^8.4.31",
     "react": "^18.2.0",
+    "react-chartjs-2": "^5.3.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.5.2",
     "react-icons": "^4.12.0",

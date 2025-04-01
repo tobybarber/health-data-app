@@ -19,10 +19,9 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
       const cachedAuthUser = localStorage.getItem('authUser');
       if (cachedAuthUser && cachedAuthUser !== 'null') {
         try {
-          console.log('Found cached auth user in protected route');
           setHasCachedAuth(true);
         } catch (e) {
-          console.error('Error with cached auth state:', e);
+          // Error with cached auth state
         }
       }
     }
@@ -32,7 +31,6 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     // Only redirect if we're sure there's no authentication
     // and there's no cached authentication data
     if (!loading && !currentUser && !hasCachedAuth && authInitialized) {
-      console.log('No auth detected, redirecting to login');
       router.push('/login');
     }
   }, [currentUser, loading, router, hasCachedAuth, authInitialized]);

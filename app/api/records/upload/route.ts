@@ -24,18 +24,32 @@ import {
 } from '../../../lib/fhir-service';
 import { extractTextFromPdf, performOCR } from '../../../lib/pdf-utils';
 import { updateDoc } from 'firebase/firestore';
+import { buildUserVectorIndex } from '../../../lib/rag-service';
 
 /**
  * POST handler for uploading files and creating records
  * This endpoint ensures users can only upload to their own storage space
  */
 export async function POST(request: NextRequest) {
+  // Define userId at the top level so it's available in the finally block
+  let userId: string | null = null;
+  
   try {
     // Parse the form data first, before any other operations
     const formData = await request.formData();
+    
+    // Debug logging to see all form field names
+    console.log('Form data keys:', Array.from(formData.keys()));
+    
     const files = formData.getAll('files') as File[];
-    const recordName = formData.get('recordName') as string || 'Medical Record';
+    
+    // Get the record name (which is used as the record type)
+    // The field is labeled "Record Type" in the UI but the input name is "recordName"
+    const recordName = formData.get('recordName') as string || '';
+    console.log('Received recordName:', recordName); // Debug log
+    
     const comment = formData.get('comment') as string || '';
+    console.log('Received comment:', comment); // Debug log
     
     // Verify authentication and get user ID
     // We need to pass the auth token manually since we've already consumed the request body
@@ -49,12 +63,12 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Call verifyAuthToken with the token
-    const userId = await verifyTokenAndGetUserId(token);
+    // Call verifyAuthToken with the token string
+    userId = await verifyTokenAndGetUserId(token);
     
     if (!userId) {
       return NextResponse.json(
-        { error: 'Unauthorized: Invalid token' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -80,19 +94,19 @@ export async function POST(request: NextRequest) {
       
       // Create record in Firestore for comment-only upload
       const recordData: RecordData = {
-        name: recordName.trim() || 'Medical Record',
+        name: recordName.trim() || 'Comment',
         comment: comment,
         urls: [],
         fileCount: 0,
         isMultiFile: false,
         createdAt: new Date(),
-        analysis: "This is a comment-only record.",
-        briefSummary: "Comment-only record",
-        detailedAnalysis: "This record contains only a comment without any attached files.",
-        recordType: recordName.trim() || 'Comment',
+        analysis: comment, // Use the actual comment as the analysis
+        briefSummary: comment, // Use the actual comment as the summary
+        detailedAnalysis: comment, // Use the actual comment as the detailed analysis
+        recordType: recordName.trim() || 'Comment', // Use recordName if provided, otherwise default to 'Comment'
         recordDate: new Date().toISOString().split('T')[0],
         fileTypes: [],
-        analysisInProgress: true  // Flag to indicate analysis is in progress
+        analysisInProgress: false // No analysis needed for comments
       };
       
       const docRef = await db.collection('users').doc(userId).collection('records').add(recordData);
@@ -103,6 +117,17 @@ export async function POST(request: NextRequest) {
         needsUpdate: true,
         lastRecordAdded: new Date()
       }, { merge: true });
+      
+      // Trigger vector index rebuild for the comment
+      console.log(`Triggering vector index rebuild for user ${userId} after comment upload`);
+      (async () => {
+        try {
+          await buildUserVectorIndex(userId, true);
+          console.log(`Vector index rebuild completed for user ${userId}`);
+        } catch (indexError) {
+          console.error(`Error rebuilding vector index for user ${userId}:`, indexError);
+        }
+      })();
       
       return NextResponse.json({
         success: true,
@@ -215,7 +240,7 @@ export async function POST(request: NextRequest) {
       isMultiFile: files.length > 1,
       createdAt: new Date(),
       fileTypes: fileTypes,
-      recordType: recordName.trim() || 'Medical Record',
+      recordType: recordName.trim() || 'Medical Record', // Use recordName if provided, otherwise default to 'Medical Record'
       recordDate: new Date().toISOString().split('T')[0],
       analysisInProgress: true  // Flag to indicate analysis is in progress
     };
@@ -363,9 +388,110 @@ export async function POST(request: NextRequest) {
                       const fhirResourcesJson = fhirMatch[1].trim();
                       
                       try {
-                        // Parse the JSON array of resources
-                        const fhirResources = JSON.parse(fhirResourcesJson);
-                        console.log(`Found ${fhirResources.length} FHIR resources in analysis output`);
+                        // Log the raw JSON for debugging
+                        console.log('Raw FHIR resources JSON length:', fhirResourcesJson.length);
+                        
+                        // Sanitize the JSON to handle common issues
+                        let sanitizedJson = fhirResourcesJson;
+                        
+                        // Try to fix the most common JSON issues
+                        try {
+                          // Look for missing commas between array elements - this is a common error
+                          sanitizedJson = sanitizedJson.replace(/}\s*{/g, '},{');
+                          
+                          // Remove trailing commas in arrays which are invalid in JSON
+                          sanitizedJson = sanitizedJson.replace(/,\s*]/g, ']');
+                          
+                          // Try to auto-fix specific positions if we can identify errors
+                          // For example, the specific error reported at position 3804
+                          // "Expected ',' or ']' after array element in JSON at position 3804"
+                          try {
+                            // Make sure we're working with a proper JSON array
+                            if (!sanitizedJson.startsWith('[')) {
+                              sanitizedJson = '[' + sanitizedJson + ']';
+                            }
+                            
+                            // Attempt to find and fix problems with missing commas at object boundaries
+                            // This often happens when AI generates JSON with formatting issues
+                            sanitizedJson = sanitizedJson.replace(/}\s*\n\s*{/g, '},\n{');
+                            sanitizedJson = sanitizedJson.replace(/"\s*\n\s*{/g, '",\n{');
+                            sanitizedJson = sanitizedJson.replace(/}\s*\n\s*"/g, '},\n"');
+                          } catch (fixError) {
+                            console.error('Error during targeted JSON fixes:', fixError);
+                          }
+                          
+                          // Wrap in array if it's not already an array or object
+                          if (!sanitizedJson.startsWith('[') && !sanitizedJson.startsWith('{')) {
+                            sanitizedJson = '[' + sanitizedJson + ']';
+                          }
+                        } catch (sanitizationError: unknown) {
+                          console.error('Error during JSON sanitization:', sanitizationError instanceof Error ? sanitizationError.message : String(sanitizationError));
+                        }
+                        
+                        // Attempt to parse with error details if it fails
+                        let fhirResources;
+                        try {
+                          fhirResources = JSON.parse(sanitizedJson);
+                          console.log(`Successfully parsed JSON. Found ${fhirResources.length} FHIR resources in analysis output`);
+                        } catch (parseError: unknown) {
+                          // Get detailed error position
+                          const errorMessage = (parseError as Error).message || 'Unknown JSON parse error';
+                          console.error('JSON parse error details:', errorMessage);
+                          
+                          // Extract position information
+                          const positionMatch = errorMessage.match(/position (\d+)/);
+                          if (positionMatch && positionMatch[1]) {
+                            const position = parseInt(positionMatch[1]);
+                            const contextStart = Math.max(0, position - 50);
+                            const contextEnd = Math.min(sanitizedJson.length, position + 50);
+                            
+                            console.error('JSON error context:');
+                            console.error(sanitizedJson.substring(contextStart, position) + ' 👉 ' + 
+                                          sanitizedJson.charAt(position) + ' 👈 ' + 
+                                          sanitizedJson.substring(position + 1, contextEnd));
+                          }
+                          
+                          // Try again with a more aggressive approach - create an empty array if all else fails
+                          console.log('Falling back to empty array due to JSON parse error');
+                          fhirResources = [];
+                          
+                          // Attempt to parse individual objects if the array parse failed
+                          // This can often recover partial data when one object breaks the entire array
+                          try {
+                            console.log('Attempting to extract individual valid JSON objects');
+                            
+                            // Try to match individual JSON objects
+                            const objectRegex = /\{(?:[^{}]|(?:\{[^{}]*\}))*\}/g;
+                            const potentialObjects = sanitizedJson.match(objectRegex) || [];
+                            
+                            if (potentialObjects.length > 0) {
+                              console.log(`Found ${potentialObjects.length} potential JSON objects to recover`);
+                              
+                              for (const objString of potentialObjects) {
+                                try {
+                                  const obj = JSON.parse(objString);
+                                  if (obj && typeof obj === 'object' && obj.resourceType) {
+                                    console.log(`Successfully recovered JSON object of type ${obj.resourceType}`);
+                                    fhirResources.push(obj);
+                                  }
+                                } catch (objParseError) {
+                                  // Skip objects that don't parse
+                                }
+                              }
+                              
+                              if (fhirResources.length > 0) {
+                                console.log(`Recovered ${fhirResources.length} valid FHIR resources`);
+                              }
+                            }
+                          } catch (recoveryError) {
+                            console.error('Failed to recover partial JSON objects:', recoveryError);
+                          }
+                          
+                          // Record the error but continue processing
+                          await recordRef.update({
+                            analysisError: `Error parsing FHIR resources: ${errorMessage}`
+                          });
+                        }
                         
                         // Save each resource to Firestore
                         const savedResourceIds: string[] = [];
@@ -376,16 +502,22 @@ export async function POST(request: NextRequest) {
                           
                           // Add a timestamp to avoid conflicts
                           const timestamp = new Date().getTime();
-                          const resourceId = `${resource.id || `${resource.resourceType.toLowerCase()}-${timestamp}`}`;
+                          const resourceId = resource.id || `${timestamp}`;
+                          
+                          // Ensure the resource has an ID
+                          resource.id = resourceId;
                           
                           try {
-                            // Save the FHIR resource to Firestore
-                            const fhirRef = db.collection('users').doc(userId).collection('fhir').doc(resourceId);
+                            // Save the FHIR resource to the standardized fhir_resources collection
+                            const fhirRef = db.collection('users').doc(userId)
+                              .collection('fhir_resources')
+                              .doc(`${resource.resourceType}_${resourceId}`);
+                            
                             await fhirRef.set(resource);
                             console.log(`Saved FHIR resource ${resource.resourceType}/${resourceId}`);
                             
-                            // Add to our list of saved resources
-                            savedResourceIds.push(resourceId);
+                            // Add to our list of saved resources using the standardized format
+                            savedResourceIds.push(`${resource.resourceType}_${resourceId}`);
                           } catch (saveError) {
                             console.error(`Error saving FHIR resource ${resource.resourceType}:`, saveError);
                           }
@@ -404,13 +536,25 @@ export async function POST(request: NextRequest) {
                             analysisInProgress: false
                           });
                         }
-                      } catch (jsonError) {
-                        console.error('Error parsing FHIR resources JSON:', jsonError);
-                        // Mark analysis as complete even if there was an error
-                        await recordRef.update({
-                          analysisInProgress: false,
-                          analysisError: `Error parsing FHIR resources: ${jsonError}`
-                        });
+                      } catch (fhirExtractionError: any) {
+                        console.error('Error extracting FHIR resources from analysis:', fhirExtractionError);
+                        // Mark analysis as complete with error
+                        let errorMessage = fhirExtractionError.message || String(fhirExtractionError);
+                        
+                        // Check if it's a JSON parsing error and extract context if available
+                        if (errorMessage.includes('position')) {
+                          // This is likely a JSON parsing error with position information
+                          await recordRef.update({
+                            analysisInProgress: false,
+                            analysisError: `Error parsing FHIR resources: ${errorMessage}`
+                          });
+                        } else {
+                          // Generic error without context
+                          await recordRef.update({
+                            analysisInProgress: false,
+                            analysisError: `Error extracting FHIR resources: ${errorMessage}`
+                          });
+                        }
                       }
                     } else {
                       console.log('No FHIR resources found in analysis output');
@@ -419,13 +563,25 @@ export async function POST(request: NextRequest) {
                         analysisInProgress: false
                       });
                     }
-                  } catch (fhirExtractionError) {
+                  } catch (fhirExtractionError: any) {
                     console.error('Error extracting FHIR resources from analysis:', fhirExtractionError);
                     // Mark analysis as complete with error
-                    await recordRef.update({
-                      analysisInProgress: false,
-                      analysisError: `Error extracting FHIR resources: ${fhirExtractionError}`
-                    });
+                    let errorMessage = fhirExtractionError.message || String(fhirExtractionError);
+                    
+                    // Check if it's a JSON parsing error and extract context if available
+                    if (errorMessage.includes('position')) {
+                      // This is likely a JSON parsing error with position information
+                      await recordRef.update({
+                        analysisInProgress: false,
+                        analysisError: `Error parsing FHIR resources: ${errorMessage}`
+                      });
+                    } else {
+                      // Generic error without context
+                      await recordRef.update({
+                        analysisInProgress: false,
+                        analysisError: `Error extracting FHIR resources: ${errorMessage}`
+                      });
+                    }
                   }
                 } else {
                   // Mark analysis as complete even if there's no result
@@ -506,7 +662,7 @@ export async function POST(request: NextRequest) {
         const documentData = {
           name: recordName,
           recordType: analysis.recordType,
-          recordDate: new Date().toISOString(), // Use extracted date if available
+          recordDate: '', // Initialize as empty string
           briefSummary: analysis.summary,
           extractedData: analysis.extractedData,
           comment: comment || '',
@@ -517,6 +673,17 @@ export async function POST(request: NextRequest) {
         // Try to extract a date from the analysis
         if (analysis.extractedData && analysis.extractedData.date) {
           documentData.recordDate = new Date(analysis.extractedData.date).toISOString();
+        } else if (analysis.summary) {
+          // Try to extract date from the summary text
+          const dateMatch = analysis.summary.match(/<DATE>([^<]+)<\/DATE>/);
+          if (dateMatch) {
+            documentData.recordDate = new Date(dateMatch[1].trim()).toISOString();
+          }
+        }
+        
+        // If still no date, use current date as fallback
+        if (!documentData.recordDate) {
+          documentData.recordDate = new Date().toISOString();
         }
         
         // Extract FHIR resources based on document type
@@ -673,6 +840,21 @@ export async function POST(request: NextRequest) {
       { error: 'Internal server error' },
       { status: 500 }
     );
+  } finally {
+    // Trigger vector index rebuild in the background
+    // This runs after the response has been sent to the client
+    if (userId) {
+      (async () => {
+        try {
+          console.log(`Triggering vector index rebuild for user ${userId} after document upload`);
+          await buildUserVectorIndex(userId, true);
+          console.log(`Vector index rebuild completed for user ${userId}`);
+        } catch (indexError) {
+          console.error(`Error rebuilding vector index for user ${userId}:`, indexError);
+          // Don't throw, just log the error since this is a background process
+        }
+      })();
+    }
   }
 }
 

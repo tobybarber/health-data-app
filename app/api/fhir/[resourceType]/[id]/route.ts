@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '../../../../lib/firebase-admin';
-import { verifyTokenAndGetUserId } from '../../../../lib/auth-middleware';
+import db from '../../../../lib/firebaseAdmin';
+import { NextResponse, NextRequest } from 'next/server';
 
 // Base path for FHIR resources in Firestore
-const FHIR_COLLECTION_PATH = 'fhir';
+const FHIR_COLLECTION_PATH = 'fhir_resources';
 
 /**
  * Handle GET request to fetch a specific resource by ID
@@ -13,34 +12,30 @@ export async function GET(
   { params }: { params: { resourceType: string; id: string } }
 ) {
   try {
-    // Verify auth token
-    const token = request.headers.get('authorization')?.split('Bearer ')[1] || '';
-    const userId = await verifyTokenAndGetUserId(token);
-    
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
+    // Get the resource type and ID from the URL
     const { resourceType, id } = params;
     
-    // Fetch the resource
-    const docRef = db.collection(`users/${userId}/${FHIR_COLLECTION_PATH}/${resourceType}`).doc(id);
-    const docSnap = await docRef.get();
-    
-    if (!docSnap.exists) {
-      return NextResponse.json(
-        { error: `${resourceType}/${id} not found` },
-        { status: 404 }
-      );
+    // Get user ID from query parameter (simplified for demo)
+    const userId = request.nextUrl.searchParams.get('userId');
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
     
-    return NextResponse.json(docSnap.data());
-  } catch (error: any) {
-    console.error(`Error fetching ${params.resourceType}/${params.id}:`, error);
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+    // Create document reference with the standardized format
+    const docRef = db.collection('users').doc(userId)
+      .collection(FHIR_COLLECTION_PATH)
+      .doc(`${resourceType}_${id}`);
+    
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
+      return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
+    }
+    
+    return NextResponse.json(doc.data());
+  } catch (error) {
+    console.error('Error fetching FHIR resource:', error);
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }
 
@@ -52,62 +47,44 @@ export async function PUT(
   { params }: { params: { resourceType: string; id: string } }
 ) {
   try {
-    // Verify auth token
-    const token = request.headers.get('authorization')?.split('Bearer ')[1] || '';
-    const userId = await verifyTokenAndGetUserId(token);
+    // Get the resource type and ID from the URL
+    const { resourceType, id } = params;
     
+    // Get user ID from query parameter (simplified for demo)
+    const userId = request.nextUrl.searchParams.get('userId');
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
     
-    const { resourceType, id } = params;
+    // Parse the request body
     const resource = await request.json();
     
-    // Ensure resource has correct ID and type
-    if (resource.id !== id) {
-      return NextResponse.json(
-        { error: `Resource ID mismatch: expected ${id}, got ${resource.id}` },
-        { status: 400 }
-      );
+    // Validate the resource has the right type and ID
+    if (!resource || resource.resourceType !== resourceType || resource.id !== id) {
+      return NextResponse.json({ 
+        error: 'Invalid resource: Type or ID mismatch' 
+      }, { status: 400 });
     }
     
-    if (resource.resourceType !== resourceType) {
-      return NextResponse.json(
-        { error: `Resource type mismatch: expected ${resourceType}, got ${resource.resourceType}` },
-        { status: 400 }
-      );
+    // Create document reference with the standardized format
+    const docRef = db.collection('users').doc(userId)
+      .collection(FHIR_COLLECTION_PATH)
+      .doc(`${resourceType}_${id}`);
+    
+    // Check if the resource exists
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
+      return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
     }
     
-    // Check if resource exists
-    const docRef = db.collection(`users/${userId}/${FHIR_COLLECTION_PATH}/${resourceType}`).doc(id);
-    const docSnap = await docRef.get();
-    
-    if (!docSnap.exists) {
-      return NextResponse.json(
-        { error: `${resourceType}/${id} not found` },
-        { status: 404 }
-      );
-    }
-    
-    // Update metadata
-    resource.meta = {
-      ...(resource.meta || {}),
-      lastUpdated: new Date().toISOString(),
-      versionId: resource.meta?.versionId
-        ? `${parseInt(resource.meta.versionId) + 1}`
-        : '1'
-    };
-    
-    // Update in Firestore
+    // Update the resource
     await docRef.set(resource);
     
     return NextResponse.json(resource);
-  } catch (error: any) {
-    console.error(`Error updating ${params.resourceType}/${params.id}:`, error);
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('Error updating FHIR resource:', error);
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }
 
@@ -119,36 +96,33 @@ export async function DELETE(
   { params }: { params: { resourceType: string; id: string } }
 ) {
   try {
-    // Verify auth token
-    const token = request.headers.get('authorization')?.split('Bearer ')[1] || '';
-    const userId = await verifyTokenAndGetUserId(token);
-    
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
+    // Get the resource type and ID from the URL
     const { resourceType, id } = params;
     
-    // Check if resource exists
-    const docRef = db.collection(`users/${userId}/${FHIR_COLLECTION_PATH}/${resourceType}`).doc(id);
-    const docSnap = await docRef.get();
-    
-    if (!docSnap.exists) {
-      return NextResponse.json(
-        { error: `${resourceType}/${id} not found` },
-        { status: 404 }
-      );
+    // Get user ID from query parameter (simplified for demo)
+    const userId = request.nextUrl.searchParams.get('userId');
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
     
-    // Delete from Firestore
+    // Create document reference with the standardized format
+    const docRef = db.collection('users').doc(userId)
+      .collection(FHIR_COLLECTION_PATH)
+      .doc(`${resourceType}_${id}`);
+    
+    // Check if the resource exists
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
+      return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
+    }
+    
+    // Delete the resource
     await docRef.delete();
     
-    return new NextResponse(null, { status: 204 });
-  } catch (error: any) {
-    console.error(`Error deleting ${params.resourceType}/${params.id}:`, error);
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: 'Resource deleted' });
+  } catch (error) {
+    console.error('Error deleting FHIR resource:', error);
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 } 

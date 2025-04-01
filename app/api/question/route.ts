@@ -3,6 +3,8 @@ import { openai, validateOpenAIKey } from '../../lib/openai-server';
 import db from '../../lib/firebaseAdmin';
 import { getDietTypeDescription } from '../../utils/healthUtils';
 import { generateSpeech, calculateTTSCost } from '../../utils/ttsUtils';
+import { getUserResources, findRelevantResources } from '../../lib/rag-service';
+import { fhirResourceToText } from '../../lib/rag-processor';
 
 // Define TypeScript interfaces for the OpenAI response structure
 interface ResponseTextContent {
@@ -144,6 +146,7 @@ export async function POST(request: NextRequest) {
       // For guest users or new conversations without Firebase access
       let userData: Record<string, any> = {};
       let records: any[] = [];
+      let fhirResources: any[] = [];
 
       // Only try to fetch user data from Firebase if not a guest
       if (!isGuest) {
@@ -187,6 +190,11 @@ export async function POST(request: NextRequest) {
                 };
               });
               console.log(`Processed ${records.length} health records`);
+              
+              // Get FHIR resources including wearable data that are relevant to this query
+              console.log('Finding relevant FHIR resources for query:', question);
+              fhirResources = await findRelevantResources(userId, question, 15);
+              console.log(`Retrieved ${fhirResources.length} relevant FHIR resources`);
             } catch (firestoreError) {
               console.error('Error accessing Firestore records:', firestoreError);
               // Continue with empty records rather than failing
@@ -210,6 +218,12 @@ Date: ${record.date instanceof Date ? record.date.toISOString().split('T')[0] : 
 Summary: ${record.summary || record.analysis || record.detailedAnalysis || 'No summary provided'}
 Details: ${record.details || record.comment || 'No details provided'}
 Record ID: ${record.id}`;
+      }).join('\n\n');
+      
+      // Create FHIR resource summaries including wearable data
+      console.log('Processing relevant FHIR resources for prompt context');
+      const fhirResourceSummaries = fhirResources.map(resource => {
+        return fhirResourceToText(resource);
       }).join('\n\n');
       
       // Prepare user profile information
@@ -246,8 +260,12 @@ ${userProfile}
 HEALTH RECORD SUMMARIES:
 ${recordSummaries || 'No health records available for this user.'}
 
+RELEVANT HEALTH DATA:
+${fhirResourceSummaries || 'No wearable or FHIR data available for this user.'}
+
 INSTRUCTIONS:
-- Analyze the health record summaries and user's question, then provide a thoughtful response.
+- Analyze the health record summaries, relevant health data, and user's question, then provide a thoughtful response.
+- When relevant to the question, reference specific wearable data points (like heart rate, steps, sleep) for better personalization.
 - Cite specific records when relevant by referring to their record Type (not ID).
 - Be empathetic and supportive while maintaining a professional tone.
 - If you don't have enough information to answer a question, acknowledge that and suggest what information might be helpful.

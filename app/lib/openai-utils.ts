@@ -136,7 +136,7 @@ export async function analyzeRecord(
 }
 
 /**
- * Uploads a file from Firestore to OpenAI for enhanced security
+ * Uploads a file from Firestore to OpenAI
  * @param fileUrl The Firestore URL of the file
  * @param fileName The name of the file
  * @param fileType The type of the file
@@ -148,8 +148,8 @@ export async function uploadFirestoreFileToOpenAI(
   fileUrl: string,
   fileName: string,
   fileType: string,
-  userId: string,
-  recordId: string
+  userId: string | null | undefined,
+  recordId: string | null | undefined
 ) {
   try {
     console.log(`📤 Uploading file from Firestore to OpenAI: ${fileName}`);
@@ -167,8 +167,8 @@ export async function uploadFirestoreFileToOpenAI(
         fileUrl,
         fileName,
         fileType,
-        userId,
-        recordId
+        userId: userId || '',
+        recordId: recordId || ''
       }),
     });
     
@@ -252,47 +252,24 @@ export async function analyzeDocumentText(recordText: string, recordName: string
     // Include the record name if available
     const recordNameInfo = recordName ? `The document name is: ${recordName}. ` : '';
     
-    const analysisPrompt = `${recordNameInfo}Please analyze this medical document and:
-
-1. Extract structured FHIR R4 resources based on the content
-2. Provide an analysis summary of the document
+    const analysisPrompt = `You are a medical document analysis expert. Analyze the following document and extract structured FHIR R4 resources and provide a detailed analysis.
 
 INSTRUCTIONS FOR FHIR EXTRACTION:
-- Extract Patient, Observation, DiagnosticReport, Medication, MedicationStatement, Condition, AllergyIntolerance, Immunization, or any other relevant FHIR resources
-- Follow standard FHIR R4 resource structures with all required fields
-- Use appropriate coding systems (LOINC for labs, RxNorm for medications, ICD-10 for conditions)
-- Include proper units, reference ranges, and dates where available
+- Extract all relevant FHIR R4 resources (Patient, Observation, DiagnosticReport, etc.)
+- Use proper coding systems (SNOMED CT, LOINC, etc.) for medical concepts
+- Include proper units and reference ranges where available
 - Link related resources using proper references
+- For pathology or laboratory tests, ensure you include very individual results in the FHIR extraction.
 
-INSTRUCTIONS FOR DOCUMENT ANALYSIS:
-- Provide a detailed analysis of the medical information
-- Include a brief summary of key findings
-- Identify the document type
-- Note the date of the document
+DOCUMENT TEXT:
+${recordText}
 
-FORMAT YOUR RESPONSE AS FOLLOWS:
-
-<FHIR_RESOURCES>
-[
-  {
-    "resourceType": "TYPE",
-    ... valid FHIR JSON resource ...
-  },
-  ... additional resources ...
-]
-</FHIR_RESOURCES>
-
-<DOCUMENT_TYPE>Document type classification</DOCUMENT_TYPE>
-
-<DOCUMENT_DATE>YYYY-MM-DD</DOCUMENT_DATE>
-
-<DETAILED_ANALYSIS>
-Detailed analysis text here...
-</DETAILED_ANALYSIS>
-
-<BRIEF_SUMMARY>
-Brief summary of key findings...
-</BRIEF_SUMMARY>`;
+Please provide:
+1. A structured FHIR resource extraction
+2. A detailed analysis of the document. This should include ALL the medical data or information from the record and associated dates, but does not need to include any personal identifiers, meta data or information about the medical practice, practitioners or location.
+3. The type of record (e.g., pathology report, imaging report, clinical note)
+4. The date of the record
+5. Any structured data that can be extracted (e.g., lab values, measurements)`;
     
     // Call the OpenAI API
     const analysisResponse = await chatCompletion(analysisPrompt);

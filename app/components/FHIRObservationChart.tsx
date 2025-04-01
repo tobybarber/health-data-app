@@ -27,7 +27,7 @@ export default function FHIRObservationChart({
   loincCode,
   title,
   subtitle,
-  height = 300,
+  height = 200,
   width = 600
 }: FHIRObservationChartProps) {
   const { currentUser } = useAuth();
@@ -55,10 +55,19 @@ export default function FHIRObservationChart({
 
         // Format dates and sort by date
         const formattedData = timelineData
-          .map(item => ({
-            ...item,
-            formattedDate: new Date(item.date).toLocaleDateString()
-          }))
+          .map(item => {
+            const date = new Date(item.date);
+            // Format date as MMM YYYY (e.g., Jan 2023)
+            const formattedDate = date.toLocaleString('en-US', { 
+              month: 'short', 
+              year: 'numeric' 
+            });
+            
+            return {
+              ...item,
+              formattedDate
+            };
+          })
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         setChartData(formattedData);
@@ -68,11 +77,23 @@ export default function FHIRObservationChart({
           const values = formattedData.map(item => item.value);
           const min = Math.min(...values);
           const max = Math.max(...values);
-          const padding = (max - min) * 0.1;
-          setRange({
-            min: Math.max(0, min - padding),
-            max: max + padding
-          });
+          
+          // Increase vertical scale to +/- 50% of the range
+          const rangePadding = (max - min) * 0.5;
+          
+          // If min and max are the same (only one value or all values identical),
+          // create an artificial range to avoid division by zero
+          if (min === max) {
+            setRange({
+              min: min * 0.5, // 50% below the value
+              max: min * 1.5  // 50% above the value
+            });
+          } else {
+            setRange({
+              min: Math.max(0, min - rangePadding), // Don't go below zero for most medical tests
+              max: max + rangePadding
+            });
+          }
         }
       } catch (err: any) {
         console.error('Error fetching observation data:', err);
@@ -105,7 +126,7 @@ export default function FHIRObservationChart({
 
   // Calculate chart dimensions
   const chartWidth = width - 80; // Adjust for labels and padding
-  const chartHeight = height - 80;
+  const chartHeight = height - 60; // Reduced padding to fit smaller height
   const barWidth = Math.min(40, chartWidth / chartData.length - 10);
 
   // Scale the values to fit the chart height
@@ -120,17 +141,7 @@ export default function FHIRObservationChart({
       <p className="text-gray-400">{subtitle}</p>
       
       <svg width={width} height={height} className="mt-4">
-        {/* Y-axis */}
-        <line
-          x1={60}
-          y1={10}
-          x2={60}
-          y2={chartHeight + 10}
-          stroke="#555"
-          strokeWidth={1}
-        />
-        
-        {/* X-axis */}
+        {/* X-axis only - vertical axis removed */}
         <line
           x1={60}
           y1={chartHeight + 10}
@@ -140,7 +151,7 @@ export default function FHIRObservationChart({
           strokeWidth={1}
         />
         
-        {/* Y-axis labels */}
+        {/* Y-axis labels without the line */}
         {range.min !== undefined && range.max !== undefined && (
           <>
             <text x={10} y={15} fontSize={12} fill="#ccc" textAnchor="start">
@@ -152,49 +163,67 @@ export default function FHIRObservationChart({
           </>
         )}
         
-        {/* Bars */}
-        {chartData.map((dataPoint, index) => {
-          const barX = 60 + (chartWidth / chartData.length) * index + (chartWidth / chartData.length - barWidth) / 2;
-          const barY = 10 + scaleY(dataPoint.value);
-          const barHeight = chartHeight - scaleY(dataPoint.value);
-          
-          return (
-            <g key={index}>
-              <rect
-                x={barX}
-                y={barY}
-                width={barWidth}
-                height={barHeight}
-                fill="#4f46e5"
-                rx={2}
-              />
-              <text
-                x={barX + barWidth / 2}
-                y={chartHeight + 30}
-                fontSize={10}
-                fill="#ccc"
-                textAnchor="middle"
-                transform={`rotate(45, ${barX + barWidth / 2}, ${chartHeight + 30})`}
-              >
-                {dataPoint.formattedDate}
-              </text>
-              <text
-                x={barX + barWidth / 2}
-                y={barY - 5}
-                fontSize={10}
-                fill="#ccc"
-                textAnchor="middle"
-              >
-                {dataPoint.value}
-              </text>
-            </g>
-          );
-        })}
+        {/* Line chart */}
+        {chartData.length > 0 && (
+          <g>
+            {/* Create the line connecting all points */}
+            <polyline
+              points={chartData.map((dataPoint, index) => {
+                const pointX = 60 + (chartWidth / (chartData.length - 1 || 1)) * index;
+                const pointY = 10 + scaleY(dataPoint.value);
+                return `${pointX},${pointY}`;
+              }).join(' ')}
+              fill="none"
+              stroke="#4f46e5"
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            
+            {/* Add data points */}
+            {chartData.map((dataPoint, index) => {
+              const pointX = 60 + (chartWidth / (chartData.length - 1 || 1)) * index;
+              const pointY = 10 + scaleY(dataPoint.value);
+              
+              return (
+                <g key={index}>
+                  {/* Data point */}
+                  <circle
+                    cx={pointX}
+                    cy={pointY}
+                    r={5}
+                    fill="#4f46e5"
+                    stroke="#fff"
+                    strokeWidth={1}
+                  />
+                  
+                  {/* Value label */}
+                  <text
+                    x={pointX}
+                    y={pointY - 10}
+                    fontSize={10}
+                    fill="#ccc"
+                    textAnchor="middle"
+                  >
+                    {dataPoint.value}
+                  </text>
+                  
+                  {/* Date label - no rotation for cleaner look */}
+                  <text
+                    x={pointX}
+                    y={chartHeight + 30}
+                    fontSize={10}
+                    fill="#ccc"
+                    textAnchor="middle"
+                  >
+                    {dataPoint.formattedDate}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        )}
       </svg>
-      
-      <div className="text-xs text-gray-400 mt-6 text-center">
-        {chartData.length} data points | LOINC: {loincCode}
-      </div>
     </div>
   );
 } 

@@ -48,8 +48,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authInitialized, setAuthInitialized] = useState(false);
 
   useEffect(() => {
-    console.log('Setting up auth state change listener');
-    
     // Check local storage for cached auth state
     if (typeof window !== 'undefined') {
       const cachedAuthUser = localStorage.getItem('authUser');
@@ -57,10 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           // We can't fully restore the User object, but we can use this as a hint
           // that the user was previously logged in
-          console.log('Found cached auth state, using as initial value');
           setAuthInitialized(true);
         } catch (e) {
-          console.error('Error parsing cached auth user:', e);
+          // Error parsing cached auth user
         }
       }
     }
@@ -68,13 +65,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set a timeout to ensure loading state isn't stuck forever
     const timeoutId = setTimeout(() => {
       if (loading) {
-        console.log('Auth loading timed out after 5 seconds, forcing loading to false');
         setLoading(false);
       }
     }, 5000);
     
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log('Auth state changed:', user ? 'User logged in' : 'No user');
       setCurrentUser(user);
       setLoading(false);
       setAuthInitialized(true);
@@ -91,7 +86,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(timeoutId); // Clear timeout if auth state changed successfully
     }, (error) => {
       // Error handler for onAuthStateChanged
-      console.error('Auth state change error:', error);
       setLoading(false);
       setAuthInitialized(true);
       clearTimeout(timeoutId);
@@ -99,14 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Cleanup function
     return () => {
-      console.log('Cleaning up auth state change listener');
       unsubscribe();
       clearTimeout(timeoutId);
     };
   }, []);
 
   const logout = async () => {
-    console.log('Attempting to log out user');
     // Clear session storage to ensure a new chat on next login
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('app_session_id');
@@ -115,46 +107,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     try {
       await signOut(auth);
-      console.log('User logged out successfully');
       return Promise.resolve();
     } catch (error) {
-      console.error('Logout error:', error);
       return Promise.reject(error);
     }
   };
 
   const resetPassword = async (email: string) => {
-    console.log('Attempting to send password reset email to:', email);
     try {
       await sendPasswordResetEmail(auth, email);
-      console.log('Password reset email sent successfully');
       return Promise.resolve();
     } catch (error) {
-      console.error('Password reset error:', error);
       return Promise.reject(error);
     }
   };
 
   const login = async (email: string, password: string) => {
-    console.log('Attempting to log in user with email:', email);
     try {
       const result = await signInWithEmailAndPassword(auth, email, password);
-      console.log('User logged in successfully');
       return result;
     } catch (error) {
-      console.error('Login error:', error);
       throw error; // Re-throw to be handled by the login form
     }
   };
 
   const signup = async (email: string, password: string) => {
-    console.log('Attempting to sign up user with email:', email);
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
-      console.log('User signed up successfully');
       return result;
     } catch (error) {
-      console.error('Signup error:', error);
       throw error; // Re-throw to be handled by the signup form
     }
   };

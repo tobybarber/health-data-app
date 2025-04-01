@@ -26,6 +26,7 @@ interface SimpleRecord {
   urls?: string[];
   isMultiFile?: boolean;
   briefSummary?: string;
+  detailedAnalysis?: string;
   recordType: string;
   recordDate: string;
   fhirResourceIds?: string[] | Record<string, any>;
@@ -227,6 +228,9 @@ export default function Records() {
   const { currentUser } = useAuth();
   const [recordObservations, setRecordObservations] = useState<{[recordId: string]: Observation[]}>({});
   const [loadingObservations, setLoadingObservations] = useState<{[recordId: string]: boolean}>({});
+  const [viewDetailedAnalysis, setViewDetailedAnalysis] = useState<string[]>([]);
+  const [viewFhirText, setViewFhirText] = useState<string[]>([]);
+  const [viewFhirResources, setViewFhirResources] = useState<string[]>([]);
 
   // Cache keys and expiry
   const OBSERVATIONS_CACHE_KEY = 'health_observations_cache_';
@@ -394,6 +398,7 @@ export default function Records() {
             urls: data.urls,
             isMultiFile: data.isMultiFile,
             briefSummary: data.briefSummary,
+            detailedAnalysis: data.detailedAnalysis,
             fhirResourceIds: data.fhirResourceIds,
             createdAt: data.createdAt,
             analysisStatus: analysisStatus,
@@ -534,6 +539,7 @@ export default function Records() {
   // Fetch observations for a record
   const fetchObservationsForRecord = useCallback(async (record: SimpleRecord) => {
     console.log(`Fetching observations for record ${record.id}, record type: ${record.recordType}`);
+    console.log('FHIR Resource IDs:', JSON.stringify(record.fhirResourceIds));
     
     if (!currentUser || !record.fhirResourceIds) {
       console.log(`No FHIR resources to fetch for record ${record.id}`);
@@ -558,21 +564,32 @@ export default function Records() {
       if (Array.isArray(record.fhirResourceIds)) {
         // If fhirResourceIds is already an array
         resourceIds = record.fhirResourceIds.filter(id => id);
+        console.log('Resource IDs from array:', resourceIds);
       } else if (typeof record.fhirResourceIds === 'object' && record.fhirResourceIds !== null) {
         // If fhirResourceIds is an object (from older uploads)
         const resourceObj = record.fhirResourceIds as any;
+        console.log('Resource IDs object:', resourceObj);
         
-        // Extract all string values and arrays from the object
-        const extractedIds: string[] = [];
-        Object.values(resourceObj).forEach(value => {
-          if (typeof value === 'string' && value) {
-            extractedIds.push(value);
-          } else if (Array.isArray(value)) {
-            extractedIds.push(...value.filter(id => id));
-          }
-        });
+        // Special handling for direct Observation property - this is likely the format for new records
+        if (resourceObj.Observation && Array.isArray(resourceObj.Observation)) {
+          console.log('Found direct Observation array in resourceIds object');
+          resourceIds = resourceObj.Observation.filter((id: string) => id);
+        } else {
+          // Extract all string values and arrays from the object
+          const extractedIds: string[] = [];
+          Object.entries(resourceObj).forEach(([key, value]) => {
+            console.log(`Processing key "${key}" with value:`, value);
+            if (typeof value === 'string' && value) {
+              extractedIds.push(value);
+            } else if (Array.isArray(value)) {
+              extractedIds.push(...value.filter(id => id));
+            }
+          });
+          
+          resourceIds = extractedIds;
+        }
         
-        resourceIds = extractedIds;
+        console.log('Extracted resource IDs:', resourceIds);
       }
       
       if (resourceIds.length === 0) {
@@ -580,27 +597,176 @@ export default function Records() {
         return;
       }
       
+      // Process reference-style IDs (eg. "Observation/observation-FullBloodExamination")
+      const processedIds: string[] = [];
+      for (const id of resourceIds) {
+        if (id.includes('/')) {
+          // This is a reference-style ID like "Observation/observation-FullBloodExamination"
+          const parts = id.split('/');
+          if (parts.length === 2) {
+            processedIds.push(parts[1]); // Just take the actual ID part
+            console.log(`Converted reference-style ID "${id}" to "${parts[1]}"`);
+          } else {
+            processedIds.push(id);
+          }
+        } else {
+          processedIds.push(id);
+        }
+      }
+      
       // Fetch each potential FHIR resource
-      for (const resourceId of resourceIds) {
-        const resourceRef = doc(db as Firestore, 'users', currentUser.uid, 'fhir', resourceId);
-        const resourceDoc = await getDoc(resourceRef);
+      for (const resourceId of processedIds) {
+        console.log(`Attempting to fetch FHIR resource with ID: ${resourceId}`);
         
-        if (resourceDoc.exists()) {
+        // Try multiple paths to find the resource
+        const paths = [
+          // Try format: users/{uid}/fhir_resources/Observation_{id}
+          doc(db as Firestore, 'users', currentUser.uid, 'fhir_resources', `Observation_${resourceId}`),
+          // Try format: users/{uid}/fhir_resources/{id} (if already includes resourceType)
+          doc(db as Firestore, 'users', currentUser.uid, 'fhir_resources', resourceId),
+          // Try format: users/{uid}/fhir/{id} (legacy)
+          doc(db as Firestore, 'users', currentUser.uid, 'fhir', resourceId)
+        ];
+        
+        let resourceDoc = null;
+        let foundPath = '';
+        
+        // Try each path until we find the resource
+        for (let i = 0; i < paths.length; i++) {
+          const docRef = paths[i];
+          const docSnap = await getDoc(docRef);
+          
+          if (docSnap.exists()) {
+            resourceDoc = docSnap;
+            foundPath = ['fhir_resources/Observation_', 'fhir_resources/', 'fhir/'][i] + resourceId;
+            console.log(`Found resource at path: ${foundPath}`);
+            break;
+          }
+        }
+        
+        if (resourceDoc && resourceDoc.exists()) {
           const data = resourceDoc.data();
           
           // Check if it's an Observation
           if (data.resourceType === 'Observation') {
-            // Ensure we have an ID property that matches the document ID
-            const observationWithId = {
-              ...data,
-              id: resourceDoc.id
-            };
-            observations.push(observationWithId as Observation);
+            console.log(`Found Observation: ${resourceDoc.id}`);
+            
+            // Check if this is a panel/group observation with components (like FBE/CBC)
+            if (data.component && Array.isArray(data.component) && data.component.length > 0) {
+              console.log(`This observation has ${data.component.length} components - creating individual observations`);
+              
+              // Extract each component as a separate observation
+              data.component.forEach((component: any, index: number) => {
+                if (component.code && (component.valueQuantity || component.valueString)) {
+                  const componentId = `${resourceId}-component-${index}`;
+                  
+                  // Create a new observation from this component
+                  const componentObs: Observation = {
+                    resourceType: 'Observation',
+                    id: componentId,
+                    status: data.status || 'final',
+                    code: component.code,
+                    valueQuantity: component.valueQuantity,
+                    valueString: component.valueString,
+                    subject: data.subject,
+                    effectiveDateTime: data.effectiveDateTime,
+                    issued: data.issued,
+                    referenceRange: component.referenceRange || []
+                  };
+                  
+                  observations.push(componentObs);
+                  console.log(`Created component observation: ${componentId} - ${component.code?.text || 'unnamed'}`);
+                }
+              });
+            } else {
+              // Regular single observation
+              // Ensure we have an ID property that matches the document ID
+              const observationWithId = {
+                ...data,
+                id: resourceDoc.id.includes('_') 
+                  ? resourceDoc.id.split('_')[1] 
+                  : resourceDoc.id
+              };
+              observations.push(observationWithId as Observation);
+            }
+          } else {
+            console.log(`Resource is not an Observation: ${data.resourceType}`);
           }
+        } else {
+          console.log(`No resource found for ID: ${resourceId}`);
         }
       }
       
       console.log(`Found ${observations.length} observations for record ${record.id}`);
+      
+      // For debugging: if no observations found but we were expecting some, try checking both collections
+      if (observations.length === 0 && processedIds.length > 0) {
+        console.log('No observations found but IDs were present. Checking both FHIR collections...');
+        
+        // Try listing all resources to see what's available
+        try {
+          const fhirResourcesRef = collection(db as Firestore, 'users', currentUser.uid, 'fhir_resources');
+          const fhirResourceDocs = await getDocs(fhirResourcesRef);
+          console.log(`Found ${fhirResourceDocs.size} documents in fhir_resources collection`);
+          fhirResourceDocs.forEach(doc => {
+            console.log(`Document ID: ${doc.id}, ResourceType: ${doc.data().resourceType}`);
+          });
+          
+          // Check legacy collection too
+          const fhirRef = collection(db as Firestore, 'users', currentUser.uid, 'fhir');
+          const fhirDocs = await getDocs(fhirRef);
+          console.log(`Found ${fhirDocs.size} documents in fhir collection`);
+          fhirDocs.forEach(doc => {
+            console.log(`Document ID: ${doc.id}, ResourceType: ${doc.data().resourceType}`);
+          });
+        } catch (e) {
+          console.error('Error listing available FHIR resources:', e);
+        }
+      }
+      
+      // Create mock observations from parsed lab data if no observations were found
+      if (observations.length === 0 && record.briefSummary) {
+        console.log('No observations found in FHIR resources, attempting to extract from summary text');
+        
+        // Try to parse the lab results from the summary text
+        const labRegex = /([A-Za-z]+):\s*([\d.]+)\s*([^\s()]+)?\s*\(([^)]+)\)/g;
+        const briefSummary = record.briefSummary;
+        let match;
+        let index = 0;
+        
+        while ((match = labRegex.exec(briefSummary)) !== null) {
+          const [_, name, value, unit, range] = match;
+          const numValue = parseFloat(value);
+          
+          if (!isNaN(numValue)) {
+            // Parse the reference range
+            const rangeMatch = range.match(/([\d.]+)-([\d.]+)/);
+            const refRange = rangeMatch ? {
+              low: { value: parseFloat(rangeMatch[1]) },
+              high: { value: parseFloat(rangeMatch[2]) }
+            } : undefined;
+            
+            // Create a mock observation
+            const mockObs: Observation = {
+              resourceType: 'Observation',
+              id: `parsed-${record.id}-${index}`,
+              status: 'final',
+              code: {
+                text: name
+              },
+              valueQuantity: {
+                value: numValue,
+                unit: unit || ''
+              },
+              referenceRange: refRange ? [refRange] : []
+            };
+            
+            observations.push(mockObs);
+            console.log(`Created mock observation from text: ${name}: ${value} ${unit}`);
+            index++;
+          }
+        }
+      }
       
       // Update state with observations for this record
       setRecordObservations(prev => ({
@@ -879,14 +1045,117 @@ export default function Records() {
                                   <p className="text-gray-300">
                                     {record.analysisError || "An unexpected error occurred during analysis. You can still view the original file."}
                                   </p>
+                                  {record.analysisError && record.analysisError.includes("Expected ',' or '}' after property value in JSON") && (
+                                    <div className="mt-2 p-2 bg-gray-900 rounded-md text-xs font-mono overflow-x-auto">
+                                      <p className="text-red-400 mb-1">JSON syntax error in FHIR resource:</p>
+                                      {typeof window !== 'undefined' && (window as any).lastFHIRParseError && (window as any).lastFHIRParseError.context ? (
+                                        <code className="whitespace-pre-wrap text-xs">
+                                          {(window as any).lastFHIRParseError.context}
+                                        </code>
+                                      ) : (
+                                        <p className="text-gray-400">
+                                          Try refreshing the page or re-uploading the document to see the detailed error.
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             )}
                             
                             {record.briefSummary && (
                               <div className="text-sm mb-4 text-gray-300">
-                                <h4 className="font-medium text-white mb-1">Summary:</h4>
-                                <p className="whitespace-pre-wrap leading-relaxed">{record.briefSummary}</p>
+                                <div className="flex justify-between items-center mb-2">
+                                  <h4 className="font-medium text-white">
+                                    {viewDetailedAnalysis.includes(record.id) ? 'Detailed Analysis' : 'Summary'}
+                                  </h4>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setViewDetailedAnalysis(prev => 
+                                        prev.includes(record.id) 
+                                          ? prev.filter(id => id !== record.id)
+                                          : [...prev, record.id]
+                                      );
+                                    }}
+                                    className="text-xs text-blue-400 hover:text-blue-300"
+                                  >
+                                    {viewDetailedAnalysis.includes(record.id) ? 'View Summary' : 'View Detailed Analysis'}
+                                  </button>
+                                </div>
+                                <p className="whitespace-pre-wrap leading-relaxed">
+                                  {viewDetailedAnalysis.includes(record.id) 
+                                    ? (record.detailedAnalysis || record.briefSummary)
+                                    : record.briefSummary}
+                                </p>
+                              </div>
+                            )}
+                            
+                            {/* Add FHIR Text section */}
+                            {record.fhirResourceIds && (
+                              <div className="text-sm mb-4 text-gray-300">
+                                <div className="flex justify-between items-center mb-2">
+                                  <h4 className="font-medium text-white">FHIR Resources</h4>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setViewFhirText(prev => 
+                                          prev.includes(record.id) 
+                                            ? prev.filter(id => id !== record.id)
+                                            : [...prev, record.id]
+                                        );
+                                      }}
+                                      className="text-xs text-blue-400 hover:text-blue-300"
+                                    >
+                                      {viewFhirText.includes(record.id) ? 'Hide FHIR Text' : 'View FHIR Text'}
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setViewFhirResources(prev => 
+                                          prev.includes(record.id) 
+                                            ? prev.filter(id => id !== record.id)
+                                            : [...prev, record.id]
+                                        );
+                                      }}
+                                      className="text-xs text-blue-400 hover:text-blue-300"
+                                    >
+                                      {viewFhirResources.includes(record.id) ? 'Hide Resource List' : 'View Resource List'}
+                                    </button>
+                                  </div>
+                                </div>
+                                
+                                {/* FHIR Text View */}
+                                {viewFhirText.includes(record.id) && recordObservations[record.id] && (
+                                  <div className="mt-2 bg-gray-900 rounded-md p-3 overflow-auto max-h-96">
+                                    <pre className="text-xs text-gray-300">
+                                      {JSON.stringify(recordObservations[record.id], null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                                
+                                {/* FHIR Resources List View */}
+                                {viewFhirResources.includes(record.id) && (
+                                  <div className="mt-2">
+                                    <h5 className="text-sm font-medium text-gray-400 mb-2">Extracted FHIR Resources:</h5>
+                                    <ul className="list-disc list-inside space-y-1">
+                                      {Array.isArray(record.fhirResourceIds) ? (
+                                        record.fhirResourceIds.map((resourceId, index) => (
+                                          <li key={index} className="text-xs text-gray-400">
+                                            {resourceId}
+                                          </li>
+                                        ))
+                                      ) : (
+                                        Object.entries(record.fhirResourceIds || {}).map(([type, ids], index) => (
+                                          <li key={index} className="text-xs text-gray-400">
+                                            {type}: {Array.isArray(ids) ? ids.length : 1} resource(s)
+                                          </li>
+                                        ))
+                                      )}
+                                    </ul>
+                                  </div>
+                                )}
                               </div>
                             )}
                             
@@ -897,69 +1166,73 @@ export default function Records() {
                                 : typeof record.fhirResourceIds === 'object' && Object.keys(record.fhirResourceIds).length > 0
                             ) ? (
                               <div className="my-4">
-                                <h4 className="font-medium text-white mb-2">Lab Results & Measurements:</h4>
-                                
                                 {loadingObservations[record.id] ? (
-                                  <div className="flex justify-center items-center h-12">
-                                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
-                                  </div>
+                                  <>
+                                    <h4 className="font-medium text-white mb-2">Lab Results & Measurements:</h4>
+                                    <div className="flex justify-center items-center h-12">
+                                      <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
+                                    </div>
+                                  </>
                                 ) : recordObservations[record.id]?.length > 0 ? (
-                                  <ul className="space-y-2">
-                                    {recordObservations[record.id].map(observation => {
-                                      // Extract observation details
-                                      const name = getFormattedTestName(observation);
-                                      const value = observation.valueQuantity?.value !== undefined 
-                                        ? `${observation.valueQuantity.value} ${observation.valueQuantity.unit || ''}`
-                                        : observation.valueString || 'No value';
-                                      
-                                      // Check if abnormal
-                                      const isAbnormal = observation.interpretation && 
-                                        observation.interpretation.some(i => 
-                                          i.coding && i.coding.some(c => ['H', 'L', 'HH', 'LL', 'A'].includes(c.code || ''))
-                                        );
-                                      
-                                      return (
-                                        <li 
-                                          key={observation.id} 
-                                          className="px-3 py-2 bg-gray-800/50 rounded-md cursor-pointer hover:bg-gray-800/80 transition-colors"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            window.location.href = `/observation/${observation.id}`;
-                                          }}
-                                        >
-                                          <div className="flex justify-between items-start">
-                                            <div>
-                                              <div className="flex items-center">
-                                                <span className="text-sm font-medium text-white">{name}</span>
-                                                {isAbnormal && (
-                                                  <span className="ml-2 px-1.5 py-0.5 text-xs rounded bg-red-900/50 text-red-300">
-                                                    Abnormal
-                                                  </span>
-                                                )}
+                                  <>
+                                    <h4 className="font-medium text-white mb-2">Lab Results & Measurements:</h4>
+                                    <ul className="space-y-2">
+                                      {recordObservations[record.id].map(observation => {
+                                        // Extract observation details
+                                        const name = getFormattedTestName(observation);
+                                        const value = observation.valueQuantity?.value !== undefined 
+                                          ? `${observation.valueQuantity.value} ${observation.valueQuantity.unit || ''}`
+                                          : observation.valueString || 'No value';
+                                        
+                                        // Check if abnormal
+                                        const isAbnormal = observation.interpretation && 
+                                          observation.interpretation.some(i => 
+                                            i.coding && i.coding.some(c => ['H', 'L', 'HH', 'LL', 'A'].includes(c.code || ''))
+                                          );
+                                        
+                                        return (
+                                          <li 
+                                            key={observation.id} 
+                                            className="px-3 py-2 bg-gray-800/50 rounded-md cursor-pointer hover:bg-gray-800/80 transition-colors"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              window.location.href = `/observation/${observation.id}`;
+                                            }}
+                                          >
+                                            <div className="flex justify-between items-start">
+                                              <div>
+                                                <div className="flex items-center">
+                                                  <span className="text-sm font-medium text-white">{name}</span>
+                                                  {isAbnormal && (
+                                                    <span className="ml-2 px-1.5 py-0.5 text-xs rounded bg-red-900/50 text-red-300">
+                                                      Abnormal
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                              <div className={`text-sm font-medium ${isAbnormal ? 'text-red-300' : 'text-gray-200'}`}>
+                                                {value}
                                               </div>
                                             </div>
-                                            <div className={`text-sm font-medium ${isAbnormal ? 'text-red-300' : 'text-gray-200'}`}>
-                                              {value}
-                                            </div>
-                                          </div>
-                                          
-                                          {/* Visualization Section */}
-                                          {typeof observation.valueQuantity?.value === 'number' && observation.id !== undefined && (
-                                            <div className="mt-3">
-                                              {/* Directly embed the gauge here */}
-                                              <SimpleGauge 
-                                                value={observation.valueQuantity?.value ?? 1.7} 
-                                                low={observation.referenceRange?.[0]?.low?.value}
-                                                high={observation.referenceRange?.[0]?.high?.value}
-                                                unit={observation.valueQuantity?.unit || ''}
-                                                name={name}
-                                              />
-                                            </div>
-                                          )}
-                                        </li>
-                                      );
-                                    })}
-                                  </ul>
+                                            
+                                            {/* Visualization Section */}
+                                            {typeof observation.valueQuantity?.value === 'number' && observation.id !== undefined && (
+                                              <div className="mt-3">
+                                                {/* Directly embed the gauge here */}
+                                                <SimpleGauge 
+                                                  value={observation.valueQuantity?.value ?? 1.7} 
+                                                  low={observation.referenceRange?.[0]?.low?.value}
+                                                  high={observation.referenceRange?.[0]?.high?.value}
+                                                  unit={observation.valueQuantity?.unit || ''}
+                                                  name={name}
+                                                />
+                                              </div>
+                                            )}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </>
                                 ) : (
                                   <p className="text-sm text-gray-400">No lab results found for this record.</p>
                                 )}

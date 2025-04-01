@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Observation } from '../types/fhir';
 import { ExternalLinkIcon } from 'lucide-react';
 
@@ -15,6 +15,11 @@ export default function ObservationGauge({
   title, 
   showDetails = true 
 }: ObservationGaugeProps) {
+  // Add state for result explanation
+  const [explanation, setExplanation] = useState<string | null>(null);
+  const [isLoadingExplanation, setIsLoadingExplanation] = useState(false);
+  const [showExplanation, setShowExplanation] = useState(false);
+
   // Extract data from observation
   const observationName = title || observation.code?.text || 'Lab Test';
   const value = observation.valueQuantity?.value;
@@ -169,13 +174,21 @@ export default function ObservationGauge({
       {/* Gauge visualization */}
       <div className="mt-4 mb-2">
         <div className="relative h-8">
-          {/* Background gradient */}
+          {/* Replace continuous gradient with segmented colors */}
           <div className="absolute inset-0 rounded-full overflow-hidden">
-            <div className="h-full w-full bg-gradient-to-r from-red-500 via-yellow-500 via-green-500 via-yellow-500 to-red-500"
-                 style={{
-                   backgroundSize: '200% 100%',
-                   backgroundPosition: '0% 0%'
-                 }}></div>
+            <div className="h-full w-full flex">
+              {/* Below reference range section (red) */}
+              <div className="h-full bg-red-500" 
+                   style={{ width: `${lowPos}%` }}></div>
+              
+              {/* Optimal section (green) */}
+              <div className="h-full bg-green-500" 
+                   style={{ width: `${highPos - lowPos}%` }}></div>
+              
+              {/* Above reference range section (red) */}
+              <div className="h-full bg-red-500" 
+                   style={{ width: `${100 - highPos}%` }}></div>
+            </div>
           </div>
           
           {/* Range markers */}
@@ -185,11 +198,11 @@ export default function ObservationGauge({
                  style={{ left: `${veryLowPos}%` }}></div>
             
             {/* Low marker */}
-            <div className="absolute top-0 bottom-0 border-l-2 border-gray-700"
+            <div className="absolute top-0 bottom-0 border-l-2 border-white/60"
                  style={{ left: `${lowPos}%` }}></div>
             
             {/* High marker */}
-            <div className="absolute top-0 bottom-0 border-l-2 border-gray-700"
+            <div className="absolute top-0 bottom-0 border-l-2 border-white/60"
                  style={{ left: `${highPos}%` }}></div>
             
             {/* Very High marker */}
@@ -211,43 +224,140 @@ export default function ObservationGauge({
         </div>
       </div>
       
-      {/* Range details */}
+      {/* Range details - enhance with visual indicators */}
       {showDetails && (
         <div className="mt-4 grid grid-cols-5 gap-1 text-xs">
-          <div className="text-center text-red-400">
+          <div className="text-center text-red-400 py-1 rounded bg-red-950/30">
             <div className="font-medium">Below Standard</div>
             <div>{`< ${veryLow.toFixed(1)}`}</div>
           </div>
-          <div className="text-center text-yellow-400">
+          <div className="text-center text-yellow-400 py-1 rounded bg-yellow-950/30">
             <div className="font-medium">Below Optimal</div>
             <div>{`${veryLow.toFixed(1)} - ${low.toFixed(1)}`}</div>
           </div>
-          <div className="text-center text-green-400">
+          <div className="text-center text-green-400 py-1 rounded bg-green-950/30">
             <div className="font-medium">Optimal</div>
             <div>{`${low.toFixed(1)} - ${high.toFixed(1)}`}</div>
           </div>
-          <div className="text-center text-yellow-400">
+          <div className="text-center text-yellow-400 py-1 rounded bg-yellow-950/30">
             <div className="font-medium">Above Optimal</div>
             <div>{`${high.toFixed(1)} - ${veryHigh.toFixed(1)}`}</div>
           </div>
-          <div className="text-center text-red-400">
+          <div className="text-center text-red-400 py-1 rounded bg-red-950/30">
             <div className="font-medium">Above Standard</div>
             <div>{`> ${veryHigh.toFixed(1)}`}</div>
           </div>
         </div>
       )}
       
-      {/* Link to more information */}
+      {/* Link to more information - replaced with result explanation */}
       <div className="mt-4 text-center">
-        <a 
-          href={`https://labtestsonline.org/tests/${code || observationName.toLowerCase().replace(/\s+/g, '-')}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-400 hover:text-blue-300 text-sm inline-flex items-center"
-        >
-          Learn more about this test
-          <ExternalLinkIcon className="ml-1 h-3 w-3" />
-        </a>
+        {!showExplanation ? (
+          <button 
+            onClick={async () => {
+              setShowExplanation(true);
+              
+              // Only fetch explanation if we don't already have one
+              if (!explanation) {
+                setIsLoadingExplanation(true);
+                
+                try {
+                  // Prepare question for OpenAI
+                  const testName = observationName || 'lab test';
+                  const testValue = value !== undefined ? value : 'unknown';
+                  const testUnit = unit || '';
+                  
+                  const question = `Tell me about a result of ${testValue}${testUnit} on a ${testName} test as though you are explaining it to a patient. This will be used for informational purposes only and not as medical advice. Just start the response without any introductory words, like "okay" or "certainly".`;
+                  
+                  // Call OpenAI API
+                  const response = await fetch('/api/openai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: question })
+                  });
+                  
+                  if (!response.ok) {
+                    throw new Error('Failed to get explanation');
+                  }
+                  
+                  const data = await response.json();
+                  setExplanation(data.result || 'Sorry, I could not generate an explanation for this result.');
+                } catch (error) {
+                  console.error('Error getting explanation:', error);
+                  setExplanation('Sorry, there was an error generating an explanation for this result.');
+                } finally {
+                  setIsLoadingExplanation(false);
+                }
+              }
+            }}
+            className="text-blue-400 hover:text-blue-300 text-sm inline-flex items-center"
+          >
+            Learn more about this result
+            <ExternalLinkIcon className="ml-1 h-3 w-3" />
+          </button>
+        ) : (
+          <div className="text-left mt-4">
+            <h4 className="font-medium text-white text-sm mb-2">About This Result:</h4>
+            {isLoadingExplanation ? (
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                <span className="text-sm text-gray-300">Getting explanation...</span>
+              </div>
+            ) : (
+              <div className="text-sm text-gray-300 p-3 bg-gray-800 rounded-md">
+                {explanation}
+              </div>
+            )}
+            <div className="flex space-x-4 mt-2">
+              <button 
+                onClick={() => setShowExplanation(false)}
+                className="text-blue-400 hover:text-blue-300 text-xs"
+              >
+                Hide explanation
+              </button>
+              <button 
+                onClick={async () => {
+                  setIsLoadingExplanation(true);
+                  
+                  try {
+                    // Prepare question for OpenAI
+                    const testName = observationName || 'lab test';
+                    const testValue = value !== undefined ? value : 'unknown';
+                    const testUnit = unit || '';
+                    
+                    const question = `Tell me about a result of ${testValue}${testUnit} on a ${testName} test as though you are explaining it to a patient. This will be used for informational purposes only and not as medical advice. Just start the response without any introductory words, like "okay" or "certainly".`;
+                    
+                    // Call OpenAI API
+                    const response = await fetch('/api/openai', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ prompt: question })
+                    });
+                    
+                    if (!response.ok) {
+                      throw new Error('Failed to get explanation');
+                    }
+                    
+                    const data = await response.json();
+                    setExplanation(data.result || 'Sorry, I could not generate an explanation for this result.');
+                  } catch (error) {
+                    console.error('Error getting explanation:', error);
+                    setExplanation('Sorry, there was an error generating an explanation for this result.');
+                  } finally {
+                    setIsLoadingExplanation(false);
+                  }
+                }}
+                className="text-blue-400 hover:text-blue-300 text-xs flex items-center"
+                disabled={isLoadingExplanation}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh explanation
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

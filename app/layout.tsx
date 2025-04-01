@@ -1,45 +1,38 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
-import { AuthProvider } from './lib/AuthContext';
+import { Providers } from './providers';
+import { Inter } from 'next/font/google';
 import dynamic from 'next/dynamic';
 
-// Import the ClientWrapper component dynamically with no SSR
-const ClientWrapper = dynamic(() => import('./components/ClientWrapper'), { ssr: false });
+const inter = Inter({ subsets: ['latin'] });
 
-// Define metadata with minimal properties and only ASCII characters
+// Import the ClientWrapper component dynamically with no SSR
+const ClientWrapper = dynamic(() => import('./components/ClientWrapper'), {
+  ssr: false,
+});
+
 export const metadata: Metadata = {
-  title: 'Health Data App',
-  description: 'Track and manage your health data',
+  title: 'Wattle Health',
+  description: 'Personal health assistant powered by AI',
+  manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Health Data',
-    startupImage: [
-      {
-        url: '/images/apple-splash.png',
-        media: '(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)'
-      }
-    ]
+    title: 'Wattle Health',
   },
   other: {
-    'apple-mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-status-bar-style': 'black-translucent',
     'mobile-web-app-capable': 'yes',
-    'theme-color': '#000000'
   }
 };
 
-// Define viewport with minimal properties
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  userScalable: false, // Disable pinch zooming for better touch handling
-  minimumScale: 1,
   maximumScale: 1,
-  viewportFit: 'cover'
+  userScalable: false,
+  viewportFit: 'cover',
 };
 
-// RootLayout is a server component
 export default function RootLayout({
   children,
 }: {
@@ -48,19 +41,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="theme-color" content="#000000" />
         <meta name="apple-touch-fullscreen" content="yes" />
       </head>
       <body className="bg-black min-h-screen">
-        <ClientWrapper>
-          <AuthProvider>
+        <Providers>
+          <ClientWrapper>
             {children}
-          </AuthProvider>
-        </ClientWrapper>
+          </ClientWrapper>
+        </Providers>
       </body>
     </html>
   );

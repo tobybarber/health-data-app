@@ -82,4 +82,31 @@ The app requires a valid OpenAI API key for the analysis features to work. Witho
 
 - This app is designed for personal use and does not include authentication or security features
 - The app uses GPT-4 Vision to analyze medical records directly in their native format
-- For optimal performance, ensure your OpenAI account has sufficient API credits 
+- For optimal performance, ensure your OpenAI account has sufficient API credits
+
+## Wearable Device Integration
+
+The app integrates with wearable fitness devices to collect health data:
+
+- Connect devices like Fitbit, Garmin, Whoop, and others
+- Sync data including heart rate, step count, sleep, and activities
+- Data is converted to FHIR format and stored in the health record
+- Support for real device connections via OAuth and test data generation
+
+See [WEARABLE_INTEGRATION.md](WEARABLE_INTEGRATION.md) for more details on the implementation.
+
+### Using Wearable Integration
+
+1. Navigate to the Wearables page
+2. Connect a device (with real API credentials or using test data)
+3. Sync data from the device to view and store it
+4. View your wearable data in the health record
+
+### Test Mode
+
+For testing without real API credentials, select "Use test data" when connecting a device. This will generate realistic simulated data that follows typical patterns for:
+
+- Heart rate: 24 hours of data with natural variations
+- Steps: Daily step counts for the past week
+- Sleep: Sleep stages (deep, REM, light) for the past week
+- Activities: Various physical activities with duration, distance, etc. 
