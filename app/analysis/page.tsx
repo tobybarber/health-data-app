@@ -906,92 +906,88 @@ export default function Analysis() {
           title="My Analysis"
           subtitle="Track your health trends and patterns"
         >
-          <div className="container mx-auto px-4 pb-8">
-            <div className="flex justify-between items-center mb-6">
-              <button
-                onClick={() => setShowSettingsModal(true)}
-                className="px-4 py-2 rounded-md transition-colors text-white border border-primary-blue hover:bg-black/20"
-              >
-                Settings
-              </button>
-            </div>
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="px-4 py-2 rounded-md transition-colors text-white border border-primary-blue hover:bg-black/20 mb-6"
+          >
+            Settings
+          </button>
 
-            {/* Analysis Content Section */}
-            <div className="bg-black border border-gray-700 rounded-lg shadow p-6">
-              <div className="flex justify-between items-center mb-6 px-1">
-                <h2 className="text-lg font-medium text-primary-blue">Analysis Results</h2>
-                <div className="flex space-x-2 items-center">
-                  <button
-                    className={`px-4 py-2 rounded text-white flex items-center space-x-1 ${
-                      isUpdating ? 'bg-gray-600' : 'bg-blue-600 hover:bg-blue-700'
-                    }`}
-                    onClick={handleUpdate}
-                    disabled={isUpdating}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    <span>{isUpdating ? 'Updating...' : needsUpdate ? 'Update' : 'Refresh'}</span>
-                  </button>
-                </div>
+          {/* Analysis Content Section */}
+          <div className="bg-black border border-gray-700 rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-6 px-1">
+              <h2 className="text-lg font-medium text-primary-blue">Analysis Results</h2>
+              <div className="flex space-x-2 items-center">
+                <button
+                  className={`px-4 py-2 rounded text-white flex items-center space-x-1 ${
+                    isUpdating ? 'bg-gray-600' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                  onClick={handleUpdate}
+                  disabled={isUpdating}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>{isUpdating ? 'Updating...' : needsUpdate ? 'Update' : 'Refresh'}</span>
+                </button>
               </div>
-              
-              {/* Analysis display */}
-              {isLoading ? (
-                <div className="flex justify-center items-center h-64">
-                  <div className="animate-pulse text-gray-300">Loading analysis...</div>
-                </div>
-              ) : (
-                <div>
-                  {updateError ? (
-                    <div className="bg-red-900 text-white p-4 rounded">
-                      {updateError}
-                    </div>
-                  ) : (
-                    <div className="prose text-white max-w-none">
-                      <div className="mb-4">
-                        {lastUpdated && (
-                          <div className="text-xs text-gray-400 mb-2">
-                            Last updated: {lastUpdated} {recordCount > 0 && `• ${recordCount} record${recordCount === 1 ? '' : 's'}`}
-                          </div>
-                        )}
-                      </div>
-                      {formatAnalysisText(holisticAnalysis)}
-                      
-                      {/* Display info about analysis source */}
-                      {analysisSource && (
-                        <div className="mt-4 text-xs text-gray-400">
-                          <p>Analysis generated using: {
-                            analysisSource.includes('structured') 
-                              ? `Structured health data${analysisSource.includes('wearables') ? ' with wearables integration' : ''}` 
-                              : 'Text summaries from health records'
-                          }</p>
+            </div>
+            
+            {/* Analysis display */}
+            {isLoading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-pulse text-gray-300">Loading analysis...</div>
+              </div>
+            ) : (
+              <div>
+                {updateError ? (
+                  <div className="bg-red-900 text-white p-4 rounded">
+                    {updateError}
+                  </div>
+                ) : (
+                  <div className="prose text-white max-w-none">
+                    <div className="mb-4">
+                      {lastUpdated && (
+                        <div className="text-xs text-gray-400 mb-2">
+                          Last updated: {lastUpdated} {recordCount > 0 && `• ${recordCount} record${recordCount === 1 ? '' : 's'}`}
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            {/* Add the Index Status Section */}
-            {indexStatusSection}
-            
-            {/* Settings Modal */}
-            {showSettingsModal && (
-              <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-                <div className="bg-gray-800 p-4 rounded-lg shadow-md max-w-xs w-full border border-gray-700">
-                  <AnalysisSettings onChange={handleSettingsChange} />
-                  <button
-                    onClick={() => setShowSettingsModal(false)}
-                    className="mt-3 w-full px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                  >
-                    Close
-                  </button>
-                </div>
+                    {formatAnalysisText(holisticAnalysis)}
+                    
+                    {/* Display info about analysis source */}
+                    {analysisSource && (
+                      <div className="mt-4 text-xs text-gray-400">
+                        <p>Analysis generated using: {
+                          analysisSource.includes('structured') 
+                            ? `Structured health data${analysisSource.includes('wearables') ? ' with wearables integration' : ''}` 
+                            : 'Text summaries from health records'
+                        }</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
+          
+          {/* Add the Index Status Section */}
+          {indexStatusSection}
+          
+          {/* Settings Modal */}
+          {showSettingsModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+              <div className="bg-gray-800 p-4 rounded-lg shadow-md max-w-xs w-full border border-gray-700">
+                <AnalysisSettings onChange={handleSettingsChange} />
+                <button
+                  onClick={() => setShowSettingsModal(false)}
+                  className="mt-3 w-full px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
         </PageLayout>
       </ClientWrapper>
     </ProtectedRoute>

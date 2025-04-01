@@ -63,8 +63,8 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
   if (isHomePage) {
     return (
       <>
-        {/* Navigation Header - with support for iOS safe areas */}
-        <header className="bg-black/80 backdrop-blur-sm px-4 py-3 flex justify-between items-center shadow-md w-full fixed top-0 left-0 right-0 z-20">
+        {/* Navigation Header - with consistent height and safe area handling */}
+        <header className="bg-black/80 backdrop-blur-sm h-[60px] flex justify-between items-center shadow-md w-full fixed top-0 left-0 right-0 z-20 px-4" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
           <div className="flex items-center">
             <StandaloneLink href="/about" className="flex items-center">
               <div className="mr-2 relative w-8 h-8">
@@ -98,54 +98,51 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
 
   // Standard navigation layout for other pages
   return (
-    <nav className="bg-black/80 backdrop-blur-sm px-4 py-3 mb-6 shadow-md fixed top-0 left-0 right-0 z-20">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center">
-          <StandaloneLink href="/about" className="flex items-center">
-            <div className="mr-2 relative w-8 h-8">
-              <Image 
-                src="/images/logo.png" 
-                alt="Wattle Logo"
-                fill
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
-            <span className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Wattle</span>
+    <nav className="bg-black/80 backdrop-blur-sm h-[60px] flex justify-between items-center shadow-md fixed top-0 left-0 right-0 z-20 px-4" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <div className="flex items-center">
+        <StandaloneLink href="/about" className="flex items-center">
+          <div className="mr-2 relative w-8 h-8">
+            <Image 
+              src="/images/logo.png" 
+              alt="Wattle Logo"
+              fill
+              style={{ objectFit: 'contain' }}
+              priority
+            />
+          </div>
+          <span className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Wattle</span>
+        </StandaloneLink>
+      </div>
+      <div className="flex items-center space-x-4">
+        {currentUser ? (
+          <StandaloneLink 
+            href="/profile" 
+            className="text-primary-blue flex items-center border border-gray-600 rounded-full py-1 px-3 hover:border-gray-400 transition-colors"
+            title="Profile"
+          >
+            <FaUserCircle size={22} />
+            {firstName && (
+              <span className="ml-2 text-white">
+                {firstName}
+              </span>
+            )}
           </StandaloneLink>
-        </div>
-        <div className="flex items-center space-x-4">
-          {currentUser ? (
+        ) : !loading && authInitialized ? (
+          <>
             <StandaloneLink 
-              href="/profile" 
-              className="text-primary-blue flex items-center border border-gray-600 rounded-full py-1 px-3 hover:border-gray-400 transition-colors"
-              title="Profile"
+              href="/login" 
+              className={`px-4 py-2 rounded-md text-white ${isActive('/login')}`}
             >
-              <FaUserCircle size={22} />
-              {firstName && (
-                <span className="ml-2 text-white">
-                  {firstName}
-                </span>
-              )}
+              Login
             </StandaloneLink>
-          ) : !loading && authInitialized ? (
-            // Only show login/signup when we're sure the user is not authenticated
-            <>
-              <StandaloneLink 
-                href="/login" 
-                className={`px-4 py-2 rounded-md text-white ${isActive('/login')}`}
-              >
-                Login
-              </StandaloneLink>
-              <StandaloneLink 
-                href="/signup" 
-                className="bg-primary-blue hover:bg-gray-700 text-white px-4 py-2 rounded-md transition-colors"
-              >
-                Sign Up
-              </StandaloneLink>
-            </>
-          ) : null}
-        </div>
+            <StandaloneLink 
+              href="/signup" 
+              className="bg-primary-blue hover:bg-gray-700 text-white px-4 py-2 rounded-md transition-colors"
+            >
+              Sign Up
+            </StandaloneLink>
+          </>
+        ) : null}
       </div>
     </nav>
   );
