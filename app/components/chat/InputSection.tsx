@@ -80,7 +80,7 @@ export default function InputSection({
   };
 
   return (
-    <div className="p-4 pb-16 bg-black fixed bottom-0 left-0 right-0 z-20">
+    <div className="p-4 pb-24 bg-black fixed bottom-0 left-0 right-0 z-20">
       <form onSubmit={handleSubmit} className="flex space-x-2 max-w-4xl mx-auto">
         <button
           type="button"

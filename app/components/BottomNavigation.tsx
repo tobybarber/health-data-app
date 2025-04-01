@@ -52,7 +52,7 @@ export default function BottomNavigation() {
           <div className={`${isActive('/records')} text-xl mb-1`}>
             <FaClipboardList />
           </div>
-          <h2 className={`text-xs font-medium ${isActive('/records')}`}>My Records</h2>
+          <h2 className={`text-xs font-medium ${isActive('/records')}`}>Records</h2>
         </StandaloneLink>
         
         <StandaloneLink
@@ -63,7 +63,7 @@ export default function BottomNavigation() {
           <div className={`${isActive('/analysis')} text-xl mb-1`}>
             <FaComments />
           </div>
-          <h2 className={`text-xs font-medium ${isActive('/analysis')}`}>My Analysis</h2>
+          <h2 className={`text-xs font-medium ${isActive('/analysis')}`}>Analysis</h2>
         </StandaloneLink>
         
         <StandaloneLink
@@ -74,7 +74,7 @@ export default function BottomNavigation() {
           <div className={`${isActive('/wearables')} text-xl mb-1`}>
             <FaHeartbeat />
           </div>
-          <h2 className={`text-xs font-medium ${isActive('/wearables')}`}>My Wearables</h2>
+          <h2 className={`text-xs font-medium ${isActive('/wearables')}`}>Wearables</h2>
         </StandaloneLink>
       </div>
     </>

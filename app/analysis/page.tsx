@@ -12,6 +12,7 @@ import { useBackgroundLogo } from '../components/ClientWrapper';
 import ClientWrapper from '../components/ClientWrapper';
 import AnalysisSettings, { AnalysisSettings as AnalysisSettingsType } from '../components/AnalysisSettings';
 import BiomarkerSummary from '../components/biomarkers/BiomarkerSummary';
+import PageLayout from '../components/PageLayout';
 
 interface Question {
   id: string;
@@ -901,17 +902,21 @@ export default function Analysis() {
   return (
     <ProtectedRoute>
       <ClientWrapper>
-        <div className="min-h-screen bg-gray-900 text-white">
-          <Navigation />
-          <div className="container mx-auto px-4 pt-16 pb-8 bg-black text-white">
-            <header className="mb-6">
-              <h1 className="text-3xl font-bold">Health Analysis</h1>
-              <p className="text-gray-400">
-                AI-powered analysis of your health records
-              </p>
-            </header>
-            
-            {/* Main Analysis Section */}
+        <PageLayout 
+          title="My Analysis"
+          subtitle="Track your health trends and patterns"
+        >
+          <div className="container mx-auto px-4 pb-8">
+            <div className="flex justify-between items-center mb-6">
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="px-4 py-2 rounded-md transition-colors text-white border border-primary-blue hover:bg-black/20"
+              >
+                Settings
+              </button>
+            </div>
+
+            {/* Analysis Content Section */}
             <div className="bg-black border border-gray-700 rounded-lg shadow p-6">
               <div className="flex justify-between items-center mb-6 px-1">
                 <h2 className="text-lg font-medium text-primary-blue">Analysis Results</h2>
@@ -987,7 +992,7 @@ export default function Analysis() {
               </div>
             )}
           </div>
-        </div>
+        </PageLayout>
       </ClientWrapper>
     </ProtectedRoute>
   );

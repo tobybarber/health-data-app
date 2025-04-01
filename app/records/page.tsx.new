@@ -8,6 +8,7 @@ import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Navigation from '../components/Navigation';
+import PageLayout from '../components/PageLayout';
 
 interface Record {
   id: string;
@@ -233,10 +234,11 @@ export default function Records() {
 
   return (
     <ProtectedRoute>
-      <div className="p-6 pt-16">
-        <Navigation isHomePage={true} />
+      <PageLayout 
+        title="My Records"
+        isHomePage={true}
+      >
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-primary-blue">My Records</h1>
           <div className="flex items-center gap-3">
             <Link 
               href="/upload" 
@@ -381,7 +383,7 @@ export default function Records() {
             ))}
           </div>
         )}
-      </div>
+      </PageLayout>
     </ProtectedRoute>
   );
 } 

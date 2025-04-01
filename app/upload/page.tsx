@@ -18,6 +18,7 @@ import { useBackgroundLogo } from '../components/ClientWrapper';
 import ClientWrapper from '../components/ClientWrapper';
 import { processMedicalDocument } from '../lib/fhir-processor';
 import toast from 'react-hot-toast';
+import PageLayout from '../components/PageLayout';
 
 interface ErrorResponse {
   message?: string;
@@ -411,15 +412,11 @@ export default function Upload() {
   return (
     <ClientWrapper>
       <ProtectedRoute>
-        <div className="min-h-screen bg-black">
-          <Navigation />
-          {/* Navigation spacer - ensures content starts below navbar */}
-          <div className="h-16"></div>
-          <div className="container mx-auto px-4 py-8 pb-24">
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-2xl font-bold text-primary-blue">Upload Record</h1>
-            </div>
-            
+        <PageLayout 
+          title="Upload Record"
+          subtitle="Upload your medical records for analysis"
+        >
+          <div className="container mx-auto px-4 pb-8">
             {apiKeyValid === false && !isLoading && (
               <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-md shadow-md">
                 <p className="font-medium">OpenAI API Key Issue</p>
@@ -434,7 +431,7 @@ export default function Upload() {
               </div>
             )}
             
-            {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'success' ? (
+            {uploadStatus === 'success' ? (
               <div className="bg-gradient-to-br from-blue-900 to-indigo-900 p-6 rounded-md shadow-lg text-center">
                 <div className="mb-4 text-green-400">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -648,7 +645,7 @@ export default function Upload() {
               </div>
             )}
           </div>
-        </div>
+        </PageLayout>
       </ProtectedRoute>
     </ClientWrapper>
   );

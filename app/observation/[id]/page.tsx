@@ -11,6 +11,7 @@ import ObservationGauge from '../../components/ObservationGauge';
 import FHIRObservationChart from '../../components/FHIRObservationChart';
 import { Observation } from '../../types/fhir';
 import { ArrowLeftIcon, Activity, BarChart2 } from 'lucide-react';
+import PageLayout from '../../components/PageLayout';
 
 // Function to properly format the test name from FHIR Observation
 function getFormattedTestName(observation: Observation): string {
@@ -160,81 +161,80 @@ export default function ObservationPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-black">
-        <Navigation />
+      <PageLayout 
+        title={observation ? getFormattedTestName(observation) : 'Loading...'}
+        isHomePage={true}
+      >
+        <button 
+          onClick={() => router.back()}
+          className="flex items-center text-blue-400 hover:text-blue-300 mb-4"
+        >
+          <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
+        </button>
         
-        <main className="container max-w-4xl mx-auto px-4 pt-20 pb-16">
-          <button 
-            onClick={() => router.back()}
-            className="flex items-center text-blue-400 hover:text-blue-300 mb-4"
-          >
-            <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
-          </button>
-          
-          {loading && (
-            <div className="flex justify-center items-center h-48">
-              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+        {loading && (
+          <div className="flex justify-center items-center h-48">
+            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        )}
+        
+        {error && (
+          <div className="bg-red-900/30 border border-red-700 rounded-lg p-4 mb-6">
+            <p className="text-red-400">{error}</p>
+          </div>
+        )}
+        
+        {observation && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold text-primary-blue">
+                {getFormattedTestName(observation)}
+              </h1>
             </div>
-          )}
-          
-          {error && (
-            <div className="bg-red-900/30 border border-red-700 rounded-lg p-4 mb-6">
-              <p className="text-red-400">{error}</p>
+            
+            {/* Observation Date */}
+            {observation.effectiveDateTime && (
+              <div className="text-gray-400">
+                Date: {new Date(observation.effectiveDateTime).toLocaleDateString()}
+              </div>
+            )}
+            
+            {/* Range View Section */}
+            <div>
+              <div className="flex items-center mb-2">
+                <Activity className="w-5 h-5 mr-2 text-blue-400" />
+                <h2 className="text-lg font-semibold text-white">Range View</h2>
+              </div>
+              <ObservationGauge observation={observation} title={getFormattedTestName(observation)} />
             </div>
-          )}
-          
-          {observation && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-primary-blue">
-                  {getFormattedTestName(observation)}
-                </h1>
+            
+            {/* Trend View Section */}
+            <div>
+              <div className="flex items-center mb-2">
+                <BarChart2 className="w-5 h-5 mr-2 text-blue-400" />
+                <h2 className="text-lg font-semibold text-white">Historical Trend</h2>
               </div>
-              
-              {/* Observation Date */}
-              {observation.effectiveDateTime && (
-                <div className="text-gray-400">
-                  Date: {new Date(observation.effectiveDateTime).toLocaleDateString()}
-                </div>
-              )}
-              
-              {/* Range View Section */}
-              <div>
-                <div className="flex items-center mb-2">
-                  <Activity className="w-5 h-5 mr-2 text-blue-400" />
-                  <h2 className="text-lg font-semibold text-white">Range View</h2>
-                </div>
-                <ObservationGauge observation={observation} title={getFormattedTestName(observation)} />
+              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+                <FHIRObservationChart
+                  patientId={observation.subject?.reference?.split('/')[1] || ''}
+                  loincCode={observation.code?.coding?.find(c => c.system === 'http://loinc.org')?.code || ''}
+                  title={getFormattedTestName(observation)}
+                  height={200}
+                  width={600}
+                />
               </div>
-              
-              {/* Trend View Section */}
-              <div>
-                <div className="flex items-center mb-2">
-                  <BarChart2 className="w-5 h-5 mr-2 text-blue-400" />
-                  <h2 className="text-lg font-semibold text-white">Historical Trend</h2>
-                </div>
-                <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
-                  <FHIRObservationChart
-                    patientId={observation.subject?.reference?.split('/')[1] || ''}
-                    loincCode={observation.code?.coding?.find(c => c.system === 'http://loinc.org')?.code || ''}
-                    title={getFormattedTestName(observation)}
-                    height={200}
-                    width={600}
-                  />
-                </div>
-              </div>
-              
-              {/* FHIR Details */}
-              <details className="bg-gray-900 border border-gray-700 rounded-lg p-4">
-                <summary className="text-white font-medium cursor-pointer">View FHIR Data</summary>
-                <pre className="mt-4 p-3 bg-black rounded overflow-auto text-xs text-gray-300">
-                  {JSON.stringify(observation, null, 2)}
-                </pre>
-              </details>
             </div>
-          )}
-        </main>
-      </div>
+            
+            {/* FHIR Details */}
+            <details className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+              <summary className="text-white font-medium cursor-pointer">View FHIR Data</summary>
+              <pre className="mt-4 p-3 bg-black rounded overflow-auto text-xs text-gray-300">
+                {JSON.stringify(observation, null, 2)}
+              </pre>
+            </details>
+          </div>
+        )}
+      </PageLayout>
     </ProtectedRoute>
   );
 } 

@@ -12,6 +12,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import WearableDataDashboard from '../components/charts/WearableDataDashboard';
 import { getFirestore } from 'firebase/firestore';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import PageLayout from '../components/PageLayout';
 
 // Define all supported devices
 const AVAILABLE_DEVICES: {
@@ -818,293 +819,288 @@ export default function WearablesPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-black pb-24">
-        <Navigation />
-        <div className="h-16"></div>
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-primary-blue">My Wearables</h1>
+      <PageLayout 
+        title="My Wearables"
+        isHomePage={true}
+      >
+        <p className="mb-6 text-gray-300">
+          Connect your wearable devices to automatically import health data.
+        </p>
+        
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <LoadingSpinner />
           </div>
-          
-          <p className="mb-6 text-gray-300">
-            Connect your wearable devices to automatically import health data.
-          </p>
-          
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <LoadingSpinner />
+        ) : (
+          <div className="space-y-6">
+            {/* Add New Device Button */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  setSelectedDevice(null);
+                  setShowAuthForm(true);
+                }}
+                className="px-6 py-3 rounded-md transition-colors text-white border border-primary-blue hover:bg-black/20 flex items-center justify-center gap-2 whitespace-nowrap"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
+                Add New Device
+              </button>
             </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Add New Device Button */}
-              <div className="flex justify-end">
-                <button
-                  onClick={() => {
-                    setSelectedDevice(null);
-                    setShowAuthForm(true);
-                  }}
-                  className="px-6 py-3 rounded-md transition-colors text-white border border-primary-blue hover:bg-black/20 flex items-center justify-center gap-2 whitespace-nowrap"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                  </svg>
-                  Add New Device
-                </button>
-              </div>
 
-              {/* Connected Devices */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {devices.filter(device => device.connected).map(device => (
-                  <div key={device.id} className="bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md flex flex-col border border-gray-800">
-                    <div className="flex items-center">
-                      <div className="w-12 h-12 bg-gray-900 rounded-full flex items-center justify-center mr-4">
-                        {/* Placeholder for device logo */}
-                        <span className="text-xl font-bold text-gray-400">{device.name.charAt(0)}</span>
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-primary-blue">{device.name}</h3>
-                        <p className="text-sm text-gray-400">
-                          {device.description}
-                        </p>
-                      </div>
+            {/* Connected Devices */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {devices.filter(device => device.connected).map(device => (
+                <div key={device.id} className="bg-black/80 backdrop-blur-sm p-4 rounded-md shadow-md flex flex-col border border-gray-800">
+                  <div className="flex items-center">
+                    <div className="w-12 h-12 bg-gray-900 rounded-full flex items-center justify-center mr-4">
+                      {/* Placeholder for device logo */}
+                      <span className="text-xl font-bold text-gray-400">{device.name.charAt(0)}</span>
                     </div>
-                    
-                    <div className="bg-green-800 text-green-200 px-2 py-1 rounded-full text-xs">
-                      Connected
-                    </div>
-                    
-                    <div className="mb-4 text-xs text-gray-500">
-                      Last synced: {device.lastSync ? new Date(device.lastSync).toLocaleString() : 'Never'}
-                      {device.isTestData && (
-                        <span className="ml-2 px-1.5 py-0.5 bg-yellow-900/50 text-yellow-400 rounded">Test Data</span>
-                      )}
-                    </div>
-                    
-                    <div className="flex flex-col space-y-2">
-                      <button
-                        onClick={() => syncDevice(device)}
-                        disabled={syncStatus.status === 'syncing' && syncStatus.deviceId === device.id}
-                        className="px-4 py-2 rounded-md transition-colors text-white border border-primary-blue hover:bg-black/20 flex items-center justify-center"
-                      >
-                        {syncStatus.status === 'syncing' && syncStatus.deviceId === device.id ? (
-                          <>
-                            <span className="w-4 h-4 border-t-2 border-r-2 border-white rounded-full animate-spin mr-2"></span>
-                            Syncing...
-                          </>
-                        ) : (
-                          'Sync Now'
-                        )}
-                      </button>
-                      {syncStatus.status === 'syncing' && syncStatus.deviceId === device.id && (
-                        <button
-                          onClick={handleCancelSync}
-                          className="px-4 py-2 rounded-md transition-colors bg-red-900/50 text-red-300 hover:bg-red-800/50"
-                        >
-                          Cancel Sync
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDisconnectDevice(device.id)}
-                        disabled={syncStatus.status === 'syncing' && syncStatus.deviceId === device.id}
-                        className="px-4 py-2 rounded-md transition-colors bg-gray-800 text-gray-300 hover:bg-gray-700"
-                      >
-                        Disconnect
-                      </button>
+                    <div>
+                      <h3 className="font-medium text-primary-blue">{device.name}</h3>
+                      <p className="text-sm text-gray-400">
+                        {device.description}
+                      </p>
                     </div>
                   </div>
+                  
+                  <div className="bg-green-800 text-green-200 px-2 py-1 rounded-full text-xs">
+                    Connected
+                  </div>
+                  
+                  <div className="mb-4 text-xs text-gray-500">
+                    Last synced: {device.lastSync ? new Date(device.lastSync).toLocaleString() : 'Never'}
+                    {device.isTestData && (
+                      <span className="ml-2 px-1.5 py-0.5 bg-yellow-900/50 text-yellow-400 rounded">Test Data</span>
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-col space-y-2">
+                    <button
+                      onClick={() => syncDevice(device)}
+                      disabled={syncStatus.status === 'syncing' && syncStatus.deviceId === device.id}
+                      className="px-4 py-2 rounded-md transition-colors text-white border border-primary-blue hover:bg-black/20 flex items-center justify-center"
+                    >
+                      {syncStatus.status === 'syncing' && syncStatus.deviceId === device.id ? (
+                        <>
+                          <span className="w-4 h-4 border-t-2 border-r-2 border-white rounded-full animate-spin mr-2"></span>
+                          Syncing...
+                        </>
+                      ) : (
+                        'Sync Now'
+                      )}
+                    </button>
+                    {syncStatus.status === 'syncing' && syncStatus.deviceId === device.id && (
+                      <button
+                        onClick={handleCancelSync}
+                        className="px-4 py-2 rounded-md transition-colors bg-red-900/50 text-red-300 hover:bg-red-800/50"
+                      >
+                        Cancel Sync
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDisconnectDevice(device.id)}
+                      disabled={syncStatus.status === 'syncing' && syncStatus.deviceId === device.id}
+                      className="px-4 py-2 rounded-md transition-colors bg-gray-800 text-gray-300 hover:bg-gray-700"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Device Selection Modal */}
+        {showAuthForm && !selectedDevice && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-900 rounded-lg shadow-xl p-6 w-full max-w-md">
+              <h2 className="text-xl font-bold text-primary-blue mb-4">
+                Add New Device
+              </h2>
+              
+              <div className="space-y-4">
+                {AVAILABLE_DEVICES.filter(device => !devices.find(d => d.connected && d.id === device.id)).map(device => (
+                  <button
+                    key={device.id}
+                    onClick={() => handleConnectDevice({
+                      ...device,
+                      connected: false,
+                      isTestData: false
+                    })}
+                    className="w-full p-4 rounded-md transition-colors bg-gray-800 hover:bg-gray-700 text-left flex items-center"
+                  >
+                    <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center mr-4">
+                      <span className="text-lg font-bold text-gray-400">{device.name.charAt(0)}</span>
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-primary-blue">{device.name}</h3>
+                      <p className="text-sm text-gray-400">{device.description}</p>
+                    </div>
+                  </button>
                 ))}
               </div>
-            </div>
-          )}
-          
-          {/* Device Selection Modal */}
-          {showAuthForm && !selectedDevice && (
-            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-              <div className="bg-gray-900 rounded-lg shadow-xl p-6 w-full max-w-md">
-                <h2 className="text-xl font-bold text-primary-blue mb-4">
-                  Add New Device
-                </h2>
-                
-                <div className="space-y-4">
-                  {AVAILABLE_DEVICES.filter(device => !devices.find(d => d.connected && d.id === device.id)).map(device => (
-                    <button
-                      key={device.id}
-                      onClick={() => handleConnectDevice({
-                        ...device,
-                        connected: false,
-                        isTestData: false
-                      })}
-                      className="w-full p-4 rounded-md transition-colors bg-gray-800 hover:bg-gray-700 text-left flex items-center"
-                    >
-                      <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center mr-4">
-                        <span className="text-lg font-bold text-gray-400">{device.name.charAt(0)}</span>
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-primary-blue">{device.name}</h3>
-                        <p className="text-sm text-gray-400">{device.description}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                
-                <button
-                  onClick={() => setShowAuthForm(false)}
-                  className="mt-6 w-full px-4 py-2 rounded-md transition-colors bg-gray-800 text-gray-300 hover:bg-gray-700"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-          
-          {/* Authentication Form Modal */}
-          {showAuthForm && selectedDevice && (
-            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-              <div className="bg-gray-900 rounded-lg shadow-xl p-6 w-full max-w-md">
-                <h2 className="text-xl font-bold text-primary-blue mb-4">
-                  Connect {selectedDevice.name}
-                </h2>
-                
-                <p className="text-gray-400 mb-4">
-                  Please enter your {selectedDevice.name} account credentials to connect your device.
-                </p>
-                
-                {selectedDevice.id === 'fitbit/versa' && (
-                  <div className="mb-4 p-3 bg-gray-800 rounded-md text-sm">
-                    <h3 className="text-primary-blue font-medium mb-2">How to get Fitbit API credentials:</h3>
-                    <ol className="list-decimal text-gray-300 pl-5 space-y-1">
-                      <li>Visit the <a href="https://dev.fitbit.com/apps/new" target="_blank" rel="noopener noreferrer" className="text-primary-blue hover:underline">Fitbit Developer Portal</a></li>
-                      <li>Log in with your Fitbit account</li>
-                      <li>Register a new application</li>
-                      <li>Set OAuth 2.0 Application Type to "Personal"</li>
-                      <li>Set Callback URL to: <code className="bg-gray-900 px-1 py-0.5 rounded text-xs">http://localhost:3001/auth/fitbit/callback</code></li>
-                      <li>Once created, copy the Client ID and Client Secret</li>
-                    </ol>
-                  </div>
-                )}
-                
-                <form onSubmit={handleAuthSubmit}>
-                  {selectedDevice.authFields.map(field => (
-                    <div key={field.name} className="mb-4">
-                      <label htmlFor={field.name} className="block text-sm font-medium text-gray-300 mb-1">
-                        {field.label}
-                      </label>
-                      <input
-                        type={field.type}
-                        id={field.name}
-                        name={field.name}
-                        value={authFormData[field.name] || ''}
-                        onChange={handleAuthInputChange}
-                        placeholder={field.placeholder}
-                        required
-                        className="bg-gray-900 block w-full rounded-md border-gray-600 border px-4 py-3 text-white placeholder-gray-500 focus:border-primary-blue focus:outline-none focus:ring-1 focus:ring-primary-blue"
-                      />
-                    </div>
-                  ))}
-                  
-                  <div className="mb-6 mt-2">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="useTestData"
-                        name="useTestData"
-                        checked={!!authFormData.useTestData}
-                        onChange={(e) => setAuthFormData({
-                          ...authFormData,
-                          useTestData: e.target.checked
-                        })}
-                        className="h-4 w-4 text-primary-blue focus:ring-primary-blue border-gray-600 rounded bg-gray-800"
-                      />
-                      <label htmlFor="useTestData" className="ml-2 block text-sm text-gray-300">
-                        Use test data (no real credentials needed)
-                      </label>
-                    </div>
-                    <p className="mt-1 text-xs text-gray-500">
-                      When checked, this option uses Wearipedia's test data generation feature instead of connecting to a real device.
-                    </p>
-                  </div>
-                  
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAuthForm(false);
-                        setSelectedDevice(null);
-                      }}
-                      className="px-4 py-2 rounded-md text-gray-300 border border-gray-700 hover:bg-gray-800"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-md text-white border border-primary-blue hover:bg-black/20"
-                    >
-                      Connect
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-          
-          {/* Visualizations - change condition to use hasVisualizationData */}
-          {syncedData && hasVisualizationData && (
-            <div className="mt-8">
-              <button
-                onClick={() => setShowDebugInfo(!showDebugInfo)}
-                className="mb-4 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600"
-              >
-                {showDebugInfo ? 'Hide Debug Info' : 'Show Debug Info'}
-              </button>
               
-              {showDebugInfo && (
-                <div className="mb-8 p-4 bg-gray-800 rounded-lg text-sm overflow-auto">
-                  <h3 className="text-lg font-semibold text-white mb-2">Debug Information</h3>
-                  
-                  <div className="mb-4">
-                    <h4 className="text-primary-blue font-medium">Data Validation Results:</h4>
-                    <ul className="mt-2 space-y-1 text-gray-300">
-                      <li>Heart Rate Data: <span className={dataValidation.hasHeartRateData ? "text-green-400" : "text-red-400"}>
-                        {dataValidation.hasHeartRateData ? "✓ Valid" : "✗ Invalid or Missing"}
-                      </span></li>
-                      <li>Step Data: <span className={dataValidation.hasStepData ? "text-green-400" : "text-red-400"}>
-                        {dataValidation.hasStepData ? "✓ Valid" : "✗ Invalid or Missing"}
-                      </span></li>
-                      <li>Sleep Data: <span className={dataValidation.hasSleepData ? "text-green-400" : "text-red-400"}>
-                        {dataValidation.hasSleepData ? "✓ Valid" : "✗ Invalid or Missing"}
-                      </span></li>
-                      <li className="font-medium">Any Valid Data: <span className={dataValidation.hasAnyValidData ? "text-green-400" : "text-red-400"}>
-                        {dataValidation.hasAnyValidData ? "✓ Yes" : "✗ No"}
-                      </span></li>
-                    </ul>
-                  </div>
-                  
-                  <div className="mb-4">
-                    <h4 className="text-primary-blue font-medium">Data Counts:</h4>
-                    <ul className="mt-2 space-y-1 text-gray-300">
-                      <li>Heart Rate: {syncStatus.dataCounts?.heartRate ?? 0} records</li>
-                      <li>Steps: {syncStatus.dataCounts?.steps ?? 0} records</li>
-                      <li>Sleep: {syncStatus.dataCounts?.sleep ?? 0} records</li>
-                      <li>Activities: {syncStatus.dataCounts?.activities ?? 0} records</li>
-                    </ul>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-primary-blue font-medium">Raw Synced Data:</h4>
-                    <div className="mt-2 bg-gray-900 p-2 rounded-md max-h-80 overflow-auto">
-                      <pre className="text-xs text-gray-300 whitespace-pre-wrap">
-                        {JSON.stringify(syncedData, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
+              <button
+                onClick={() => setShowAuthForm(false)}
+                className="mt-6 w-full px-4 py-2 rounded-md transition-colors bg-gray-800 text-gray-300 hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* Authentication Form Modal */}
+        {showAuthForm && selectedDevice && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-900 rounded-lg shadow-xl p-6 w-full max-w-md">
+              <h2 className="text-xl font-bold text-primary-blue mb-4">
+                Connect {selectedDevice.name}
+              </h2>
+              
+              <p className="text-gray-400 mb-4">
+                Please enter your {selectedDevice.name} account credentials to connect your device.
+              </p>
+              
+              {selectedDevice.id === 'fitbit/versa' && (
+                <div className="mb-4 p-3 bg-gray-800 rounded-md text-sm">
+                  <h3 className="text-primary-blue font-medium mb-2">How to get Fitbit API credentials:</h3>
+                  <ol className="list-decimal text-gray-300 pl-5 space-y-1">
+                    <li>Visit the <a href="https://dev.fitbit.com/apps/new" target="_blank" rel="noopener noreferrer" className="text-primary-blue hover:underline">Fitbit Developer Portal</a></li>
+                    <li>Log in with your Fitbit account</li>
+                    <li>Register a new application</li>
+                    <li>Set OAuth 2.0 Application Type to "Personal"</li>
+                    <li>Set Callback URL to: <code className="bg-gray-900 px-1 py-0.5 rounded text-xs">http://localhost:3001/auth/fitbit/callback</code></li>
+                    <li>Once created, copy the Client ID and Client Secret</li>
+                  </ol>
                 </div>
               )}
               
-              <WearableDataDashboard syncedData={syncedData} />
+              <form onSubmit={handleAuthSubmit}>
+                {selectedDevice.authFields.map(field => (
+                  <div key={field.name} className="mb-4">
+                    <label htmlFor={field.name} className="block text-sm font-medium text-gray-300 mb-1">
+                      {field.label}
+                    </label>
+                    <input
+                      type={field.type}
+                      id={field.name}
+                      name={field.name}
+                      value={authFormData[field.name] || ''}
+                      onChange={handleAuthInputChange}
+                      placeholder={field.placeholder}
+                      required
+                      className="bg-gray-900 block w-full rounded-md border-gray-600 border px-4 py-3 text-white placeholder-gray-500 focus:border-primary-blue focus:outline-none focus:ring-1 focus:ring-primary-blue"
+                    />
+                  </div>
+                ))}
+                
+                <div className="mb-6 mt-2">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="useTestData"
+                      name="useTestData"
+                      checked={!!authFormData.useTestData}
+                      onChange={(e) => setAuthFormData({
+                        ...authFormData,
+                        useTestData: e.target.checked
+                      })}
+                      className="h-4 w-4 text-primary-blue focus:ring-primary-blue border-gray-600 rounded bg-gray-800"
+                    />
+                    <label htmlFor="useTestData" className="ml-2 block text-sm text-gray-300">
+                      Use test data (no real credentials needed)
+                    </label>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    When checked, this option uses Wearipedia's test data generation feature instead of connecting to a real device.
+                  </p>
+                </div>
+                
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAuthForm(false);
+                      setSelectedDevice(null);
+                    }}
+                    className="px-4 py-2 rounded-md text-gray-300 border border-gray-700 hover:bg-gray-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-md text-white border border-primary-blue hover:bg-black/20"
+                  >
+                    Connect
+                  </button>
+                </div>
+              </form>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
+        
+        {/* Visualizations - change condition to use hasVisualizationData */}
+        {syncedData && hasVisualizationData && (
+          <div className="mt-8">
+            <button
+              onClick={() => setShowDebugInfo(!showDebugInfo)}
+              className="mb-4 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600"
+            >
+              {showDebugInfo ? 'Hide Debug Info' : 'Show Debug Info'}
+            </button>
+            
+            {showDebugInfo && (
+              <div className="mb-8 p-4 bg-gray-800 rounded-lg text-sm overflow-auto">
+                <h3 className="text-lg font-semibold text-white mb-2">Debug Information</h3>
+                
+                <div className="mb-4">
+                  <h4 className="text-primary-blue font-medium">Data Validation Results:</h4>
+                  <ul className="mt-2 space-y-1 text-gray-300">
+                    <li>Heart Rate Data: <span className={dataValidation.hasHeartRateData ? "text-green-400" : "text-red-400"}>
+                      {dataValidation.hasHeartRateData ? "✓ Valid" : "✗ Invalid or Missing"}
+                    </span></li>
+                    <li>Step Data: <span className={dataValidation.hasStepData ? "text-green-400" : "text-red-400"}>
+                      {dataValidation.hasStepData ? "✓ Valid" : "✗ Invalid or Missing"}
+                    </span></li>
+                    <li>Sleep Data: <span className={dataValidation.hasSleepData ? "text-green-400" : "text-red-400"}>
+                      {dataValidation.hasSleepData ? "✓ Valid" : "✗ Invalid or Missing"}
+                    </span></li>
+                    <li className="font-medium">Any Valid Data: <span className={dataValidation.hasAnyValidData ? "text-green-400" : "text-red-400"}>
+                      {dataValidation.hasAnyValidData ? "✓ Yes" : "✗ No"}
+                    </span></li>
+                  </ul>
+                </div>
+                
+                <div className="mb-4">
+                  <h4 className="text-primary-blue font-medium">Data Counts:</h4>
+                  <ul className="mt-2 space-y-1 text-gray-300">
+                    <li>Heart Rate: {syncStatus.dataCounts?.heartRate ?? 0} records</li>
+                    <li>Steps: {syncStatus.dataCounts?.steps ?? 0} records</li>
+                    <li>Sleep: {syncStatus.dataCounts?.sleep ?? 0} records</li>
+                    <li>Activities: {syncStatus.dataCounts?.activities ?? 0} records</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h4 className="text-primary-blue font-medium">Raw Synced Data:</h4>
+                  <div className="mt-2 bg-gray-900 p-2 rounded-md max-h-80 overflow-auto">
+                    <pre className="text-xs text-gray-300 whitespace-pre-wrap">
+                      {JSON.stringify(syncedData, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <WearableDataDashboard syncedData={syncedData} />
+          </div>
+        )}
+      </PageLayout>
     </ProtectedRoute>
   );
 } 

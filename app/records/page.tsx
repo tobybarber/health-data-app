@@ -11,6 +11,7 @@ import { FaPlus, FaSearch, FaFilter, FaFileAlt, FaFilePdf, FaFileImage, FaFileMe
 import { extractRecordDate, extractRecordType } from '../lib/analysis-utils';
 import { Observation, DiagnosticReport } from '../types/fhir';
 import { ActivityIcon, AlertCircle } from 'lucide-react';
+import PageLayout from '../components/PageLayout';
 
 // Add a new interface for cached data
 interface CachedObservationData {
@@ -864,444 +865,439 @@ export default function Records() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-black text-white flex flex-col">
-        <Navigation />
-        
-        {/* Main content - Structure specially for iOS scrolling */}
-        <div className="fixed top-16 bottom-16 left-0 right-0 overflow-hidden records-scroll-container">
-          <div className="h-full w-full overflow-y-scroll touch-pan-y -webkit-overflow-scrolling-touch records-scroll-wrapper">
-            <div className="px-2 py-6 pb-24 max-w-4xl mx-auto">
-              {/* Header */}
-              <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-primary-blue">My Records</h1>
-                <Link 
-                  href="/upload" 
-                  className="text-blue-400 hover:text-blue-300 flex items-center"
-                >
-                  <FaPlus className="mr-2" /> Upload
-                </Link>
-              </div>
-              
-              {/* Search and filter */}
-              <div className="flex flex-col md:flex-row gap-3 mb-6">
-                <div className="relative flex-1">
-                  <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search records..."
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 text-white"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <div className="relative md:w-48">
-                  <FaFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <select
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 appearance-none text-white"
-                    value={filterType}
-                    onChange={(e) => setFilterType(e.target.value)}
+      <PageLayout 
+        title="My Records"
+        isHomePage={true}
+      >
+        <div className="px-2 py-6 pb-24 max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="flex justify-between items-center mb-6">
+            <Link 
+              href="/upload" 
+              className="text-blue-400 hover:text-blue-300 flex items-center"
+            >
+              <FaPlus className="mr-2" /> Upload
+            </Link>
+          </div>
+          
+          {/* Search and filter */}
+          <div className="flex flex-col md:flex-row gap-3 mb-6">
+            <div className="relative flex-1">
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search records..."
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 text-white"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="relative md:w-48">
+              <FaFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <select
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 appearance-none text-white"
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+              >
+                <option value="">All types</option>
+                <option value="lab">Lab Results</option>
+                <option value="imaging">Imaging</option>
+                <option value="prescription">Prescriptions</option>
+                <option value="report">Reports</option>
+                <option value="document">Documents</option>
+              </select>
+            </div>
+          </div>
+          
+          {/* Loading state */}
+          {loading && (
+            <div className="flex justify-center items-center h-48">
+              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          )}
+          
+          {/* Error state */}
+          {error && (
+            <div className="bg-red-900/30 border border-red-700 rounded-lg p-4 mb-6">
+              <p className="text-red-400">{error}</p>
+            </div>
+          )}
+          
+          {/* Empty state */}
+          {!loading && filteredAndGroupedRecords.length === 0 && (
+            <div className="text-center py-12">
+              <FaFileAlt className="mx-auto text-gray-600 text-5xl mb-4" />
+              <h3 className="text-xl font-medium text-gray-400 mb-2">No records found</h3>
+              {searchTerm || filterType ? (
+                <p className="text-gray-500">Try adjusting your search or filters</p>
+              ) : (
+                <div>
+                  <p className="text-gray-500 mb-4">Upload your first medical record to get started</p>
+                  <Link 
+                    href="/upload" 
+                    className="text-blue-400 hover:text-blue-300 inline-flex items-center"
                   >
-                    <option value="">All types</option>
-                    <option value="lab">Lab Results</option>
-                    <option value="imaging">Imaging</option>
-                    <option value="prescription">Prescriptions</option>
-                    <option value="report">Reports</option>
-                    <option value="document">Documents</option>
-                  </select>
-                </div>
-              </div>
-              
-              {/* Loading state */}
-              {loading && (
-                <div className="flex justify-center items-center h-48">
-                  <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+                    <FaPlus className="mr-2" /> Upload Record
+                  </Link>
                 </div>
               )}
+            </div>
+          )}
+          
+          {/* Records by year */}
+          {!loading && filteredAndGroupedRecords.map(({ year, records }) => (
+            <div key={year} className="mb-8">
+              <h2 className="text-xl font-semibold border-b border-gray-700 pb-2 mb-4">{year}</h2>
               
-              {/* Error state */}
-              {error && (
-                <div className="bg-red-900/30 border border-red-700 rounded-lg p-4 mb-6">
-                  <p className="text-red-400">{error}</p>
-                </div>
-              )}
-              
-              {/* Empty state */}
-              {!loading && filteredAndGroupedRecords.length === 0 && (
-                <div className="text-center py-12">
-                  <FaFileAlt className="mx-auto text-gray-600 text-5xl mb-4" />
-                  <h3 className="text-xl font-medium text-gray-400 mb-2">No records found</h3>
-                  {searchTerm || filterType ? (
-                    <p className="text-gray-500">Try adjusting your search or filters</p>
-                  ) : (
-                    <div>
-                      <p className="text-gray-500 mb-4">Upload your first medical record to get started</p>
-                      <Link 
-                        href="/upload" 
-                        className="text-blue-400 hover:text-blue-300 inline-flex items-center"
-                      >
-                        <FaPlus className="mr-2" /> Upload Record
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {/* Records by year */}
-              {!loading && filteredAndGroupedRecords.map(({ year, records }) => (
-                <div key={year} className="mb-8">
-                  <h2 className="text-xl font-semibold border-b border-gray-700 pb-2 mb-4">{year}</h2>
-                  
-                  <ul className="space-y-2">
-                    {records.map(record => (
-                      <li key={record.id} className="bg-gray-900/30 rounded-lg p-4 transition-all duration-200 hover:bg-gray-900/50">
-                        <div 
-                          className="flex items-start justify-between cursor-pointer"
-                          onClick={() => toggleRecordExpansion(record.id)}
-                        >
-                          <div className="flex items-start">
-                            <div className="text-xl mr-3 mt-1">
-                              {getCategoryIcon(record)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-white truncate max-w-[240px] sm:max-w-none flex items-center gap-2">
-                                {record.recordType || 'Unknown Record'}
-                                <span className="text-sm text-gray-400 ml-2">
-                                  {new Date(record.recordDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                                </span>
-                                {record.analysisStatus === 'pending' && (
-                                  <div className="inline-flex items-center relative group">
-                                    <span className="animate-spin h-3.5 w-3.5 border-2 border-blue-400 border-t-transparent rounded-full mr-1.5"></span>
-                                    <span className="text-xs text-blue-400">Analyzing</span>
-                                    
-                                    {/* Tooltip */}
-                                    <div className="absolute left-0 -top-8 transform scale-0 transition-transform group-hover:scale-100 origin-bottom">
-                                      <div className="bg-blue-900 text-white p-2 rounded-md shadow-lg text-xs whitespace-nowrap">
-                                        Your record is being analyzed
-                                      </div>
-                                    </div>
+              <ul className="space-y-2">
+                {records.map(record => (
+                  <li key={record.id} className="bg-gray-900/30 rounded-lg p-4 transition-all duration-200 hover:bg-gray-900/50">
+                    <div 
+                      className="flex items-start justify-between cursor-pointer"
+                      onClick={() => toggleRecordExpansion(record.id)}
+                    >
+                      <div className="flex items-start">
+                        <div className="text-xl mr-3 mt-1">
+                          {getCategoryIcon(record)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-white truncate max-w-[240px] sm:max-w-none flex items-center gap-2">
+                            {record.recordType || 'Unknown Record'}
+                            <span className="text-sm text-gray-400 ml-2">
+                              {new Date(record.recordDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                            </span>
+                            {record.analysisStatus === 'pending' && (
+                              <div className="inline-flex items-center relative group">
+                                <span className="animate-spin h-3.5 w-3.5 border-2 border-blue-400 border-t-transparent rounded-full mr-1.5"></span>
+                                <span className="text-xs text-blue-400">Analyzing</span>
+                                
+                                {/* Tooltip */}
+                                <div className="absolute left-0 -top-8 transform scale-0 transition-transform group-hover:scale-100 origin-bottom">
+                                  <div className="bg-blue-900 text-white p-2 rounded-md shadow-lg text-xs whitespace-nowrap">
+                                    Your record is being analyzed
                                   </div>
-                                )}
-                                {record.analysisStatus === 'error' && (
-                                  <div className="inline-flex items-center text-red-400 relative group">
-                                    <AlertCircle className="h-3.5 w-3.5 mr-1" />
-                                    <span className="text-xs">Analysis error</span>
-                                    
-                                    {/* Tooltip */}
-                                    <div className="absolute left-0 -top-8 transform scale-0 transition-transform group-hover:scale-100 origin-bottom">
-                                      <div className="bg-red-900 text-white p-2 rounded-md shadow-lg text-xs whitespace-nowrap">
-                                        There was a problem analyzing this record
-                                      </div>
-                                    </div>
+                                </div>
+                              </div>
+                            )}
+                            {record.analysisStatus === 'error' && (
+                              <div className="inline-flex items-center text-red-400 relative group">
+                                <AlertCircle className="h-3.5 w-3.5 mr-1" />
+                                <span className="text-xs">Analysis error</span>
+                                
+                                {/* Tooltip */}
+                                <div className="absolute left-0 -top-8 transform scale-0 transition-transform group-hover:scale-100 origin-bottom">
+                                  <div className="bg-red-900 text-white p-2 rounded-md shadow-lg text-xs whitespace-nowrap">
+                                    There was a problem analyzing this record
                                   </div>
-                                )}
+                                </div>
                               </div>
-                              <div className="text-sm text-gray-400 flex flex-wrap items-center gap-1 sm:gap-2">
-                                {/* Date moved to be on the same line as the record type */}
-                              </div>
-                            </div>
+                            )}
                           </div>
-                          <div className="text-sm text-gray-400 p-1 ml-2">
-                            <svg 
-                              className={`w-4 h-4 transform transition-transform ${expandedRecords.includes(record.id) ? 'rotate-180' : ''}`} 
-                              fill="none" 
-                              stroke="currentColor" 
-                              viewBox="0 0 24 24" 
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
+                          <div className="text-sm text-gray-400 flex flex-wrap items-center gap-1 sm:gap-2">
+                            {/* Date moved to be on the same line as the record type */}
                           </div>
                         </div>
+                      </div>
+                      <div className="text-sm text-gray-400 p-1 ml-2">
+                        <svg 
+                          className={`w-4 h-4 transform transition-transform ${expandedRecords.includes(record.id) ? 'rotate-180' : ''}`} 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24" 
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                    
+                    {expandedRecords.includes(record.id) && (
+                      <div className="mt-4 pt-3 border-t border-gray-700 transition-all">
+                        {/* Debug section to help troubleshoot */}
+                        <div className="text-xs text-gray-500 mb-2">
+                          Record ID: {record.id} | 
+                          Type: {record.recordType} | 
+                          Analysis: {record.analysisInProgress ? 'In Progress' : 'Complete'} |
+                          FHIR Resources: {record.fhirResourceIds ? 
+                            (Array.isArray(record.fhirResourceIds) 
+                              ? record.fhirResourceIds.length 
+                              : Object.keys(record.fhirResourceIds).length) 
+                            : 0}
+                        </div>
                         
-                        {expandedRecords.includes(record.id) && (
-                          <div className="mt-4 pt-3 border-t border-gray-700 transition-all">
-                            {/* Debug section to help troubleshoot */}
-                            <div className="text-xs text-gray-500 mb-2">
-                              Record ID: {record.id} | 
-                              Type: {record.recordType} | 
-                              Analysis: {record.analysisInProgress ? 'In Progress' : 'Complete'} |
-                              FHIR Resources: {record.fhirResourceIds ? 
-                                (Array.isArray(record.fhirResourceIds) 
-                                  ? record.fhirResourceIds.length 
-                                  : Object.keys(record.fhirResourceIds).length) 
-                                : 0}
-                            </div>
-                            
-                            {record.analysisStatus === 'pending' && (
-                              <div className="mb-4 p-3 bg-blue-900/30 border border-blue-800 rounded-md flex items-center text-sm text-white">
-                                <div className="animate-spin h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full mr-3"></div>
-                                <p>
-                                  We're analyzing your medical record to extract lab results and measurements. 
-                                  This usually takes less than a minute.
-                                </p>
-                              </div>
-                            )}
-                            
-                            {record.analysisStatus === 'error' && (
-                              <div className="mb-4 p-3 bg-red-900/30 border border-red-800 rounded-md flex items-start text-sm text-white">
-                                <AlertCircle className="h-5 w-5 mr-3 mt-0.5 flex-shrink-0" />
-                                <div>
-                                  <p className="font-medium mb-1">There was a problem analyzing this record</p>
-                                  <p className="text-gray-300">
-                                    {record.analysisError || "An unexpected error occurred during analysis. You can still view the original file."}
-                                  </p>
-                                  {record.analysisError && record.analysisError.includes("Expected ',' or '}' after property value in JSON") && (
-                                    <div className="mt-2 p-2 bg-gray-900 rounded-md text-xs font-mono overflow-x-auto">
-                                      <p className="text-red-400 mb-1">JSON syntax error in FHIR resource:</p>
-                                      {typeof window !== 'undefined' && (window as any).lastFHIRParseError && (window as any).lastFHIRParseError.context ? (
-                                        <code className="whitespace-pre-wrap text-xs">
-                                          {(window as any).lastFHIRParseError.context}
-                                        </code>
-                                      ) : (
-                                        <p className="text-gray-400">
-                                          Try refreshing the page or re-uploading the document to see the detailed error.
-                                        </p>
-                                      )}
-                                    </div>
+                        {record.analysisStatus === 'pending' && (
+                          <div className="mb-4 p-3 bg-blue-900/30 border border-blue-800 rounded-md flex items-center text-sm text-white">
+                            <div className="animate-spin h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full mr-3"></div>
+                            <p>
+                              We're analyzing your medical record to extract lab results and measurements. 
+                              This usually takes less than a minute.
+                            </p>
+                          </div>
+                        )}
+                        
+                        {record.analysisStatus === 'error' && (
+                          <div className="mb-4 p-3 bg-red-900/30 border border-red-800 rounded-md flex items-start text-sm text-white">
+                            <AlertCircle className="h-5 w-5 mr-3 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="font-medium mb-1">There was a problem analyzing this record</p>
+                              <p className="text-gray-300">
+                                {record.analysisError || "An unexpected error occurred during analysis. You can still view the original file."}
+                              </p>
+                              {record.analysisError && record.analysisError.includes("Expected ',' or '}' after property value in JSON") && (
+                                <div className="mt-2 p-2 bg-gray-900 rounded-md text-xs font-mono overflow-x-auto">
+                                  <p className="text-red-400 mb-1">JSON syntax error in FHIR resource:</p>
+                                  {typeof window !== 'undefined' && (window as any).lastFHIRParseError && (window as any).lastFHIRParseError.context ? (
+                                    <code className="whitespace-pre-wrap text-xs">
+                                      {(window as any).lastFHIRParseError.context}
+                                    </code>
+                                  ) : (
+                                    <p className="text-gray-400">
+                                      Try refreshing the page or re-uploading the document to see the detailed error.
+                                    </p>
                                   )}
                                 </div>
-                              </div>
-                            )}
-                            
-                            {record.briefSummary && (
-                              <div className="text-sm mb-4 text-gray-300">
-                                <div className="flex justify-between items-center mb-2">
-                                  <h4 className="font-medium text-white">
-                                    {viewDetailedAnalysis.includes(record.id) ? 'Detailed Analysis' : 'Summary'}
-                                  </h4>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setViewDetailedAnalysis(prev => 
-                                        prev.includes(record.id) 
-                                          ? prev.filter(id => id !== record.id)
-                                          : [...prev, record.id]
-                                      );
-                                    }}
-                                    className="text-xs text-blue-400 hover:text-blue-300"
-                                  >
-                                    {viewDetailedAnalysis.includes(record.id) ? 'View Summary' : 'View Detailed Analysis'}
-                                  </button>
-                                </div>
-                                <p className="whitespace-pre-wrap leading-relaxed">
-                                  {viewDetailedAnalysis.includes(record.id) 
-                                    ? (record.detailedAnalysis || record.briefSummary)
-                                    : record.briefSummary}
-                                </p>
-                              </div>
-                            )}
-                            
-                            {/* Add FHIR Text section */}
-                            {record.fhirResourceIds && (
-                              <div className="text-sm mb-4 text-gray-300">
-                                <div className="flex justify-between items-center mb-2">
-                                  <h4 className="font-medium text-white">FHIR Resources</h4>
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setViewFhirText(prev => 
-                                          prev.includes(record.id) 
-                                            ? prev.filter(id => id !== record.id)
-                                            : [...prev, record.id]
-                                        );
-                                      }}
-                                      className="text-xs text-blue-400 hover:text-blue-300"
-                                    >
-                                      {viewFhirText.includes(record.id) ? 'Hide FHIR Text' : 'View FHIR Text'}
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setViewFhirResources(prev => 
-                                          prev.includes(record.id) 
-                                            ? prev.filter(id => id !== record.id)
-                                            : [...prev, record.id]
-                                        );
-                                      }}
-                                      className="text-xs text-blue-400 hover:text-blue-300"
-                                    >
-                                      {viewFhirResources.includes(record.id) ? 'Hide Resource List' : 'View Resource List'}
-                                    </button>
-                                  </div>
-                                </div>
-                                
-                                {/* FHIR Text View */}
-                                {viewFhirText.includes(record.id) && recordObservations[record.id] && (
-                                  <div className="mt-2 bg-gray-900 rounded-md p-3 overflow-auto max-h-96">
-                                    <pre className="text-xs text-gray-300">
-                                      {JSON.stringify(recordObservations[record.id], null, 2)}
-                                    </pre>
-                                  </div>
-                                )}
-                                
-                                {/* FHIR Resources List View */}
-                                {viewFhirResources.includes(record.id) && (
-                                  <div className="mt-2">
-                                    <h5 className="text-sm font-medium text-gray-400 mb-2">Extracted FHIR Resources:</h5>
-                                    <ul className="list-disc list-inside space-y-1">
-                                      {Array.isArray(record.fhirResourceIds) ? (
-                                        record.fhirResourceIds.map((resourceId, index) => (
-                                          <li key={index} className="text-xs text-gray-400">
-                                            {resourceId}
-                                          </li>
-                                        ))
-                                      ) : (
-                                        Object.entries(record.fhirResourceIds || {}).map(([type, ids], index) => (
-                                          <li key={index} className="text-xs text-gray-400">
-                                            {type}: {Array.isArray(ids) ? ids.length : 1} resource(s)
-                                          </li>
-                                        ))
-                                      )}
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                            
-                            {/* FHIR Observations Section */}
-                            {record.fhirResourceIds && (
-                              Array.isArray(record.fhirResourceIds) 
-                                ? record.fhirResourceIds.length > 0
-                                : typeof record.fhirResourceIds === 'object' && Object.keys(record.fhirResourceIds).length > 0
-                            ) ? (
-                              <div className="my-4">
-                                {loadingObservations[record.id] ? (
-                                  <>
-                                    <h4 className="font-medium text-white mb-2">Lab Results & Measurements:</h4>
-                                    <div className="flex justify-center items-center h-12">
-                                      <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
-                                    </div>
-                                  </>
-                                ) : recordObservations[record.id]?.length > 0 ? (
-                                  <>
-                                    <h4 className="font-medium text-white mb-2">Lab Results & Measurements:</h4>
-                                    <ul className="space-y-2">
-                                      {recordObservations[record.id].map(observation => {
-                                        // Extract observation details
-                                        const name = getFormattedTestName(observation);
-                                        const value = observation.valueQuantity?.value !== undefined 
-                                          ? `${observation.valueQuantity.value} ${observation.valueQuantity.unit || ''}`
-                                          : observation.valueString || 'No value';
-                                        
-                                        // Check if abnormal
-                                        const isAbnormal = observation.interpretation && 
-                                          observation.interpretation.some(i => 
-                                            i.coding && i.coding.some(c => ['H', 'L', 'HH', 'LL', 'A'].includes(c.code || ''))
-                                          );
-                                        
-                                        return (
-                                          <li 
-                                            key={observation.id} 
-                                            className="px-3 py-2 bg-gray-800/50 rounded-md cursor-pointer hover:bg-gray-800/80 transition-colors"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              window.location.href = `/observation/${observation.id}`;
-                                            }}
-                                          >
-                                            <div className="flex justify-between items-start">
-                                              <div>
-                                                <div className="flex items-center">
-                                                  <span className="text-sm font-medium text-white">{name}</span>
-                                                  {isAbnormal && (
-                                                    <span className="ml-2 px-1.5 py-0.5 text-xs rounded bg-red-900/50 text-red-300">
-                                                      Abnormal
-                                                    </span>
-                                                  )}
-                                                </div>
-                                              </div>
-                                              <div className={`text-sm font-medium ${isAbnormal ? 'text-red-300' : 'text-gray-200'}`}>
-                                                {value}
-                                              </div>
-                                            </div>
-                                            
-                                            {/* Visualization Section */}
-                                            {typeof observation.valueQuantity?.value === 'number' && observation.id !== undefined && (
-                                              <div className="mt-3">
-                                                {/* Directly embed the gauge here */}
-                                                <SimpleGauge 
-                                                  value={observation.valueQuantity?.value ?? 1.7} 
-                                                  low={observation.referenceRange?.[0]?.low?.value}
-                                                  high={observation.referenceRange?.[0]?.high?.value}
-                                                  unit={observation.valueQuantity?.unit || ''}
-                                                  name={name}
-                                                />
-                                              </div>
-                                            )}
-                                          </li>
-                                        );
-                                      })}
-                                    </ul>
-                                  </>
-                                ) : (
-                                  <p className="text-sm text-gray-400">No lab results found for this record.</p>
-                                )}
-                              </div>
-                            ) : null}
-                            
-                            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mt-3">
-                              <div className="space-y-2 sm:space-y-0 sm:space-x-2 flex flex-col sm:flex-row">
-                                {record.url && !record.isMultiFile && (
-                                  <a 
-                                    href={record.url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center text-sm text-blue-400 hover:text-blue-300"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <FaExternalLinkAlt className="mr-2" size={12} />
-                                    View File
-                                  </a>
-                                )}
-                                
-                                {record.isMultiFile && record.urls && record.urls.length > 0 && (
-                                  <div className="mt-2 sm:mt-0">
-                                    <div className="text-xs text-gray-400 mb-1">
-                                      {record.urls.length} files available:
-                                    </div>
-                                    <div className="flex flex-wrap gap-2">
-                                      {record.urls.map((url, index) => (
-                                        <a
-                                          key={`${record.id}-file-${index}`}
-                                          href={url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="inline-flex items-center text-xs text-blue-400 hover:text-blue-300 mr-3"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <FaExternalLinkAlt className="mr-1" size={10} />
-                                          File {index + 1}
-                                        </a>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                              
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (window.confirm('Are you sure you want to delete this record?')) {
-                                    deleteRecord(record.id);
-                                  }
-                                }}
-                                className="inline-flex items-center text-sm text-red-500 hover:text-red-400 cursor-pointer"
-                              >
-                                <FaTrash className="mr-2" size={12} />
-                                Delete
-                              </button>
+                              )}
                             </div>
                           </div>
                         )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+                        
+                        {record.briefSummary && (
+                          <div className="text-sm mb-4 text-gray-300">
+                            <div className="flex justify-between items-center mb-2">
+                              <h4 className="font-medium text-white">
+                                {viewDetailedAnalysis.includes(record.id) ? 'Detailed Analysis' : 'Summary'}
+                              </h4>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setViewDetailedAnalysis(prev => 
+                                    prev.includes(record.id) 
+                                      ? prev.filter(id => id !== record.id)
+                                      : [...prev, record.id]
+                                  );
+                                }}
+                                className="text-xs text-blue-400 hover:text-blue-300"
+                              >
+                                {viewDetailedAnalysis.includes(record.id) ? 'View Summary' : 'View Detailed Analysis'}
+                              </button>
+                            </div>
+                            <p className="whitespace-pre-wrap leading-relaxed">
+                              {viewDetailedAnalysis.includes(record.id) 
+                                ? (record.detailedAnalysis || record.briefSummary)
+                                : record.briefSummary}
+                            </p>
+                          </div>
+                        )}
+                        
+                        {/* Add FHIR Text section */}
+                        {record.fhirResourceIds && (
+                          <div className="text-sm mb-4 text-gray-300">
+                            <div className="flex justify-between items-center mb-2">
+                              <h4 className="font-medium text-white">FHIR Resources</h4>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewFhirText(prev => 
+                                      prev.includes(record.id) 
+                                        ? prev.filter(id => id !== record.id)
+                                        : [...prev, record.id]
+                                    );
+                                  }}
+                                  className="text-xs text-blue-400 hover:text-blue-300"
+                                >
+                                  {viewFhirText.includes(record.id) ? 'Hide FHIR Text' : 'View FHIR Text'}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewFhirResources(prev => 
+                                      prev.includes(record.id) 
+                                        ? prev.filter(id => id !== record.id)
+                                        : [...prev, record.id]
+                                    );
+                                  }}
+                                  className="text-xs text-blue-400 hover:text-blue-300"
+                                >
+                                  {viewFhirResources.includes(record.id) ? 'Hide Resource List' : 'View Resource List'}
+                                </button>
+                              </div>
+                            </div>
+                            
+                            {/* FHIR Text View */}
+                            {viewFhirText.includes(record.id) && recordObservations[record.id] && (
+                              <div className="mt-2 bg-gray-900 rounded-md p-3 overflow-auto max-h-96">
+                                <pre className="text-xs text-gray-300">
+                                  {JSON.stringify(recordObservations[record.id], null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            
+                            {/* FHIR Resources List View */}
+                            {viewFhirResources.includes(record.id) && (
+                              <div className="mt-2">
+                                <h5 className="text-sm font-medium text-gray-400 mb-2">Extracted FHIR Resources:</h5>
+                                <ul className="list-disc list-inside space-y-1">
+                                  {Array.isArray(record.fhirResourceIds) ? (
+                                    record.fhirResourceIds.map((resourceId, index) => (
+                                      <li key={index} className="text-xs text-gray-400">
+                                        {resourceId}
+                                      </li>
+                                    ))
+                                  ) : (
+                                    Object.entries(record.fhirResourceIds || {}).map(([type, ids], index) => (
+                                      <li key={index} className="text-xs text-gray-400">
+                                        {type}: {Array.isArray(ids) ? ids.length : 1} resource(s)
+                                      </li>
+                                    ))
+                                  )}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* FHIR Observations Section */}
+                        {record.fhirResourceIds && (
+                          Array.isArray(record.fhirResourceIds) 
+                            ? record.fhirResourceIds.length > 0
+                            : typeof record.fhirResourceIds === 'object' && Object.keys(record.fhirResourceIds).length > 0
+                        ) ? (
+                          <div className="my-4">
+                            {loadingObservations[record.id] ? (
+                              <>
+                                <h4 className="font-medium text-white mb-2">Lab Results & Measurements:</h4>
+                                <div className="flex justify-center items-center h-12">
+                                  <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
+                                </div>
+                              </>
+                            ) : recordObservations[record.id]?.length > 0 ? (
+                              <>
+                                <h4 className="font-medium text-white mb-2">Lab Results & Measurements:</h4>
+                                <ul className="space-y-2">
+                                  {recordObservations[record.id].map(observation => {
+                                    // Extract observation details
+                                    const name = getFormattedTestName(observation);
+                                    const value = observation.valueQuantity?.value !== undefined 
+                                      ? `${observation.valueQuantity.value} ${observation.valueQuantity.unit || ''}`
+                                      : observation.valueString || 'No value';
+                                    
+                                    // Check if abnormal
+                                    const isAbnormal = observation.interpretation && 
+                                      observation.interpretation.some(i => 
+                                        i.coding && i.coding.some(c => ['H', 'L', 'HH', 'LL', 'A'].includes(c.code || ''))
+                                      );
+                                    
+                                    return (
+                                      <li 
+                                        key={observation.id} 
+                                        className="px-3 py-2 bg-gray-800/50 rounded-md cursor-pointer hover:bg-gray-800/80 transition-colors"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          window.location.href = `/observation/${observation.id}`;
+                                        }}
+                                      >
+                                        <div className="flex justify-between items-start">
+                                          <div>
+                                            <div className="flex items-center">
+                                              <span className="text-sm font-medium text-white">{name}</span>
+                                              {isAbnormal && (
+                                                <span className="ml-2 px-1.5 py-0.5 text-xs rounded bg-red-900/50 text-red-300">
+                                                  Abnormal
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <div className={`text-sm font-medium ${isAbnormal ? 'text-red-300' : 'text-gray-200'}`}>
+                                            {value}
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Visualization Section */}
+                                        {typeof observation.valueQuantity?.value === 'number' && observation.id !== undefined && (
+                                          <div className="mt-3">
+                                            {/* Directly embed the gauge here */}
+                                            <SimpleGauge 
+                                              value={observation.valueQuantity?.value ?? 1.7} 
+                                              low={observation.referenceRange?.[0]?.low?.value}
+                                              high={observation.referenceRange?.[0]?.high?.value}
+                                              unit={observation.valueQuantity?.unit || ''}
+                                              name={name}
+                                            />
+                                          </div>
+                                        )}
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              </>
+                            ) : (
+                              <p className="text-sm text-gray-400">No lab results found for this record.</p>
+                            )}
+                          </div>
+                        ) : null}
+                        
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mt-3">
+                          <div className="space-y-2 sm:space-y-0 sm:space-x-2 flex flex-col sm:flex-row">
+                            {record.url && !record.isMultiFile && (
+                              <a 
+                                href={record.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-sm text-blue-400 hover:text-blue-300"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <FaExternalLinkAlt className="mr-2" size={12} />
+                                View File
+                              </a>
+                            )}
+                            
+                            {record.isMultiFile && record.urls && record.urls.length > 0 && (
+                              <div className="mt-2 sm:mt-0">
+                                <div className="text-xs text-gray-400 mb-1">
+                                  {record.urls.length} files available:
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {record.urls.map((url, index) => (
+                                    <a
+                                      key={`${record.id}-file-${index}`}
+                                      href={url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center text-xs text-blue-400 hover:text-blue-300 mr-3"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <FaExternalLinkAlt className="mr-1" size={10} />
+                                      File {index + 1}
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm('Are you sure you want to delete this record?')) {
+                                deleteRecord(record.id);
+                              }
+                            }}
+                            className="inline-flex items-center text-sm text-red-500 hover:text-red-400 cursor-pointer"
+                          >
+                            <FaTrash className="mr-2" size={12} />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </div>
-          </div>
+          ))}
         </div>
-      </div>
+      </PageLayout>
     </ProtectedRoute>
   );
 } 

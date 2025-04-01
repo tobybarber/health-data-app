@@ -84,7 +84,7 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
               <StandaloneLink href="/profile" className="text-white flex items-center border border-gray-600 rounded-full py-1 px-3 hover:border-gray-400 transition-colors">
                 <FaUserCircle size={22} />
                 {firstName && (
-                  <span className="ml-2 whitespace-nowrap block text-white" style={{ minWidth: '20px' }}>
+                  <span className="ml-2 text-white">
                     {firstName}
                   </span>
                 )}
@@ -123,7 +123,7 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
             >
               <FaUserCircle size={22} />
               {firstName && (
-                <span className="ml-2 whitespace-nowrap block text-white" style={{ minWidth: '20px' }}>
+                <span className="ml-2 text-white">
                   {firstName}
                 </span>
               )}

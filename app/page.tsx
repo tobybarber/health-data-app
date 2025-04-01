@@ -7,6 +7,7 @@ import { FaUpload, FaComments, FaWatchmanMonitoring, FaClipboardList, FaHeartbea
 import Navigation from './components/Navigation';
 import ChatContainer from './components/chat/ChatContainer';
 import ClientWrapper from './components/ClientWrapper';
+import PageLayout from './components/PageLayout';
 
 export default function Home() {
   const { currentUser, loading, authInitialized } = useAuth();
@@ -85,12 +86,12 @@ export default function Home() {
 
   return (
     <ClientWrapper>
-      <div className="flex flex-col min-h-screen bg-black">
-        <Navigation isHomePage={true} />
-        <main className="flex-1 flex flex-col overflow-hidden pt-14">
-          <ChatContainer />
-        </main>
-      </div>
+      <PageLayout 
+        isHomePage={true}
+        showBackgroundLogo={true}
+      >
+        <ChatContainer />
+      </PageLayout>
     </ClientWrapper>
   );
 } 
