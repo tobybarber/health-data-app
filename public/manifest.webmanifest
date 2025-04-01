@@ -1,6 +1,6 @@
 {
   "name": "Wattle Health",
-  "short_name": "Wattle Health",
+  "short_name": "Wattle",
   "description": "Personal health assistant powered by AI",
   "start_url": "/",
   "display": "standalone",
@@ -19,6 +19,17 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "prefer_related_applications": false,
+  "categories": ["health", "medical", "lifestyle"],
+  "screenshots": [
+    {
+      "src": "/screenshots/home.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "platform": "narrow",
+      "label": "Home screen"
     }
   ]
 } 

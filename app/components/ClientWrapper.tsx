@@ -25,6 +25,11 @@ export const BackgroundLogoContext = createContext({
   setShowBackgroundLogo: (show: boolean) => {}
 });
 
+// Create a context for the standalone mode state
+export const StandaloneModeContext = createContext({
+  isStandalone: false
+});
+
 // Hook to use background logo context
 export function useBackgroundLogo() {
   return useContext(BackgroundLogoContext);
@@ -33,220 +38,105 @@ export function useBackgroundLogo() {
 // Create a wrapper component that includes BottomNavigation
 function AppContent({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
-  const { showBackgroundLogo } = useBackgroundLogo();
   const pathname = usePathname();
-  
-  // Fix for iOS viewport height issues
+  const [showBackgroundLogo, setShowBackgroundLogo] = useState(true);
+  const [isStandalone, setIsStandalone] = useState(false);
+
   useEffect(() => {
-    // Helper function to fix iOS Safari's 100vh issue
-    const fixIOSViewportHeight = () => {
-      // First we get the viewport height and we multiply it by 1% to get a value for a vh unit
-      let vh = window.innerHeight * 0.01;
-      // Then we set the value in the --vh custom property to the root of the document
-      document.documentElement.style.setProperty('--vh', `${vh}px`);
-      document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+    // Check if we're in standalone mode
+    const checkStandalone = () => {
+      const inStandaloneMode = 
+        typeof window !== 'undefined' && 
+        (
+          (window.navigator as any).standalone === true || 
+          window.matchMedia('(display-mode: standalone)').matches
+        );
       
-      // Store the initial height to detect keyboard appearance
-      if (!window.initialViewportHeight) {
-        window.initialViewportHeight = window.innerHeight;
-      }
+      setIsStandalone(inStandaloneMode);
     };
 
-    // Initial call
-    fixIOSViewportHeight();
+    // Initial check
+    checkStandalone();
 
-    // Add event listeners for resize and orientation change
-    window.addEventListener('resize', fixIOSViewportHeight);
-    window.addEventListener('orientationchange', fixIOSViewportHeight);
-    
-    // Check if we're in iOS
-    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-    
-    if (isIOS) {
-      // Wait for any UI to settle and then re-measure
-      setTimeout(fixIOSViewportHeight, 100);
-      
-      // Fix for standalone mode specifically
-      const isStandalone = 
-        (window.navigator as any).standalone === true || 
-        window.matchMedia('(display-mode: standalone)').matches;
-      
-      if (isStandalone) {
-        // Define a global function to fix standalone mode issues that can be called from anywhere
-        const fixIOSStandalone = () => {
-          console.log('Applying iOS standalone mode fixes');
-          
-          // Apply viewport-fit=cover again to ensure status bar is handled correctly
-          const metaViewport = document.querySelector('meta[name="viewport"]');
-          if (metaViewport) {
-            const content = metaViewport.getAttribute('content') || '';
-            if (!content.includes('viewport-fit=cover')) {
-              metaViewport.setAttribute('content', 
-                'width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no'
-              );
-            }
-          }
-          
-          // Re-add standalone mode classes
-          document.body.classList.add('standalone-mode');
-          document.documentElement.classList.add('standalone-mode');
-          document.documentElement.style.setProperty('--standalone-mode', '1');
-          
-          // Handle iOS safe areas properly
-          document.documentElement.style.setProperty('--safe-area-top', 'env(safe-area-inset-top)');
-          document.documentElement.style.setProperty('--safe-area-bottom', 'env(safe-area-inset-bottom)');
-          
-          // Fix Safari height calculation
-          document.body.style.height = '-webkit-fill-available';
-          document.body.style.minHeight = 'calc(var(--vh, 1vh) * 100)';
-          
-          // Force viewport height recalculation
-          fixIOSViewportHeight();
-          
-          // Force-hide Safari UI
-          if (window.scrollY === 0) {
-            window.scrollTo(0, 1);
-            setTimeout(() => window.scrollTo(0, 0), 50);
-          }
-        };
-        
-        // Make the function globally available
-        window.fixIOSStandalone = fixIOSStandalone;
-        
-        // Call immediately
-        fixIOSStandalone();
-        
-        // Apply viewport-fit=cover again to ensure status bar is handled correctly
-        const metaViewport = document.querySelector('meta[name="viewport"]');
-        if (metaViewport) {
-          const content = metaViewport.getAttribute('content') || '';
-          if (!content.includes('viewport-fit=cover')) {
-            metaViewport.setAttribute('content', content + ', viewport-fit=cover');
-          }
-        }
-        
-        // Handle iOS safe areas properly
-        document.documentElement.style.setProperty('--safe-area-top', 'env(safe-area-inset-top)');
-        document.documentElement.style.setProperty('--safe-area-bottom', 'env(safe-area-inset-bottom)');
-        
-        // Fix for status bar issues in landscape
-        const handleOrientationChange = () => {
-          setTimeout(() => {
-            // Force re-layout to fix status bar issues
-            document.body.style.display = 'none';
-            document.body.offsetHeight; // Trigger reflow
-            document.body.style.display = '';
-            
-            fixIOSViewportHeight();
-            
-            // Call our global fix function
-            if (window.fixIOSStandalone) {
-              window.fixIOSStandalone();
-            }
-          }, 300);
-        };
-        
-        window.addEventListener('orientationchange', handleOrientationChange);
-        
-        // Cleanup for standalone-specific events
-        return () => {
-          window.removeEventListener('orientationchange', handleOrientationChange);
-          window.removeEventListener('resize', fixIOSViewportHeight);
-          window.removeEventListener('orientationchange', fixIOSViewportHeight);
-        };
-      }
-      
-      // Standard iOS fixes
-      const handleScroll = () => setTimeout(fixIOSViewportHeight, 100);
-      window.addEventListener('scroll', handleScroll);
-      
-      const handleFocusIn = () => document.body.classList.add('keyboard-open');
-      window.addEventListener('focusin', handleFocusIn);
-      
-      const handleFocusOut = () => {
-        document.body.classList.remove('keyboard-open');
-        setTimeout(fixIOSViewportHeight, 100);
-      };
-      window.addEventListener('focusout', handleFocusOut);
-      
-      return () => {
-        window.removeEventListener('resize', fixIOSViewportHeight);
-        window.removeEventListener('orientationchange', fixIOSViewportHeight);
-        window.removeEventListener('scroll', handleScroll);
-        window.removeEventListener('focusin', handleFocusIn);
-        window.removeEventListener('focusout', handleFocusOut);
-      };
-    }
+    // Monitor display mode changes
+    const displayModeQuery = window.matchMedia('(display-mode: standalone)');
+    displayModeQuery.addEventListener('change', checkStandalone);
 
     return () => {
-      window.removeEventListener('resize', fixIOSViewportHeight);
-      window.removeEventListener('orientationchange', fixIOSViewportHeight);
+      displayModeQuery.removeEventListener('change', checkStandalone);
     };
   }, []);
-  
-  // Apply fixes after page navigation
+
+  // Handle background logo visibility based on path
   useEffect(() => {
-    // If we're in standalone mode, reapply fixes after each page navigation
-    if (window.fixIOSStandalone) {
-      window.fixIOSStandalone();
-    }
+    const shouldShowLogo = pathname === '/';
+    setShowBackgroundLogo(shouldShowLogo);
   }, [pathname]);
-  
+
   return (
-    <>
-      {/* Base black background - always present */}
-      <div className="fixed inset-0 z-0 bg-black" />
-      
-      {/* Logo overlay - conditionally rendered */}
-      {showBackgroundLogo && (
-        <div className="absolute inset-0 z-0 fixed">
-          <div className="absolute inset-0 flex items-center justify-center opacity-15" style={{ paddingBottom: '15vh' }}>
-            <div className="w-48 h-48 relative grayscale">
-              <Image
-                src="/images/logo.png"
-                alt="Wattle Logo"
-                fill
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
+    <BackgroundLogoContext.Provider value={{ showBackgroundLogo, setShowBackgroundLogo }}>
+      <StandaloneModeContext.Provider value={{ isStandalone }}>
+        <ErrorBoundary>
+          <div className="min-h-screen bg-black relative">
+            {/* Background Logo */}
+            {showBackgroundLogo && (
+              <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
+                <div className="relative w-64 h-64 opacity-5">
+                  <Image
+                    src="/images/logo.png"
+                    alt="Background Logo"
+                    fill
+                    style={{ objectFit: 'contain' }}
+                    priority
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Main Content */}
+            <main className="relative z-10">
+              {children}
+            </main>
+
+            {/* Bottom Navigation */}
+            {currentUser && <BottomNavigation />}
+
+            {/* Toast Notifications */}
+            <Toaster
+              position="top-center"
+              toastOptions={{
+                duration: 3000,
+                style: {
+                  background: '#333',
+                  color: '#fff',
+                },
+                success: {
+                  duration: 3000,
+                  style: {
+                    background: '#4ade80',
+                    color: '#fff',
+                  },
+                },
+                error: {
+                  duration: 4000,
+                  style: {
+                    background: '#ff4b4b',
+                    color: '#fff',
+                  },
+                },
+              }}
+            />
           </div>
-        </div>
-      )}
-      
-      <HomeScreenDetect />
-      <AppleSplashScreen />
-      <div className="relative z-10 h-full">
-        {children}
-        {currentUser && <BottomNavigation />}
-      </div>
-    </>
+        </ErrorBoundary>
+      </StandaloneModeContext.Provider>
+    </BackgroundLogoContext.Provider>
   );
 }
 
 export default function ClientWrapper({ children }: { children: React.ReactNode }) {
-  const [showBackgroundLogo, setShowBackgroundLogo] = useState(true);
-
   return (
-    <ErrorBoundary>
-      <BackgroundLogoContext.Provider value={{ showBackgroundLogo, setShowBackgroundLogo }}>
-        <AuthProvider>
-          <AppContent>
-            {children}
-          </AppContent>
-          <Toaster 
-            position="top-center"
-            toastOptions={{
-              duration: 3000,
-              style: {
-                background: '#333',
-                color: '#fff',
-                borderRadius: '8px',
-              },
-            }}
-          />
-        </AuthProvider>
-      </BackgroundLogoContext.Provider>
-    </ErrorBoundary>
+    <AuthProvider>
+      <AppContent>{children}</AppContent>
+    </AuthProvider>
   );
 } 

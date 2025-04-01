@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useContext } from 'react';
+import { StandaloneModeContext } from './ClientWrapper';
 
 type StandaloneLinkProps = {
   href: string;
@@ -25,19 +26,7 @@ export default function StandaloneLink({
   ...restProps
 }: StandaloneLinkProps) {
   const router = useRouter();
-  const [isStandalone, setIsStandalone] = useState(false);
-
-  useEffect(() => {
-    // Check if we're in standalone mode
-    const inStandaloneMode = 
-      typeof window !== 'undefined' && 
-      (
-        (window.navigator as any).standalone === true || 
-        window.matchMedia('(display-mode: standalone)').matches
-      );
-    
-    setIsStandalone(inStandaloneMode);
-  }, []);
+  const { isStandalone } = useContext(StandaloneModeContext);
 
   // If not in standalone mode, just use the regular Next.js Link
   if (!isStandalone) {
@@ -83,11 +72,6 @@ export default function StandaloneLink({
       setTimeout(() => {
         // Restore opacity
         document.body.style.opacity = '1';
-        
-        // Call our global iOS standalone fix function if available
-        if (window.fixIOSStandalone) {
-          window.fixIOSStandalone();
-        }
         
         // Force Safari UI to hide by scrolling slightly
         if (window.scrollY === 0) {

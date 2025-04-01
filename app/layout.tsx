@@ -11,6 +11,11 @@ const ClientWrapper = dynamic(() => import('./components/ClientWrapper'), {
   ssr: false,
 });
 
+// Import the StandaloneModeHandler component dynamically with no SSR
+const StandaloneModeHandler = dynamic(() => import('./components/StandaloneModeHandler'), {
+  ssr: false,
+});
+
 export const metadata: Metadata = {
   title: 'Wattle Health',
   description: 'Personal health assistant powered by AI',
@@ -44,9 +49,13 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-touch-fullscreen" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Wattle" />
+        <meta name="theme-color" content="#000000" />
+        <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="bg-black min-h-screen">
         <Providers>
+          <StandaloneModeHandler />
           <ClientWrapper>
             {children}
           </ClientWrapper>

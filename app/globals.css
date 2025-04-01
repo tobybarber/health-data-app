@@ -9,14 +9,16 @@
   --primary-blue: 59, 130, 246;
   --primary-green: 16, 185, 129;
   --app-height: 100vh;
-  --vh: 1vh; /* Fix for iOS vh units */
+  --vh: 1vh;
+  --safe-area-top: env(safe-area-inset-top);
+  --safe-area-bottom: env(safe-area-inset-bottom);
 }
 
 html {
   min-height: 100%;
   min-height: var(--app-height);
   min-height: calc(var(--vh, 1vh) * 100);
-  touch-action: manipulation; /* Improve touch handling on iOS */
+  touch-action: manipulation;
 }
 
 body {
@@ -28,83 +30,74 @@ body {
     )
     rgb(var(--background-start-rgb));
   font-family: 'Roboto', sans-serif;
-  -webkit-overflow-scrolling: touch; /* Improve scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
   min-height: var(--app-height);
-  overscroll-behavior-y: none; /* Prevent pull-to-refresh in iOS */
-  touch-action: pan-x pan-y; /* Enable vertical and horizontal touch scrolling */
+  overscroll-behavior-y: none;
+  touch-action: pan-x pan-y;
 }
 
-/* iOS standalone mode (added to home screen) */
+/* iOS standalone mode */
 body.standalone-mode {
-  /* Remove any default margins and padding */
   margin: 0;
   padding: 0;
-  /* Keep proper height */
   height: 100%;
   min-height: 100vh;
   min-height: -webkit-fill-available;
   min-height: calc(var(--vh, 1vh) * 100);
-  /* Ensure content is contained */
   overflow-x: hidden;
-  /* Enable proper scrolling */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
-  /* Account for iOS status bar in standalone mode */
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  /* Prevent elastic bounce */
+  padding-top: var(--safe-area-top);
+  padding-bottom: var(--safe-area-bottom);
   overscroll-behavior: none;
 }
 
-/* Proper positioning for top navigation in standalone mode */
+/* Fixed navigation in standalone mode */
 body.standalone-mode .fixed.top-0 {
   position: fixed !important;
-  top: env(safe-area-inset-top) !important;
+  top: var(--safe-area-top) !important;
   left: 0 !important;
   right: 0 !important;
   z-index: 50 !important;
+  background-color: rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
 }
 
-/* Proper positioning for bottom navigation in standalone mode */
 body.standalone-mode .fixed.bottom-0 {
   position: fixed !important;
-  bottom: env(safe-area-inset-bottom) !important;
+  bottom: var(--safe-area-bottom) !important;
   left: 0 !important;
   right: 0 !important;
   z-index: 50 !important;
+  background-color: rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
 }
 
-/* Make main content scrollable in standalone mode */
+/* Main content in standalone mode */
 body.standalone-mode main {
-  padding-top: calc(56px + env(safe-area-inset-top));
-  padding-bottom: calc(70px + env(safe-area-inset-bottom));
+  padding-top: calc(56px + var(--safe-area-top));
+  padding-bottom: calc(70px + var(--safe-area-bottom));
   min-height: calc(100vh - 56px - 70px);
-  min-height: calc(var(--vh, 1vh) * 100 - 56px - 70px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  min-height: calc(var(--vh, 1vh) * 100 - 56px - 70px - var(--safe-area-top) - var(--safe-area-bottom));
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch !important;
   touch-action: pan-y !important;
 }
 
-/* Override containers with conflicting fixed positioning in standalone mode */
-body.standalone-mode .records-scroll-container {
-  position: fixed !important;
-  top: calc(56px + env(safe-area-inset-top)) !important;
-  bottom: calc(70px + env(safe-area-inset-bottom)) !important;
-  left: 0 !important;
-  right: 0 !important;
-  height: auto !important;
-  overflow: hidden !important;
-}
-
-body.standalone-mode .records-scroll-wrapper {
+/* Scrollable containers in standalone mode */
+body.standalone-mode .scrollable-container {
+  position: relative !important;
   height: 100% !important;
-  overflow-y: scroll !important;
+  overflow-y: auto !important;
   -webkit-overflow-scrolling: touch !important;
   touch-action: pan-y !important;
+  overscroll-behavior: contain !important;
 }
 
-/* iOS select element styling fix */
+/* iOS select element styling */
 select {
   background-color: white;
   -webkit-appearance: none;
@@ -115,15 +108,7 @@ select {
   background-size: 1em;
 }
 
-/* iOS specific scrollable content */
-.ios-scrollable {
-  -webkit-overflow-scrolling: touch;
-  overflow-y: auto;
-  touch-action: pan-y;
-  height: 100%;
-}
-
-/* Custom utility classes */
+/* Utility classes */
 .text-primary-blue {
   color: white;
 }
@@ -149,15 +134,15 @@ select {
 }
 
 .hide-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;     /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .hide-scrollbar::-webkit-scrollbar {
-  display: none;  /* Chrome, Safari and Opera */
+  display: none;
 }
 
-/* Custom animations */
+/* Animations */
 @keyframes pulse {
   0%, 100% {
     opacity: 1;
@@ -171,23 +156,36 @@ select {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Add padding to the bottom of the page content to account for the bottom navigation */
+/* Safe area padding utilities */
 .pb-safe {
-  padding-bottom: max(calc(1rem + 110px), calc(1rem + 110px + env(safe-area-inset-bottom)));
+  padding-bottom: max(calc(1rem + 110px), calc(1rem + 110px + var(--safe-area-bottom)));
 }
 
-/* Add padding to the top of the page content to account for the fixed top navigation */
 .pt-safe {
-  padding-top: max(72px, calc(72px + env(safe-area-inset-top)));
+  padding-top: max(72px, calc(72px + var(--safe-area-top)));
 }
 
-/* iOS scrolling fixes */
+/* iOS scrolling utilities */
 .touch-pan-y {
   touch-action: pan-y;
 }
 
 .-webkit-overflow-scrolling-touch {
   -webkit-overflow-scrolling: touch;
+}
+
+/* iOS specific fixes */
+@supports (-webkit-touch-callout: none) {
+  .overflow-y-scroll {
+    overflow-y: scroll;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  body, .overflow-y-scroll {
+    overflow-y: auto;
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* Additional iOS scrolling fix for smooth momentum scrolling */
