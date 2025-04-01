@@ -53,6 +53,20 @@ const nextConfig = {
       use: 'null-loader',
     });
 
+    // Add verbose logging for imports
+    config.infrastructureLogging = {
+      level: 'verbose',
+      debug: /webpack/
+    };
+    
+    // Log modules that are being processed
+    config.stats = {
+      logging: 'verbose',
+      modules: true,
+      modulesSpace: 100,
+      reasons: true
+    };
+
     return config;
   },
   env: {

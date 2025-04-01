@@ -24,7 +24,6 @@ import {
 } from '../../../lib/fhir-service';
 import { extractTextFromPdf, performOCR } from '../../../lib/pdf-utils';
 import { updateDoc } from 'firebase/firestore';
-import { buildUserVectorIndex } from '../../../lib/rag-service';
 
 /**
  * POST handler for uploading files and creating records
@@ -118,21 +117,18 @@ export async function POST(request: NextRequest) {
         lastRecordAdded: new Date()
       }, { merge: true });
       
-      // Trigger vector index rebuild for the comment
-      console.log(`Triggering vector index rebuild for user ${userId} after comment upload`);
-      (async () => {
-        try {
-          await buildUserVectorIndex(userId, true);
-          console.log(`Vector index rebuild completed for user ${userId}`);
-        } catch (indexError) {
-          console.error(`Error rebuilding vector index for user ${userId}:`, indexError);
-        }
-      })();
+      // Update index status to indicate it needs rebuilding, but don't rebuild automatically
+      console.log(`Setting needsRebuild flag for vector index after record upload`);
+      const ragIndexRef = db.collection('users').doc(userId).collection('settings').doc('ragIndex');
+      await ragIndexRef.set({
+        needsRebuild: true,
+        lastDataUpdate: new Date()
+      }, { merge: true });
       
       return NextResponse.json({
         success: true,
         recordId: docRef.id,
-        fileUrls: []
+        message: 'Record created successfully',
       });
     }
     
@@ -259,387 +255,13 @@ export async function POST(request: NextRequest) {
       lastRecordAdded: new Date()
     }, { merge: true });
     
-    // Initiate automatic analysis for each uploaded file
-    try {
-      console.log('Initiating automatic analysis for uploaded files');
-      
-      if (fileUrls.length > 0) {
-        // Process analysis in the background
-        (async () => {
-          try {
-            // Import the utilities
-            const { uploadFirestoreFileToOpenAI, analyzeRecord } = await import('../../../lib/openai-utils');
-            
-            // Array to store OpenAI file IDs
-            const openaiFileIds: string[] = [];
-            
-            // Use batch processing for OpenAI uploads too
-            const batchSize = 3;
-            const fileBatches = [];
-            
-            // Split files into batches
-            for (let i = 0; i < fileUrls.length; i += batchSize) {
-              fileBatches.push(fileUrls.slice(i, i + batchSize).map((url, idx) => ({
-                url,
-                type: fileTypes[i + idx] || 'application/octet-stream',
-                index: i + idx
-              })));
-            }
-            
-            // Process each batch sequentially
-            for (let batchIndex = 0; batchIndex < fileBatches.length; batchIndex++) {
-              const batch = fileBatches[batchIndex];
-              console.log(`Processing OpenAI upload batch ${batchIndex + 1}/${fileBatches.length}`);
-              
-              // Process files within a batch concurrently with individual error handling
-              const batchResults = await Promise.allSettled(
-                batch.map(async (file) => {
-                  try {
-                    console.log(`Processing file ${file.index + 1}/${fileUrls.length} for OpenAI upload`);
-                    
-                    // Upload the file to OpenAI
-                    const fileId = await uploadFirestoreFileToOpenAI(
-                      file.url,
-                      `${recordName.trim() || 'Medical Record'}_${file.index + 1}`,
-                      file.type,
-                      userId,
-                      docRef.id
-                    );
-                    
-                    console.log(`File ${file.index + 1} uploaded to OpenAI with ID: ${fileId}`);
-                    return fileId;
-                  } catch (fileError) {
-                    console.error(`Error processing file ${file.index + 1} for OpenAI:`, fileError);
-                    throw fileError;
-                  }
-                })
-              );
-              
-              // Add successful uploads to our file IDs array
-              batchResults.forEach(result => {
-                if (result.status === 'fulfilled') {
-                  openaiFileIds.push(result.value);
-                }
-              });
-              
-              // Short pause between batches to avoid rate limits
-              if (batchIndex < fileBatches.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-              }
-            }
-            
-            // If we have at least one file ID, trigger analysis
-            if (openaiFileIds.length > 0) {
-              console.log(`Starting analysis with ${openaiFileIds.length} files`);
-              const primaryFileId = openaiFileIds[0];
-              const additionalIds = openaiFileIds.slice(1);
-              
-              // Update record with file IDs
-              const recordRef = db.collection('users').doc(userId).collection('records').doc(docRef.id);
-              await recordRef.update({
-                openaiFileId: primaryFileId,
-                additionalFileIds: additionalIds.length > 0 ? additionalIds : [],
-                openaiFileIds: openaiFileIds,
-                analysisInProgress: true
-              });
-              
-              // Now trigger analysis, but limit the number of additional files to avoid timeouts
-              // When there are too many files, we'll analyze just the primary file first
-              const maxAdditionalFilesForAnalysis = 8; // Increased from 5 to 8
-              const analysisAdditionalIds = additionalIds.length > maxAdditionalFilesForAnalysis
-                ? additionalIds.slice(0, maxAdditionalFilesForAnalysis) // Take only the first few additional files
-                : additionalIds;
-                
-              try {
-                // Customize the prompt based on number of files
-                let analysisInstructions = undefined;
-                if (openaiFileIds.length > 2) {
-                  // Create enhanced instructions for OpenAI when handling multiple files
-                  analysisInstructions = 
-                    `You're analyzing ${openaiFileIds.length} medical files that belong to the same patient. 
-                    Please examine each file thoroughly and provide a complete analysis that covers ALL files.
-                    Take your time to analyze each file individually first, then create a comprehensive summary 
-                    that covers all important findings across all files.
-                    This analysis is critical for medical care, so please be thorough and don't omit any important details.`;
-                    
-                  // Update the briefSummary in the record data
-                  recordData.briefSummary = `Analysis includes ${Math.min(openaiFileIds.length, maxAdditionalFilesForAnalysis + 1)} of ${openaiFileIds.length} uploaded files. Important findings across all files are noted.`;
-                }
-                
-                const result = await analyzeRecord(
-                  userId, 
-                  docRef.id,
-                  primaryFileId,
-                  fileTypes[0], 
-                  recordName.trim() || 'Medical Record',
-                  analysisInstructions, // Pass the custom instructions for multiple files
-                  analysisAdditionalIds.length > 0 ? analysisAdditionalIds : undefined
-                );
-                
-                console.log('Analysis complete with result:', result);
-                
-                // Extract and save FHIR resources if they're in the analysis output
-                if (result && result.analysis) {
-                  try {
-                    // Extract FHIR resources from analysis
-                    const fhirMatch = result.analysis.match(/<FHIR_RESOURCES>\s*([\s\S]*?)\s*<\/FHIR_RESOURCES>/i);
-                    
-                    if (fhirMatch && fhirMatch[1]) {
-                      const fhirResourcesJson = fhirMatch[1].trim();
-                      
-                      try {
-                        // Log the raw JSON for debugging
-                        console.log('Raw FHIR resources JSON length:', fhirResourcesJson.length);
-                        
-                        // Sanitize the JSON to handle common issues
-                        let sanitizedJson = fhirResourcesJson;
-                        
-                        // Try to fix the most common JSON issues
-                        try {
-                          // Look for missing commas between array elements - this is a common error
-                          sanitizedJson = sanitizedJson.replace(/}\s*{/g, '},{');
-                          
-                          // Remove trailing commas in arrays which are invalid in JSON
-                          sanitizedJson = sanitizedJson.replace(/,\s*]/g, ']');
-                          
-                          // Try to auto-fix specific positions if we can identify errors
-                          // For example, the specific error reported at position 3804
-                          // "Expected ',' or ']' after array element in JSON at position 3804"
-                          try {
-                            // Make sure we're working with a proper JSON array
-                            if (!sanitizedJson.startsWith('[')) {
-                              sanitizedJson = '[' + sanitizedJson + ']';
-                            }
-                            
-                            // Attempt to find and fix problems with missing commas at object boundaries
-                            // This often happens when AI generates JSON with formatting issues
-                            sanitizedJson = sanitizedJson.replace(/}\s*\n\s*{/g, '},\n{');
-                            sanitizedJson = sanitizedJson.replace(/"\s*\n\s*{/g, '",\n{');
-                            sanitizedJson = sanitizedJson.replace(/}\s*\n\s*"/g, '},\n"');
-                          } catch (fixError) {
-                            console.error('Error during targeted JSON fixes:', fixError);
-                          }
-                          
-                          // Wrap in array if it's not already an array or object
-                          if (!sanitizedJson.startsWith('[') && !sanitizedJson.startsWith('{')) {
-                            sanitizedJson = '[' + sanitizedJson + ']';
-                          }
-                        } catch (sanitizationError: unknown) {
-                          console.error('Error during JSON sanitization:', sanitizationError instanceof Error ? sanitizationError.message : String(sanitizationError));
-                        }
-                        
-                        // Attempt to parse with error details if it fails
-                        let fhirResources;
-                        try {
-                          fhirResources = JSON.parse(sanitizedJson);
-                          console.log(`Successfully parsed JSON. Found ${fhirResources.length} FHIR resources in analysis output`);
-                        } catch (parseError: unknown) {
-                          // Get detailed error position
-                          const errorMessage = (parseError as Error).message || 'Unknown JSON parse error';
-                          console.error('JSON parse error details:', errorMessage);
-                          
-                          // Extract position information
-                          const positionMatch = errorMessage.match(/position (\d+)/);
-                          if (positionMatch && positionMatch[1]) {
-                            const position = parseInt(positionMatch[1]);
-                            const contextStart = Math.max(0, position - 50);
-                            const contextEnd = Math.min(sanitizedJson.length, position + 50);
-                            
-                            console.error('JSON error context:');
-                            console.error(sanitizedJson.substring(contextStart, position) + ' 👉 ' + 
-                                          sanitizedJson.charAt(position) + ' 👈 ' + 
-                                          sanitizedJson.substring(position + 1, contextEnd));
-                          }
-                          
-                          // Try again with a more aggressive approach - create an empty array if all else fails
-                          console.log('Falling back to empty array due to JSON parse error');
-                          fhirResources = [];
-                          
-                          // Attempt to parse individual objects if the array parse failed
-                          // This can often recover partial data when one object breaks the entire array
-                          try {
-                            console.log('Attempting to extract individual valid JSON objects');
-                            
-                            // Try to match individual JSON objects
-                            const objectRegex = /\{(?:[^{}]|(?:\{[^{}]*\}))*\}/g;
-                            const potentialObjects = sanitizedJson.match(objectRegex) || [];
-                            
-                            if (potentialObjects.length > 0) {
-                              console.log(`Found ${potentialObjects.length} potential JSON objects to recover`);
-                              
-                              for (const objString of potentialObjects) {
-                                try {
-                                  const obj = JSON.parse(objString);
-                                  if (obj && typeof obj === 'object' && obj.resourceType) {
-                                    console.log(`Successfully recovered JSON object of type ${obj.resourceType}`);
-                                    fhirResources.push(obj);
-                                  }
-                                } catch (objParseError) {
-                                  // Skip objects that don't parse
-                                }
-                              }
-                              
-                              if (fhirResources.length > 0) {
-                                console.log(`Recovered ${fhirResources.length} valid FHIR resources`);
-                              }
-                            }
-                          } catch (recoveryError) {
-                            console.error('Failed to recover partial JSON objects:', recoveryError);
-                          }
-                          
-                          // Record the error but continue processing
-                          await recordRef.update({
-                            analysisError: `Error parsing FHIR resources: ${errorMessage}`
-                          });
-                        }
-                        
-                        // Save each resource to Firestore
-                        const savedResourceIds: string[] = [];
-                        
-                        for (const resource of fhirResources) {
-                          // Skip resources without resourceType or invalid types
-                          if (!resource.resourceType) continue;
-                          
-                          // Add a timestamp to avoid conflicts
-                          const timestamp = new Date().getTime();
-                          const resourceId = resource.id || `${timestamp}`;
-                          
-                          // Ensure the resource has an ID
-                          resource.id = resourceId;
-                          
-                          try {
-                            // Save the FHIR resource to the standardized fhir_resources collection
-                            const fhirRef = db.collection('users').doc(userId)
-                              .collection('fhir_resources')
-                              .doc(`${resource.resourceType}_${resourceId}`);
-                            
-                            await fhirRef.set(resource);
-                            console.log(`Saved FHIR resource ${resource.resourceType}/${resourceId}`);
-                            
-                            // Add to our list of saved resources using the standardized format
-                            savedResourceIds.push(`${resource.resourceType}_${resourceId}`);
-                          } catch (saveError) {
-                            console.error(`Error saving FHIR resource ${resource.resourceType}:`, saveError);
-                          }
-                        }
-                        
-                        // Update the record with the FHIR resource IDs
-                        if (savedResourceIds.length > 0) {
-                          console.log(`Updating record ${docRef.id} with ${savedResourceIds.length} FHIR resource IDs`);
-                          await recordRef.update({
-                            fhirResourceIds: savedResourceIds,
-                            analysisInProgress: false // Mark analysis as complete
-                          });
-                        } else {
-                          // Even if no resources were saved, mark analysis as complete
-                          await recordRef.update({
-                            analysisInProgress: false
-                          });
-                        }
-                      } catch (fhirExtractionError: any) {
-                        console.error('Error extracting FHIR resources from analysis:', fhirExtractionError);
-                        // Mark analysis as complete with error
-                        let errorMessage = fhirExtractionError.message || String(fhirExtractionError);
-                        
-                        // Check if it's a JSON parsing error and extract context if available
-                        if (errorMessage.includes('position')) {
-                          // This is likely a JSON parsing error with position information
-                          await recordRef.update({
-                            analysisInProgress: false,
-                            analysisError: `Error parsing FHIR resources: ${errorMessage}`
-                          });
-                        } else {
-                          // Generic error without context
-                          await recordRef.update({
-                            analysisInProgress: false,
-                            analysisError: `Error extracting FHIR resources: ${errorMessage}`
-                          });
-                        }
-                      }
-                    } else {
-                      console.log('No FHIR resources found in analysis output');
-                      // Mark analysis as complete
-                      await recordRef.update({
-                        analysisInProgress: false
-                      });
-                    }
-                  } catch (fhirExtractionError: any) {
-                    console.error('Error extracting FHIR resources from analysis:', fhirExtractionError);
-                    // Mark analysis as complete with error
-                    let errorMessage = fhirExtractionError.message || String(fhirExtractionError);
-                    
-                    // Check if it's a JSON parsing error and extract context if available
-                    if (errorMessage.includes('position')) {
-                      // This is likely a JSON parsing error with position information
-                      await recordRef.update({
-                        analysisInProgress: false,
-                        analysisError: `Error parsing FHIR resources: ${errorMessage}`
-                      });
-                    } else {
-                      // Generic error without context
-                      await recordRef.update({
-                        analysisInProgress: false,
-                        analysisError: `Error extracting FHIR resources: ${errorMessage}`
-                      });
-                    }
-                  }
-                } else {
-                  // Mark analysis as complete even if there's no result
-                  await recordRef.update({
-                    analysisInProgress: false
-                  });
-                }
-                
-                // After analysis is complete, update the record with the suggested name if appropriate
-                try {
-                  // Check if the analysis result contains a suggested record name
-                  if (result && result.content) {
-                    const suggestedNameMatch = result.content.match(/<SUGGESTED_RECORD_NAME>\s*([\s\S]*?)\s*<\/SUGGESTED_RECORD_NAME>/i);
-                    
-                    if (suggestedNameMatch && suggestedNameMatch[1]) {
-                      const suggestedName = suggestedNameMatch[1].trim();
-                      console.log(`Found suggested record name: ${suggestedName}`);
-                      
-                      // Only update if the user didn't provide a name
-                      if (!recordName || recordName.trim() === '' || recordName.trim() === 'Medical Record') {
-                        await recordRef.update({
-                          name: suggestedName
-                        });
-                        console.log(`Updated record name to suggested name: ${suggestedName}`);
-                      }
-                    }
-                  }
-                } catch (nameExtractionError) {
-                  console.error('Error extracting or updating suggested record name:', nameExtractionError);
-                }
-              } catch (analysisError: any) {
-                console.error('Error during analysis:', analysisError);
-                // Update record to indicate analysis error
-                await recordRef.update({
-                  analysis: `Error during analysis: ${analysisError.message || 'Unknown error'}. Files were uploaded successfully.`,
-                  analysisInProgress: false,
-                  analyzedAt: new Date()
-                });
-              }
-            } else {
-              console.error('No files were successfully uploaded to OpenAI');
-              
-              // Update record to indicate error
-              const recordRef = db.collection('users').doc(userId).collection('records').doc(docRef.id);
-              await recordRef.update({
-                analysis: "Error: Failed to upload files to OpenAI for analysis.",
-                analysisInProgress: false,
-                analyzedAt: new Date()
-              });
-            }
-          } catch (analysisError) {
-            console.error('Error during automatic analysis:', analysisError);
-          }
-        })();
-      }
-    } catch (autoAnalysisError) {
-      console.error('Error setting up automatic analysis:', autoAnalysisError);
-    }
+    // Update index status to indicate it needs rebuilding, but don't rebuild automatically
+    console.log(`Setting needsRebuild flag for vector index after record upload`);
+    const ragIndexRef = db.collection('users').doc(userId).collection('settings').doc('ragIndex');
+    await ragIndexRef.set({
+      needsRebuild: true,
+      lastDataUpdate: new Date()
+    }, { merge: true });
     
     // Extract text from the uploaded document using existing methods
     let documentText = '';
@@ -815,11 +437,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    // Trigger vector index rebuild
+    console.log(`Setting needsRebuild flag for vector index for user ${userId} after file(s) processing`);
+    const ragIndexStatusRef = db.collection('users').doc(userId).collection('settings').doc('ragIndex');
+    await ragIndexStatusRef.set({
+      needsRebuild: true,
+      lastDataUpdate: new Date()
+    }, { merge: true });
+    
+    // Collect all resource IDs that were created (or use empty array if none)
+    const allResourceIds: string[] = [];
+    
+    // Return the response with created resources and records
+    const response = {
       success: true,
-      recordId: docRef.id,
-      fileUrls
-    });
+      message: `Processed ${files.length} file(s)`,
+      recordIds: [docRef.id],
+      resourceIds: allResourceIds
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     // Enhanced error logging
     console.error('Error uploading files:', error);
@@ -841,16 +478,19 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   } finally {
-    // Trigger vector index rebuild in the background
-    // This runs after the response has been sent to the client
+    // Update index status to indicate it needs rebuilding instead of automatic rebuild
     if (userId) {
       (async () => {
         try {
-          console.log(`Triggering vector index rebuild for user ${userId} after document upload`);
-          await buildUserVectorIndex(userId, true);
-          console.log(`Vector index rebuild completed for user ${userId}`);
+          console.log(`Setting needsRebuild flag for vector index for user ${userId}`);
+          const indexRef = db.collection('users').doc(userId).collection('settings').doc('ragIndex');
+          await indexRef.set({
+            needsRebuild: true,
+            lastDataUpdate: new Date()
+          }, { merge: true });
+          console.log(`Vector index status updated for user ${userId}`);
         } catch (indexError) {
-          console.error(`Error rebuilding vector index for user ${userId}:`, indexError);
+          console.error(`Error updating vector index status for user ${userId}:`, indexError);
           // Don't throw, just log the error since this is a background process
         }
       })();

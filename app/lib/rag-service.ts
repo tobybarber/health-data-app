@@ -2,13 +2,15 @@
 import OpenAI from 'openai';
 import { fhirResourcesToDocuments } from './rag-processor';
 import { db } from './firebase-admin';
-import { VectorStoreIndex, Document, SimpleNodeParser, ServiceContext } from 'llamaindex';
+import { VectorStoreIndex, Document, SimpleNodeParser } from 'llamaindex';
 import { OpenAI as LlamaOpenAI } from 'llamaindex';
 import { OpenAIEmbedding } from '@llamaindex/openai';
 import { createEmbeddingModel } from './rag-processor';
+import * as llamaCore from '@llamaindex/core';
 import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
+import * as admin from 'firebase-admin';
 
 // Promisify file system operations
 const mkdir = promisify(fs.mkdir);
@@ -52,227 +54,159 @@ const indexCache: Record<string, {
   lastUpdate: Date
 }> = {};
 
-// Function to get the path for a user's vector index
-function getUserIndexPath(userId: string): string {
-  return path.join(INDEX_DIR, `${userId}_index.json`);
-}
-
-// Function to get the path for a user's vector index metadata
-function getUserIndexMetadataPath(userId: string): string {
-  return path.join(INDEX_DIR, `${userId}_metadata.json`);
-}
-
 /**
- * Save a vector index to disk for a user
+ * Get record details from the records collection
+ * This includes detailedAnalysis, comment, recordType, and recordDate
  * @param userId The user ID
- * @param index The vector index to save
- * @param metadata Additional metadata about the index
+ * @returns A map of record names to their details
  */
-async function saveVectorIndex(
-  userId: string, 
-  index: typeof VectorStoreIndex,
-  metadata: { 
-    resourceCount: number, 
-    lastUpdated: Date, 
-    resourceIds: string[] 
-  }
-): Promise<void> {
+async function getRecordDetails(userId: string): Promise<Map<string, any>> {
+  console.log(`Fetching record details from records collection for user ${userId}`);
+  const recordDetailsMap = new Map<string, any>();
+  
   try {
-    // Create the index directory if it doesn't exist
-    await mkdir(INDEX_DIR, { recursive: true });
+    const recordsCollection = db.collection('users').doc(userId).collection('records');
+    const recordsSnapshot = await recordsCollection.get();
     
-    // Save the index
-    const indexPath = getUserIndexPath(userId);
-    await index.saveToFile(indexPath);
+    console.log(`Found ${recordsSnapshot.size} records in the records collection`);
     
-    // Save metadata about the index
-    const metadataPath = getUserIndexMetadataPath(userId);
-    await writeFile(metadataPath, JSON.stringify(metadata, null, 2));
-    
-    console.log(`Saved vector index for user ${userId} with ${metadata.resourceCount} resources`);
-  } catch (error) {
-    console.error(`Error saving vector index for user ${userId}:`, error);
-    throw error;
-  }
-}
-
-/**
- * Check if a vector index exists for a user
- * @param userId The user ID
- * @returns Whether the index exists
- */
-async function vectorIndexExists(userId: string): Promise<boolean> {
-  try {
-    const indexPath = getUserIndexPath(userId);
-    const metadataPath = getUserIndexMetadataPath(userId);
-    
-    // Check if both files exist
-    await access(indexPath, fs.constants.R_OK);
-    await access(metadataPath, fs.constants.R_OK);
-    
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Load a vector index from disk for a user
- * @param userId The user ID
- * @returns The vector index and its metadata
- */
-async function loadVectorIndex(userId: string): Promise<{
-  index: typeof VectorStoreIndex, 
-  metadata: { 
-    resourceCount: number, 
-    lastUpdated: Date, 
-    resourceIds: string[]
-  }
-} | null> {
-  try {
-    // Check if the index is in memory cache first
-    if (indexCache[userId] && (new Date().getTime() - indexCache[userId].lastUpdate.getTime() < 3600000)) {
-      console.log(`Using in-memory cached vector index for user ${userId}`);
-      const metadata = JSON.parse(await readFile(getUserIndexMetadataPath(userId), 'utf8'));
-      metadata.lastUpdated = new Date(metadata.lastUpdated);
+    recordsSnapshot.forEach(doc => {
+      const data = doc.data();
       
-      return {
-        index: indexCache[userId].index,
-        metadata
-      };
-    }
-    
-    // Check if the index exists on disk
-    const indexExists = await vectorIndexExists(userId);
-    if (!indexExists) {
-      console.log(`Vector index does not exist for user ${userId}`);
-      return null;
-    }
-    
-    // Load the index
-    const indexPath = getUserIndexPath(userId);
-    const embedModel = createEmbeddingModel();
-    
-    // Create service context for loading
-    const serviceContext = new ServiceContext({
-      nodeParser: new SimpleNodeParser(),
-      llm: new LlamaOpenAI({
-        model: 'gpt-3.5-turbo',
-        temperature: 0.1,
-      }),
-      embedModel,
+      // Use record name as the key
+      const recordName = data.name || doc.id;
+      
+      // Extract essential fields
+      recordDetailsMap.set(recordName, {
+        detailedAnalysis: data.detailedAnalysis || '',
+        comment: data.comment || '',
+        recordType: data.recordType || '',
+        recordDate: data.recordDate || '',
+        briefSummary: data.briefSummary || '',
+        analysis: data.analysis || ''
+      });
     });
     
-    // Load the index from file
-    const index = await VectorStoreIndex.loadFromFile(indexPath, { serviceContext });
-    
-    // Load metadata
-    const metadataPath = getUserIndexMetadataPath(userId);
-    const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
-    metadata.lastUpdated = new Date(metadata.lastUpdated);
-    
-    // Cache the index in memory
-    indexCache[userId] = {
-      index,
-      lastUpdate: new Date()
-    };
-    
-    console.log(`Loaded vector index for user ${userId} with ${metadata.resourceCount} resources`);
-    return { index, metadata };
+    return recordDetailsMap;
   } catch (error) {
-    console.error(`Error loading vector index for user ${userId}:`, error);
-    return null;
+    console.error(`Error fetching record details: ${error}`);
+    return recordDetailsMap;
   }
 }
 
 /**
- * Build or update a vector index for a user
- * @param userId The user ID
- * @param forceRebuild Whether to force rebuilding the index
- * @returns The vector index
+ * Build a vector index using only records collection data
+ * This is a simplified approach that avoids FHIR resources entirely
  */
-export async function buildUserVectorIndex(
-  userId: string | null | undefined, 
-  forceRebuild: boolean = false
-): Promise<typeof VectorStoreIndex | null> {
+export async function buildUserVectorIndexWithOptions(userId: string, onlySummaryReports: boolean): Promise<any> {
   try {
-    // Early return if userId is null or undefined
-    if (!userId) {
-      console.log('Cannot build vector index: userId is null or undefined');
-      return null;
-    }
+    console.log(`Building simplified vector index for user ${userId}`);
     
-    console.log(`Building vector index for user ${userId}${forceRebuild ? ' (forced rebuild)' : ''}`);
-    
-    // Check if we need to rebuild the index
-    let needsRebuild = forceRebuild;
-    
-    if (!needsRebuild) {
-      // Check if the index exists and is up to date
-      const existingIndex = await loadVectorIndex(userId);
-      if (!existingIndex) {
-        needsRebuild = true;
-      } else {
-        // Get the most recent data update time
-        const resources = await getUserResources(userId, true);
-        
-        // If resource count has changed, we need to rebuild
-        if (resources.length !== existingIndex.metadata.resourceCount) {
-          console.log(`Resource count changed (${existingIndex.metadata.resourceCount} -> ${resources.length}), rebuilding index`);
-          needsRebuild = true;
-        }
-        
-        // Check if the user has newer resources than the index
-        if (userCache[userId] && userCache[userId].lastUpdate > existingIndex.metadata.lastUpdated) {
-          console.log(`User data updated since last index build, rebuilding index`);
-          needsRebuild = true;
-        }
+    // Update status to building
+    const statusRef = db.collection('users').doc(userId).collection('settings').doc('ragIndex');
+    await statusRef.set({
+      status: 'building',
+      startedAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastError: null,
+      options: {
+        onlySummaryReports
       }
-    }
+    }, { merge: true });
     
-    if (!needsRebuild) {
-      console.log(`Using existing vector index for user ${userId}`);
-      const existingIndex = await loadVectorIndex(userId);
-      return existingIndex?.index || null;
-    }
+    // Get records directly from the records collection
+    const recordsCollection = db.collection('users').doc(userId).collection('records');
+    const recordsSnapshot = await recordsCollection.get();
     
-    // Get all user resources
-    const resources = await getUserResources(userId, true);
+    console.log(`Found ${recordsSnapshot.size} records in the records collection`);
     
-    if (resources.length === 0) {
-      console.log(`No resources found for user ${userId}, not building index`);
+    if (recordsSnapshot.empty) {
+      console.log(`No records found for user ${userId}, not building index`);
+      
+      // Update status to complete with 0 resources
+      await statusRef.set({
+        status: 'complete',
+        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        resourceCount: 0,
+        message: 'No records found to index'
+      }, { merge: true });
+      
       return null;
     }
     
-    // Convert resources to LlamaIndex documents
-    const documents = await fhirResourcesToDocuments(resources);
+    // Create documents from records
+    const documents: Document[] = [];
+    
+    recordsSnapshot.forEach(doc => {
+      const data = doc.data();
+      
+      // Create document text from essential fields
+      let documentText = '';
+      
+      if (data.recordType) {
+        documentText += `Record Type: ${data.recordType}\n`;
+      }
+      
+      if (data.recordDate) {
+        documentText += `Date: ${data.recordDate}\n`;
+      }
+      
+      if (data.detailedAnalysis) {
+        documentText += `Analysis: ${data.detailedAnalysis}\n`;
+      } else if (data.analysis) {
+        documentText += `Analysis: ${data.analysis}\n`;
+      } else if (data.briefSummary) {
+        documentText += `Summary: ${data.briefSummary}\n`;
+      }
+      
+      if (data.comment) {
+        documentText += `Comment: ${data.comment}\n`;
+      }
+      
+      // Only add documents with actual content
+      if (documentText.trim()) {
+        documents.push(new Document({
+          text: documentText,
+          metadata: {
+            id: doc.id,
+            name: data.name || doc.id,
+            recordType: data.recordType || 'Unknown',
+            recordDate: data.recordDate || '',
+          }
+        }));
+      }
+    });
+    
+    console.log(`Created ${documents.length} documents from records`);
+    
+    if (documents.length === 0) {
+      console.log(`No valid documents created, not building index`);
+      
+      // Update status to complete with 0 resources
+      await statusRef.set({
+        status: 'complete',
+        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        resourceCount: 0,
+        message: 'No valid documents created'
+      }, { merge: true });
+      
+      return null;
+    }
     
     // Create embedding model
     const embedModel = createEmbeddingModel();
     
-    // Create service context
-    const serviceContext = new ServiceContext({
+    // Create service context for the index
+    const serviceContext = {
       nodeParser: new SimpleNodeParser(),
       llm: new LlamaOpenAI({
         model: 'gpt-3.5-turbo',
         temperature: 0.1,
       }),
       embedModel,
-    });
+    };
     
     // Create vector index
     const index = await VectorStoreIndex.fromDocuments(documents, { serviceContext });
-    
-    // Save metadata about the resources
-    const resourceIds = resources.map(r => `${r.resourceType}_${r.id}`);
-    const metadata = {
-      resourceCount: resources.length,
-      lastUpdated: new Date(),
-      resourceIds
-    };
-    
-    // Save the index to disk
-    await saveVectorIndex(userId, index, metadata);
     
     // Cache the index in memory
     indexCache[userId] = {
@@ -280,11 +214,34 @@ export async function buildUserVectorIndex(
       lastUpdate: new Date()
     };
     
-    console.log(`Built and saved vector index for user ${userId} with ${resources.length} resources`);
+    console.log(`Built in-memory vector index for user ${userId} with ${documents.length} documents`);
+    
+    // Update status to complete
+    console.log(`Updating index status to complete for user ${userId}`);
+    await statusRef.set({
+      status: 'complete',
+      completedAt: admin.firestore.FieldValue.serverTimestamp(),
+      resourceCount: documents.length
+    }, { merge: true });
+    
     return index;
   } catch (error) {
     console.error(`Error building vector index for user ${userId}:`, error);
-    return null;
+    
+    // Update status to error
+    try {
+      console.log(`Updating index status to error for user ${userId}`);
+      const statusRef = db.collection('users').doc(userId).collection('settings').doc('ragIndex');
+      await statusRef.set({
+        status: 'error',
+        errorAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastError: error instanceof Error ? error.message : String(error)
+      }, { merge: true });
+    } catch (updateError) {
+      console.error(`Error updating index status: ${updateError}`);
+    }
+    
+    throw error;
   }
 }
 
@@ -371,19 +328,101 @@ function isWearableObservation(resource: any): boolean {
 }
 
 /**
- * Get all FHIR resources for a user
+ * Check if a resource is a wearable summary report rather than individual data point
  */
-export async function getUserResources(userId: string, forceRefresh = false, includeWearables = true): Promise<any[]> {
+function isWearableSummaryReport(resource: any): boolean {
+  // Check if it's a DiagnosticReport
+  if (resource.resourceType === 'DiagnosticReport') {
+    // Check for references to wearable devices in the report
+    if (resource.category) {
+      const categories = Array.isArray(resource.category) ? resource.category : [resource.category];
+      for (const category of categories) {
+        if (category.coding) {
+          for (const coding of category.coding) {
+            if (coding.display && typeof coding.display === 'string') {
+              const display = coding.display.toLowerCase();
+              if (display.includes('wearable') || display.includes('fitness') || 
+                  display.includes('activity') || display.includes('summary')) {
+                return true;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Check if title/name indicates it's a summary
+    if (resource.title && typeof resource.title === 'string') {
+      const title = resource.title.toLowerCase();
+      return title.includes('summary') || title.includes('report') || title.includes('wearable') || 
+             title.includes('activity') || title.includes('fitness');
+    }
+  }
+  
+  // Check for Observation resources that are summaries
+  if (resource.resourceType === 'Observation') {
+    // Check if it has "summary" or "report" in the code display
+    if (resource.code?.coding) {
+      for (const coding of resource.code.coding) {
+        if (coding.display && typeof coding.display === 'string') {
+          const display = coding.display.toLowerCase();
+          return display.includes('summary') || display.includes('report') || 
+                 display.includes('daily') || display.includes('weekly') ||
+                 display.includes('average');
+        }
+      }
+    }
+    
+    // Look for specific category indicating summary
+    if (resource.category) {
+      const categories = Array.isArray(resource.category) ? resource.category : [resource.category];
+      for (const category of categories) {
+        if (category.coding) {
+          for (const coding of category.coding) {
+            if (coding.display && typeof coding.display === 'string') {
+              const display = coding.display.toLowerCase();
+              return display.includes('summary') || display.includes('report');
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Get all FHIR resources for a user
+ * @param userId The user ID
+ * @param forceRefresh Whether to force refresh the cache
+ * @param includeWearables Whether to include wearable data at all
+ * @param onlySummaryReports Whether to include only summary reports for wearable data
+ * @returns Array of FHIR resources
+ */
+export async function getUserResources(
+  userId: string, 
+  forceRefresh = false, 
+  includeWearables = true,
+  onlySummaryReports = false
+): Promise<any[]> {
   try {
     // Check cache
     if (!forceRefresh && userCache[userId] && (new Date().getTime() - userCache[userId].lastUpdate.getTime() < 3600000)) {
       console.log(`Using cached resources for user ${userId}`);
       const resources = userCache[userId].resources;
       
-      // If wearables should be excluded, filter them out from cached results
+      // If wearables should be excluded entirely, filter them out from cached results
       if (!includeWearables) {
         return resources.filter(resource => 
           resource.resourceType !== 'Observation' || !isWearableObservation(resource)
+        );
+      }
+      
+      // If only summary reports should be included, filter out individual data points
+      if (onlySummaryReports) {
+        return resources.filter(resource => 
+          !isWearableObservation(resource) || isWearableSummaryReport(resource)
         );
       }
       
@@ -407,12 +446,33 @@ export async function getUserResources(userId: string, forceRefresh = false, inc
     for (const resourceType of resourceTypes) {
       const typeResources = await getResourcesByType(userId, resourceType);
       
-      // For observations, filter out wearable data if includeWearables is false
-      if (resourceType === 'Observation' && !includeWearables) {
-        const filteredObservations = typeResources.filter(obs => !isWearableObservation(obs));
-        resources.push(...filteredObservations);
-        console.log(`Filtered out ${typeResources.length - filteredObservations.length} wearable observations`);
+      // For observations, filter based on wearable options
+      if (resourceType === 'Observation') {
+        if (!includeWearables) {
+          // Exclude all wearable observations
+          const filteredObservations = typeResources.filter(obs => !isWearableObservation(obs));
+          resources.push(...filteredObservations);
+          console.log(`Filtered out ${typeResources.length - filteredObservations.length} wearable observations`);
+        } else if (onlySummaryReports) {
+          // Include only summary wearable observations
+          const filteredObservations = typeResources.filter(obs => 
+            !isWearableObservation(obs) || isWearableSummaryReport(obs)
+          );
+          resources.push(...filteredObservations);
+          console.log(`Filtered out ${typeResources.length - filteredObservations.length} individual wearable data points`);
+        } else {
+          // Include all observations
+          resources.push(...typeResources);
+        }
+      } else if (resourceType === 'DiagnosticReport' && onlySummaryReports) {
+        // For diagnostic reports, include only summary reports
+        const filteredReports = typeResources.filter(report => 
+          !report.code?.coding?.some((c: any) => c.display?.toLowerCase().includes('wearable'))
+          || isWearableSummaryReport(report)
+        );
+        resources.push(...filteredReports);
       } else {
+        // Include all other resource types
         resources.push(...typeResources);
       }
     }
@@ -424,6 +484,17 @@ export async function getUserResources(userId: string, forceRefresh = false, inc
       resources,
       lastUpdate: new Date()
     };
+    
+    // Return filtered resources as appropriate
+    if (!includeWearables) {
+      return resources.filter(resource => 
+        resource.resourceType !== 'Observation' || !isWearableObservation(resource)
+      );
+    } else if (onlySummaryReports) {
+      return resources.filter(resource => 
+        !isWearableObservation(resource) || isWearableSummaryReport(resource)
+      );
+    }
     
     return resources;
   } catch (error) {
@@ -577,135 +648,104 @@ The error occurred in the generateHolisticAnalysis function.
 }
 
 /**
- * Find relevant FHIR resources based on a query
+ * Find resources relevant to a query
  * @param userId The user ID
  * @param query The search query
- * @param resourceLimit Maximum number of resources to return (default: 10)
- * @returns Array of relevant FHIR resources
+ * @param limit The maximum number of resources to return
+ * @returns The relevant records
  */
 export async function findRelevantResources(
   userId: string, 
-  query: string,
-  resourceLimit: number = 10
+  query: string, 
+  limit: number = 5
 ): Promise<any[]> {
-  console.log(`Finding relevant resources for query: "${query}"`);
   try {
-    // First, try to use the persistent vector index
-    let index: typeof VectorStoreIndex | null = null;
-    let allResources: any[] = [];
+    console.log(`Finding resources relevant to "${query}" for user ${userId}`);
     
-    try {
-      // Load the existing index if available
-      const existingIndex = await loadVectorIndex(userId);
-      if (existingIndex) {
-        index = existingIndex.index;
-        console.log(`Using existing vector index for user ${userId}`);
+    // Check for existing vector index in cache or on disk
+    if (!indexCache[userId]) {
+      console.log(`No vector index found for user ${userId} in cache`);
+      // Check the status of any index building
+      try {
+        const statusRef = db.collection('users').doc(userId).collection('settings').doc('ragIndex');
+        const statusDoc = await statusRef.get();
         
-        // Load resources from cache or fetch them if needed
-        if (userCache[userId]) {
-          allResources = userCache[userId].resources;
-          console.log(`Using cached resources for user ${userId}`);
-        } else {
-          allResources = await getUserResources(userId);
+        if (statusDoc.exists) {
+          const status = statusDoc.data()?.status;
+          if (status === 'building') {
+            console.log(`Index is currently being built for user ${userId}`);
+            return [];
+          }
         }
-      } else {
-        console.log(`No existing vector index found for user ${userId}, building one now`);
-        // Get all user resources first
-        allResources = await getUserResources(userId);
-        
-        if (allResources.length === 0) {
-          console.log('No resources found for this user');
-          return [];
-        }
-        
-        // Build the index (this will also save it for future use)
-        index = await buildUserVectorIndex(userId);
-      }
-    } catch (error) {
-      console.error(`Error with vector index operations:`, error);
-      // Fall back to building the index in memory only
-      console.log('Falling back to building index in memory');
-      
-      // Get all user resources first
-      allResources = await getUserResources(userId);
-      
-      if (allResources.length === 0) {
-        console.log('No resources found for this user');
-        return [];
+      } catch (err) {
+        console.error('Error checking index status:', err);
       }
       
-      // Convert resources to LlamaIndex documents
-      const documents = await fhirResourcesToDocuments(allResources);
-      
-      // Create embedding model
-      const embedModel = createEmbeddingModel();
-      
-      // Create service context
-      const serviceContext = new ServiceContext({
-        nodeParser: new SimpleNodeParser(),
-        llm: new LlamaOpenAI({
-          model: 'gpt-3.5-turbo',
-          temperature: 0.1,
-        }),
-        embedModel,
-      });
-      
-      // Create vector index in memory only
-      index = await VectorStoreIndex.fromDocuments(documents, { serviceContext });
-    }
-    
-    // If we still don't have an index, return empty results
-    if (!index) {
-      console.log('Could not create or load vector index, returning empty results');
+      console.log(`No vector index available, returning empty result`);
+      console.log(`User should use the "Build Index" button in the Analysis page`);
       return [];
     }
     
-    console.log(`Performing query on vector index with ${allResources.length} resources`);
+    // Create a query engine from the index
+    const queryEngine = indexCache[userId].index.asQueryEngine();
+    const queryResult = await queryEngine.query({ query });
     
-    // Perform query
-    const queryEngine = index.asQueryEngine();
-    const response = await queryEngine.query({
-      query,
+    console.log(`Query returned ${queryResult.sourceNodes?.length || 0} source nodes`);
+    
+    if (!queryResult.sourceNodes || queryResult.sourceNodes.length === 0) {
+      console.log(`No relevant records found for query "${query}"`);
+      return [];
+    }
+    
+    // Collect the relevant record IDs
+    const recordIds = new Set<string>();
+    queryResult.sourceNodes.forEach((node: any) => {
+      if (node.metadata && node.metadata.id) {
+        recordIds.add(node.metadata.id);
+      }
     });
     
-    // Extract source nodes (containing the relevant FHIR resources)
-    const sourceNodes = response.sourceNodes || [];
+    console.log(`Found ${recordIds.size} relevant record IDs`);
     
-    console.log(`Found ${sourceNodes.length} relevant nodes for the query`);
+    // Fetch the actual records
+    const records: any[] = [];
     
-    // Map nodes back to original FHIR resources
-    const relevantResources = sourceNodes
-      .map((node: any) => {
-        // Find the original resource based on node metadata
-        const metadata = node.metadata;
-        return allResources.find((r: any) => 
-          r.resourceType === metadata.resourceType && 
-          r.id === metadata.id
-        );
-      })
-      .filter((resource: any) => resource !== undefined);
+    const recordsCollection = db.collection('users').doc(userId).collection('records');
     
-    // Deduplicate resources
-    const deduplicatedResources: any[] = [];
-    const seenIds = new Set();
+    // Convert Set to Array for iteration
+    const recordIdArray = Array.from(recordIds);
     
-    for (const resource of relevantResources) {
-      const key = `${resource.resourceType}_${resource.id}`;
-      if (!seenIds.has(key)) {
-        seenIds.add(key);
-        deduplicatedResources.push(resource);
+    for (const recordId of recordIdArray) {
+      try {
+        const recordDoc = await recordsCollection.doc(recordId).get();
+        if (recordDoc.exists) {
+          const record = recordDoc.data();
+          records.push({
+            id: recordDoc.id,
+            ...record
+          });
+        }
+      } catch (err) {
+        console.error(`Error fetching record ${recordId}:`, err);
+      }
+      
+      // Stop once we reach the limit
+      if (records.length >= limit) {
+        break;
       }
     }
     
-    // Limit to specified number
-    const limitedResources = deduplicatedResources.slice(0, resourceLimit);
+    console.log(`Returning ${records.length} relevant records`);
     
-    console.log(`Returning ${limitedResources.length} relevant resources for the query`);
-    return limitedResources;
+    // Sort by date, most recent first
+    return records
+      .sort((a, b) => {
+        const dateA = new Date(a.recordDate || 0);
+        const dateB = new Date(b.recordDate || 0);
+        return dateB.getTime() - dateA.getTime();
+      });
   } catch (error) {
-    console.error('Error finding relevant resources:', error);
-    // Fallback to retrieving all resources if semantic search fails
-    console.log('Falling back to returning all resources');
-    return getUserResources(userId);
+    console.error(`Error finding relevant resources:`, error);
+    return [];
   }
 } 

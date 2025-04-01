@@ -123,7 +123,38 @@ export function fhirResourceToText(resource: any): string {
 // Convert FHIR resources to LlamaIndex documents
 export async function fhirResourcesToDocuments(resources: any[]): Promise<Document[]> {
   return resources.map(resource => {
-    const text = fhirResourceToText(resource);
+    // Extract essential fields instead of using the full resource text
+    let essentialText = '';
+    
+    // Get resource type for context
+    essentialText += `Record Type: ${resource.recordType || resource.resourceType}\n`;
+    
+    // Add the date
+    const date = resource.recordDate || 
+                 resource.effectiveDateTime || 
+                 resource.issued || 
+                 resource.performedDateTime || 
+                 resource.occurrenceDateTime || 
+                 (resource.effectivePeriod?.start) || '';
+    
+    if (date) {
+      essentialText += `Date: ${date}\n`;
+    }
+    
+    // Add detailed analysis if available
+    if (resource.detailedAnalysis) {
+      essentialText += `Analysis: ${resource.detailedAnalysis}\n`;
+    }
+    
+    // Add comments if available
+    if (resource.comment) {
+      essentialText += `Comment: ${resource.comment}\n`;
+    }
+    
+    // If we don't have essential fields, fall back to the standard text representation
+    if (essentialText.trim() === `Record Type: ${resource.recordType || resource.resourceType}${date ? '\nDate: ' + date : ''}`) {
+      essentialText = fhirResourceToText(resource);
+    }
     
     // Create metadata that will be useful for retrieval
     const metadata: {
@@ -136,8 +167,7 @@ export async function fhirResourcesToDocuments(resources: any[]): Promise<Docume
     } = {
       resourceType: resource.resourceType,
       id: resource.id,
-      date: resource.effectiveDateTime || resource.issued || resource.performedDateTime || 
-        resource.occurrenceDateTime || (resource.effectivePeriod?.start) || '',
+      date: date,
     };
     
     // For observations and diagnostics, add code info to metadata
@@ -147,7 +177,7 @@ export async function fhirResourcesToDocuments(resources: any[]): Promise<Docume
     }
     
     return new Document({
-      text,
+      text: essentialText,
       metadata
     });
   });

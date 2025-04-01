@@ -68,6 +68,17 @@ export default function Analysis() {
     includeComments: true
   });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  
+  // New state for RAG vector index
+  const [indexStatus, setIndexStatus] = useState<'not_started' | 'building' | 'complete' | 'error' | 'unknown'>('unknown');
+  const [indexLastUpdated, setIndexLastUpdated] = useState<string | null>(null);
+  const [indexError, setIndexError] = useState<string | null>(null);
+  const [isBuildingIndex, setIsBuildingIndex] = useState(false);
+  const [onlySummaryReports, setOnlySummaryReports] = useState(true);
+  const [indexOptions, setIndexOptions] = useState<{onlySummaryReports?: boolean}>({});
+
+  // Add state for needsRebuild flag
+  const [indexNeedsRebuild, setIndexNeedsRebuild] = useState<boolean>(false);
 
   // Hide background logo
   useEffect(() => {
@@ -209,6 +220,18 @@ export default function Analysis() {
     }
 
     fetchProfile();
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    // Initial check for index status
+    fetchIndexStatus();
+    
+    // No more automatic polling
+    // Only check status when explicitly requested
+    
+    return () => {};
   }, [currentUser]);
 
   const handleUpdate = async () => {
@@ -668,39 +691,228 @@ export default function Analysis() {
     });
   };
 
+  const handleBuildIndex = async () => {
+    if (!currentUser) return;
+    
+    setIsBuildingIndex(true);
+    setIndexError(null);
+    
+    try {
+      // Make the API call to start building the index
+      const response = await fetch('/api/rag/build-index', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: currentUser.uid,
+          onlySummaryReports,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to trigger index build: ${response.statusText}`);
+      }
+      
+      // Set up polling ONLY after the build starts
+      let attempts = 0;
+      const maxAttempts = 60; // Maximum polling attempts (5 minutes at 5-second intervals)
+      
+      const pollStatus = async () => {
+        if (attempts >= maxAttempts) {
+          setIndexError("Index building timed out. Please try again later.");
+          setIsBuildingIndex(false);
+          return;
+        }
+        
+        attempts++;
+        const status = await fetchIndexStatus();
+        
+        if (status === 'complete') {
+          setIsBuildingIndex(false);
+          return;
+        } else if (status === 'error') {
+          setIsBuildingIndex(false);
+          return;
+        } else if (status === 'building') {
+          // Continue polling
+          setTimeout(pollStatus, 5000);
+        } else {
+          setIndexError("Unknown index status");
+          setIsBuildingIndex(false);
+        }
+      };
+      
+      // Start polling only when building
+      pollStatus();
+      
+    } catch (error) {
+      console.error('Error building index:', error);
+      setIndexError(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      setIsBuildingIndex(false);
+    }
+  };
+  
+  // Function for checking index status, now returns the status string
+  const fetchIndexStatus = async (): Promise<string> => {
+    try {
+      if (!currentUser) return 'not_started';
+      
+      const response = await fetch(`/api/rag/build-index?userId=${currentUser.uid}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch index status: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      setIndexStatus(data.status);
+      setIndexOptions(data.options || {});
+      
+      // Format the timestamp
+      if (data.lastUpdated) {
+        // Convert Firebase timestamp to Date
+        let dateStr = '';
+        if (typeof data.lastUpdated === 'object' && data.lastUpdated.seconds) {
+          const date = new Date(data.lastUpdated.seconds * 1000);
+          dateStr = date.toLocaleString();
+        } else if (data.lastUpdated) {
+          dateStr = new Date(data.lastUpdated).toLocaleString();
+        }
+        setIndexLastUpdated(dateStr);
+      } else {
+        setIndexLastUpdated(null);
+      }
+      
+      setIndexError(data.error);
+      
+      // Check if the index needs rebuilding
+      setIndexNeedsRebuild(data.needsRebuild === true);
+      
+      // Update the onlySummaryReports state to match the stored options
+      if (data.options && typeof data.options.onlySummaryReports === 'boolean') {
+        setOnlySummaryReports(data.options.onlySummaryReports);
+      }
+      
+      return data.status;
+    } catch (error) {
+      console.error('Error fetching index status:', error);
+      setIndexError(`Error checking status: ${error instanceof Error ? error.message : String(error)}`);
+      return 'error';
+    }
+  };
+
+  // Just add this in the return statement after the main analysis section
+  // and before any existing modals
+  const indexStatusSection = (
+    <div className="mt-6 bg-gray-800 rounded-lg p-4">
+      <h3 className="text-xl font-semibold text-white mb-2">AI Chat Vector Index</h3>
+      <p className="text-sm text-gray-300 mb-4">
+        This index enables the AI to quickly search through your health data when answering questions in the AI Chat.
+        Building the index may take several minutes, especially if you have a large amount of health data.
+      </p>
+      
+      <div className="mb-4">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-gray-300">Status:</span>
+          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+            indexStatus === 'complete' ? 'bg-green-600 text-white' :
+            indexStatus === 'building' ? 'bg-blue-600 text-white' :
+            indexStatus === 'error' ? 'bg-red-600 text-white' :
+            'bg-gray-600 text-gray-200'
+          }`}>
+            {indexStatus === 'complete' ? 'Built' : 
+             indexStatus === 'building' ? 'Building...' :
+             indexStatus === 'error' ? 'Error' : 'Not built'}
+          </span>
+          
+          {indexNeedsRebuild && indexStatus !== 'building' && (
+            <span className="ml-2 text-orange-500">(Needs rebuilding)</span>
+          )}
+        </div>
+        
+        {indexLastUpdated && (
+          <div className="flex justify-between items-center text-sm mb-2">
+            <span className="text-gray-400">Last updated:</span>
+            <span className="text-gray-300">{indexLastUpdated}</span>
+          </div>
+        )}
+        
+        {indexOptions.onlySummaryReports !== undefined && (
+          <div className="flex justify-between items-center text-sm mb-2">
+            <span className="text-gray-400">Wearable data:</span>
+            <span className="text-gray-300">
+              {indexOptions.onlySummaryReports ? 'Summary reports only' : 'All data points'}
+            </span>
+          </div>
+        )}
+        
+        {indexError && (
+          <div className="bg-red-900/30 text-red-200 p-2 rounded mt-2 text-sm">
+            Error: {indexError}
+          </div>
+        )}
+
+        <div className="mt-4 mb-4">
+          <label className="flex items-center cursor-pointer">
+            <div className="mr-3">
+              <span className="text-sm text-gray-300">Include only wearable summary reports</span>
+              <p className="text-xs text-gray-400 mt-1">
+                Filtering out individual data points reduces index size and improves performance
+              </p>
+            </div>
+            <div className="relative">
+              <input 
+                type="checkbox" 
+                className="sr-only" 
+                checked={onlySummaryReports}
+                onChange={() => setOnlySummaryReports(!onlySummaryReports)}
+                disabled={isBuildingIndex || indexStatus === 'building'}
+              />
+              <div className={`block w-14 h-8 rounded-full ${onlySummaryReports ? 'bg-blue-600' : 'bg-gray-600'}`}></div>
+              <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition ${onlySummaryReports ? 'transform translate-x-6' : ''}`}></div>
+            </div>
+          </label>
+        </div>
+      </div>
+      
+      <button
+        onClick={handleBuildIndex}
+        disabled={isBuildingIndex || indexStatus === 'building'}
+        className={`w-full py-2 px-4 rounded font-medium 
+          ${(isBuildingIndex || indexStatus === 'building') ? 
+            'bg-blue-500/50 text-gray-300 cursor-not-allowed' : 
+            'bg-blue-600 hover:bg-blue-700 text-white'
+          } transition-colors`}
+      >
+        {isBuildingIndex || indexStatus === 'building' ? 
+          'Building Index...' : 
+          indexStatus === 'complete' ? 'Rebuild Index' : 'Build Index'}
+      </button>
+      
+      {(isBuildingIndex || indexStatus === 'building') && (
+        <p className="text-xs text-gray-400 mt-2">
+          This process runs in the background and may take several minutes. You can leave this page and come back later.
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <ProtectedRoute>
       <ClientWrapper>
-        <div className="min-h-screen bg-black">
+        <div className="min-h-screen bg-gray-900 text-white">
           <Navigation />
-          <div className="container mx-auto px-4 pt-20 pb-24 bg-black text-white">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h1 className="text-2xl font-bold text-primary-blue">My Analysis</h1>
-                <div className="text-xs text-gray-400 mt-1">
-                  Patient ID: {localStorage.getItem('patientId') || 'Not set'} 
-                  <button 
-                    className="ml-2 text-blue-400 hover:text-blue-300 underline" 
-                    onClick={() => {
-                      const patients = confirm('Show current patient ID?') && alert(`Current patient ID: ${localStorage.getItem('patientId') || 'Not set'}`);
-                    }}
-                  >
-                    Debug
-                  </button>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowSettingsModal(true)}
-                className="text-blue-500 hover:text-blue-400 text-sm font-medium px-2 py-1 bg-transparent border-none"
-              >
-                Analysis Settings
-              </button>
-            </div>
+          
+          <main className="container mx-auto px-4 py-8 max-w-4xl pt-24 pb-16">
+            <header className="mb-6">
+              <h1 className="text-3xl font-bold">Health Analysis</h1>
+              <p className="text-gray-400">
+                AI-powered analysis of your health records
+              </p>
+            </header>
             
-            {/* Biomarker Summary Section */}
-            <BiomarkerSummary maxBiomarkers={12} />
-            
-            {/* Analysis Content Section - Changed background to black */}
+            {/* Main Analysis Section */}
             <div className="bg-black border border-gray-700 rounded-lg shadow p-6">
               <div className="flex justify-between items-center mb-6 px-1">
                 <h2 className="text-lg font-medium text-primary-blue">Analysis Results</h2>
@@ -757,24 +969,27 @@ export default function Analysis() {
                 </div>
               )}
             </div>
-          </div>
+            
+            {/* Add the Index Status Section */}
+            {indexStatusSection}
+            
+            {/* Settings Modal */}
+            {showSettingsModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+                <div className="bg-gray-800 p-4 rounded-lg shadow-md max-w-xs w-full border border-gray-700">
+                  <AnalysisSettings onChange={handleSettingsChange} />
+                  <button
+                    onClick={() => setShowSettingsModal(false)}
+                    className="mt-3 w-full px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+          </main>
         </div>
       </ClientWrapper>
-
-      {/* Settings Modal */}
-      {showSettingsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 p-4 rounded-lg shadow-md max-w-xs w-full border border-gray-700">
-            <AnalysisSettings onChange={handleSettingsChange} />
-            <button
-              onClick={() => setShowSettingsModal(false)}
-              className="mt-3 w-full px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </ProtectedRoute>
   );
 } 

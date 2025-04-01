@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:warm": "node scripts/start-with-prewarm.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -11,6 +12,8 @@
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
+    "@llamaindex/core": "0.1.0",
+    "@llamaindex/openai": "0.1.11",
     "@types/nodemailer": "^6.4.17",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.16",
@@ -21,8 +24,10 @@
     "clsx": "^2.1.1",
     "firebase": "^10.7.0",
     "firebase-admin": "^13.2.0",
+    "llamaindex": "0.1.16",
     "lucide-react": "^0.485.0",
     "next": "^14.0.3",
+    "node-fetch": "^3.3.2",
     "nodemailer": "^6.10.0",
     "openai": "^4.87.3",
     "pdf-lib": "^1.17.1",
@@ -48,10 +53,5 @@
     "eslint-config-next": "^14.0.3",
     "null-loader": "^4.0.1",
     "typescript": "^5.3.2"
-  },
-  "optionalDependencies": {
-    "@llamaindex/core": "^0.1.0",
-    "@llamaindex/openai": "^0.1.11",
-    "llamaindex": "^0.1.16"
   }
 }
