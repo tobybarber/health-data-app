@@ -35,8 +35,8 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
     return (
       <>
         <header 
-          className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 top-0 h-14 z-50`}
-          style={isStandalone ? { paddingTop: '48px' } : undefined}
+          className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 h-14 z-50`}
+          style={isStandalone ? { top: '48px' } : { top: '0' }}
         >
           <div className="flex items-center px-4">
             <StandaloneLink href="/about" className="flex items-center">
@@ -75,8 +75,8 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
   // Standard navigation layout for other pages
   return (
     <nav 
-      className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 top-0 h-14 z-50`}
-      style={isStandalone ? { paddingTop: '48px' } : undefined}
+      className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 h-14 z-50`}
+      style={isStandalone ? { top: '48px' } : { top: '0' }}
     >
       <div className="flex items-center px-4">
         <StandaloneLink href="/about" className="flex items-center">
