@@ -27,19 +27,11 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
   const [isDirectStandalone, setIsDirectStandalone] = useState(false);
 
   useEffect(() => {
-    // Direct check for standalone mode
-    const checkStandalone = () => {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      
-      const inStandalone = window.matchMedia('(display-mode: standalone)').matches ||
-                          (isIOS && (window.navigator as any).standalone);
-      
-      console.log('Standalone check:', { isIOS, inStandalone });
-      setIsDirectStandalone(inStandalone);
-    };
-
-    checkStandalone();
+    // Using exact same detection as BottomNavigation
+    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || 
+                            (window.navigator as any).standalone || 
+                            document.referrer.includes('android-app://');
+    setIsDirectStandalone(isStandaloneMode);
   }, []);
 
   const isActive = (path: string) => {
