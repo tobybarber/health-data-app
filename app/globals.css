@@ -423,7 +423,7 @@ select {
     right: 0;
     z-index: 50;
     padding-top: calc(env(safe-area-inset-top) + 12px);
-    background-color: var(--background-secondary);
+    background-color: rgba(0, 0, 0, 0.8);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }
@@ -450,4 +450,28 @@ select {
   padding-top: 0 !important; /* Remove default padding */
   height: 60px; /* Fixed height for the header */
   margin-top: env(safe-area-inset-top); /* Use margin instead of padding for status bar */
+}
+
+/* Standalone mode navigation */
+@media all and (display-mode: standalone) {
+  .standalone-nav-top {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    padding-top: calc(env(safe-area-inset-top) + 12px);
+    background-color: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+/* iOS specific standalone adjustments */
+@supports (-webkit-touch-callout: none) {
+  @media all and (display-mode: standalone) {
+    .standalone-nav-top {
+      padding-top: calc(env(safe-area-inset-top) + 12px) !important;
+    }
+  }
 } 
