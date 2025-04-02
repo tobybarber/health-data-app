@@ -413,7 +413,7 @@ export default function Upload() {
               onClick={handleFileUpload}
               className="bg-primary-blue hover:bg-primary-blue/90 text-white px-4 py-2 rounded-md transition-colors"
             >
-              Upload File/Photo
+              Attach File/Photo
             </button>
             <input
               type="file"

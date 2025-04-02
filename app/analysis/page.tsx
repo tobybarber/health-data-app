@@ -789,21 +789,6 @@ export default function Analysis() {
           <div className="bg-gray-950/80 backdrop-blur-sm rounded-lg shadow py-6">
             <div className="flex justify-end mb-3 px-1">
               <div className="flex items-center gap-3">
-                <div className="flex flex-col items-end gap-2">
-                  <button
-                    onClick={() => setShowSettingsModal(true)}
-                    className="text-sm text-secondary hover:text-primary"
-                  >
-                    Settings
-                  </button>
-                  <button
-                    onClick={handleBuildIndex}
-                    disabled={isBuildingIndex || indexStatus === 'building'}
-                    className="text-sm text-gray-400 hover:text-gray-300 transition-colors"
-                  >
-                    Build Vector Index
-                  </button>
-                </div>
                 <button
                   className={`px-4 py-2 rounded text-white flex items-center space-x-1 ${
                     isUpdating ? 'bg-tertiary' : 'bg-blue-600 hover:bg-blue-700'
@@ -855,6 +840,25 @@ export default function Analysis() {
                 )}
               </div>
             )}
+
+            {/* Bottom buttons */}
+            <div className="mt-8 pt-4 border-t border-gray-800">
+              <div className="flex justify-end items-center gap-4">
+                <button
+                  onClick={() => setShowSettingsModal(true)}
+                  className="text-sm text-secondary hover:text-primary transition-colors"
+                >
+                  Settings
+                </button>
+                <button
+                  onClick={handleBuildIndex}
+                  disabled={isBuildingIndex || indexStatus === 'building'}
+                  className="text-sm text-gray-400 hover:text-gray-300 transition-colors"
+                >
+                  Build Vector Index
+                </button>
+              </div>
+            </div>
           </div>
           
           {/* Settings Modal */}

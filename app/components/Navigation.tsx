@@ -33,7 +33,7 @@ export default function Navigation({ isHomePage = false, isStandalone = false }:
   if (isHomePage) {
     return (
       <>
-        <header className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 ${isStandalone ? 'pt-[calc(env(safe-area-inset-top)+4px)]' : ''} top-0 h-14`}>
+        <header className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 ${isStandalone ? 'pt-[calc(env(safe-area-inset-top)+8px)]' : ''} top-0 h-14`}>
           <div className="flex items-center px-4">
             <StandaloneLink href="/about" className="flex items-center">
               <div className="mr-2 relative w-8 h-8">
@@ -70,7 +70,7 @@ export default function Navigation({ isHomePage = false, isStandalone = false }:
 
   // Standard navigation layout for other pages
   return (
-    <nav className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 ${isStandalone ? 'pt-[calc(env(safe-area-inset-top)+4px)]' : ''} top-0 h-14`}>
+    <nav className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 ${isStandalone ? 'pt-[calc(env(safe-area-inset-top)+8px)]' : ''} top-0 h-14`}>
       <div className="flex items-center px-4">
         <StandaloneLink href="/about" className="flex items-center">
           <div className="mr-2 relative w-8 h-8">
