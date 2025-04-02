@@ -22,7 +22,13 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   icons: {
     icon: '/images/leaf.png',
-    apple: '/images/leaf.png',
+    apple: [
+      {
+        url: '/images/apple-icon.png',
+        sizes: '180x180',
+        type: 'image/png',
+      }
+    ],
   },
   appleWebApp: {
     capable: true,

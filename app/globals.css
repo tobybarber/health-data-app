@@ -81,12 +81,17 @@ body.standalone-mode .standalone-nav {
 /* Main content in standalone mode */
 body.standalone-mode main {
   position: relative;
-  padding-top: calc(60px + env(safe-area-inset-top));
+  padding-top: calc(60px + env(safe-area-inset-top)); /* Account for nav height + status bar */
   padding-bottom: calc(60px + env(safe-area-inset-bottom));
   min-height: calc(100vh - 60px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+}
+
+/* Standalone mode specific content adjustments */
+body.standalone-mode .page-content {
+  margin-top: 60px; /* Only account for nav height, status bar is handled by nav margin */
 }
 
 /* Scrollable containers in standalone mode */
@@ -483,4 +488,11 @@ select {
     margin-top: calc(60px + env(safe-area-inset-top));
     margin-bottom: calc(60px + env(safe-area-inset-bottom));
   }
+}
+
+/* Standalone mode navigation header */
+.standalone-nav-header {
+  padding-top: 0 !important; /* Remove default padding */
+  height: 60px; /* Fixed height for the header */
+  margin-top: env(safe-area-inset-top); /* Use margin instead of padding for status bar */
 } 
