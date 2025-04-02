@@ -17,13 +17,13 @@ const StandaloneModeHandler = dynamic(() => import('./components/StandaloneModeH
 });
 
 export const metadata: Metadata = {
-  title: 'Wattle Health',
+  title: 'Elyna Health',
   description: 'Personal health assistant powered by AI',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Wattle Health',
+    title: 'Elyna Health',
   },
   other: {
     'mobile-web-app-capable': 'yes',
@@ -49,7 +49,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-touch-fullscreen" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="Wattle" />
+        <meta name="apple-mobile-web-app-title" content="Elyna" />
         <meta name="theme-color" content="#000000" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>

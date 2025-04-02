@@ -54,41 +54,49 @@ body.standalone-mode {
 
 /* Fixed navigation in standalone mode */
 body.standalone-mode .standalone-nav-top {
-  top: 0 !important;
-  background-color: rgba(0, 0, 0, 0.8) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  height: calc(60px + env(safe-area-inset-top));
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* Fixed bottom navigation in standalone mode */
 body.standalone-mode .standalone-nav {
-  bottom: env(safe-area-inset-bottom) !important;
-  padding-bottom: 0 !important;
-  height: 60px !important;
-  background-color: rgba(0, 0, 0, 0.8) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  height: calc(60px + env(safe-area-inset-bottom));
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* Main content in standalone mode */
 body.standalone-mode main {
-  /* Position relative to navigation bars only */
-  margin-top: calc(60px + env(safe-area-inset-top));
-  padding-bottom: calc(60px + env(safe-area-inset-bottom)) !important;
-  min-height: calc(100vh - 48px - 60px);
-  overflow-y: auto !important;
-  -webkit-overflow-scrolling: touch !important;
-  touch-action: pan-y !important;
+  position: relative;
+  padding-top: calc(60px + env(safe-area-inset-top));
+  padding-bottom: calc(60px + env(safe-area-inset-bottom));
+  min-height: calc(100vh - 60px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 /* Scrollable containers in standalone mode */
 body.standalone-mode .scrollable-container {
-  position: relative !important;
-  height: 100% !important;
-  overflow-y: auto !important;
-  -webkit-overflow-scrolling: touch !important;
-  touch-action: pan-y !important;
-  overscroll-behavior: contain !important;
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 
 /* iOS select element styling */

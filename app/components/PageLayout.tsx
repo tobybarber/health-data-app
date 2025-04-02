@@ -31,13 +31,7 @@ export default function PageLayout({
   return (
     <div className="min-h-screen bg-gray-950">
       <Navigation isHomePage={isHomePage} isStandalone={isStandalone} />
-      <main 
-        className={`transition-all duration-200 ${
-          isStandalone 
-            ? 'pt-[calc(env(safe-area-inset-top)+60px)]' // Account for status bar + nav height in standalone
-            : 'pt-16' // Regular nav height in browser
-        }`}
-      >
+      <main className="relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-4">
             {title && (
