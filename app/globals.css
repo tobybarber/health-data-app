@@ -17,7 +17,6 @@
   --primary-green: 16, 185, 129;
   --app-height: 100vh;
   --vh: 1vh;
-  --safe-area-top: env(safe-area-inset-top);
   --safe-area-bottom: env(safe-area-inset-bottom);
 }
 
@@ -59,7 +58,7 @@ body.standalone-mode .standalone-nav-top {
   left: 0;
   right: 0;
   z-index: 50;
-  height: calc(60px + env(safe-area-inset-top));
+  height: 60px;
   background-color: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -81,9 +80,9 @@ body.standalone-mode .standalone-nav {
 /* Main content in standalone mode */
 body.standalone-mode main {
   position: relative;
-  padding-top: calc(60px + env(safe-area-inset-top)); /* Account for nav height + status bar */
+  padding-top: 60px; /* Fixed padding for nav height only */
   padding-bottom: calc(60px + env(safe-area-inset-bottom));
-  min-height: calc(100vh - 60px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  min-height: calc(100vh - 60px - env(safe-area-inset-bottom));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
@@ -165,17 +164,7 @@ select {
 
 /* Remove redundant safe area utilities */
 .pb-safe {
-  padding-bottom: 90px;
-}
-
-.pt-safe {
-  padding-top: env(safe-area-inset-top);
-}
-
-@supports not (padding: env(safe-area-inset-top)) {
-  .pt-safe {
-    padding-top: 3rem;
-  }
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* iOS scrolling utilities */

@@ -24,8 +24,18 @@ export const metadata: Metadata = {
     icon: '/images/leaf.png',
     apple: [
       {
-        url: '/images/apple-icon.png',
+        url: '/images/leaf.png',
         sizes: '180x180',
+        type: 'image/png',
+      },
+      {
+        url: '/images/leaf.png',
+        sizes: '152x152',
+        type: 'image/png',
+      },
+      {
+        url: '/images/leaf.png',
+        sizes: '120x120',
         type: 'image/png',
       }
     ],
@@ -34,6 +44,12 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'Elyna Health',
+    startupImage: [
+      {
+        url: '/images/leaf.png',
+        media: '(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)',
+      }
+    ]
   },
   other: {
     'mobile-web-app-capable': 'yes',
@@ -45,7 +61,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: 'cover',
+  viewportFit: 'cover'
 };
 
 export default function RootLayout({
@@ -62,6 +78,11 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Elyna" />
         <meta name="theme-color" content="#000000" />
         <meta name="mobile-web-app-capable" content="yes" />
+        <link rel="apple-touch-icon" href="/images/leaf.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/images/leaf.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/images/leaf.png" />
+        <link rel="apple-touch-icon" sizes="167x167" href="/images/leaf.png" />
+        <link rel="apple-touch-startup-image" href="/images/leaf.png" />
       </head>
       <body className="bg-black min-h-screen">
         <Providers>
