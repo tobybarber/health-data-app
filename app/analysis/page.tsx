@@ -8,7 +8,6 @@ import { isApiKeyValid } from '../lib/openai';
 import { useAuth } from '../lib/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Navigation from '../components/Navigation';
-import { useBackgroundLogo } from '../components/ClientWrapper';
 import ClientWrapper from '../components/ClientWrapper';
 import AnalysisSettings, { AnalysisSettings as AnalysisSettingsType } from '../components/AnalysisSettings';
 import BiomarkerSummary from '../components/biomarkers/BiomarkerSummary';
@@ -62,13 +61,12 @@ export default function Analysis() {
   const { currentUser } = useAuth();
   const [dataLoaded, setDataLoaded] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const { setShowBackgroundLogo } = useBackgroundLogo();
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [analysisSettings, setAnalysisSettings] = useState<AnalysisSettingsType>({
     useRag: true,
     includeProfile: true,
     includeComments: true
   });
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   
   // New state for RAG vector index
   const [indexStatus, setIndexStatus] = useState<'not_started' | 'building' | 'complete' | 'error' | 'unknown'>('unknown');
@@ -80,12 +78,6 @@ export default function Analysis() {
 
   // Add state for needsRebuild flag
   const [indexNeedsRebuild, setIndexNeedsRebuild] = useState<boolean>(false);
-
-  // Hide background logo
-  useEffect(() => {
-    setShowBackgroundLogo(false);
-    return () => setShowBackgroundLogo(true);
-  }, [setShowBackgroundLogo]);
 
   useEffect(() => {
     async function fetchAnalysis() {

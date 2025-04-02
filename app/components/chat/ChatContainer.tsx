@@ -2,7 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../lib/AuthContext';
-import { useBackgroundLogo } from '../ClientWrapper';
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { isApiKeyValid } from '../../lib/openai';
+import MicrophoneButton from '../MicrophoneButton';
 import MessageList from './MessageList';
 import InputSection from './InputSection';
 import { Message } from '../../types/chat';
@@ -42,12 +45,16 @@ const loadSessionMessages = (userId: string): Message[] => {
 export default function ChatContainer() {
   const { currentUser } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isAiResponding, setIsAiResponding] = useState(false);
-  const chatRef = useRef<HTMLDivElement>(null);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [apiKeyValid, setApiKeyValid] = useState<boolean | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [transcript, setTranscript] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { setShowBackgroundLogo } = useBackgroundLogo();
-  const [lastInputWasVoice, setLastInputWasVoice] = useState(false);
+  const chatRef = useRef<HTMLDivElement>(null);
   const messageIdCounterRef = useRef<number>(0);
+  const [lastInputWasVoice, setLastInputWasVoice] = useState(false);
 
   // Load messages from sessionStorage when component mounts
   useEffect(() => {
@@ -73,11 +80,6 @@ export default function ChatContainer() {
     saveSessionMessages(userId, messages);
   }, [messages, currentUser]);
 
-  // Hide background logo when messages are present
-  useEffect(() => {
-    setShowBackgroundLogo(messages.length === 0);
-  }, [messages, setShowBackgroundLogo]);
-
   // Scroll to bottom when new messages arrive
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -98,7 +100,7 @@ export default function ChatContainer() {
 
   // Handle sending messages
   const handleSendMessage = async (text: string, wasVoice: boolean) => {
-    setIsAiResponding(true);
+    setIsLoading(true);
     
     try {
       const userId = currentUser?.uid || 'guest-user';
@@ -147,7 +149,7 @@ export default function ChatContainer() {
       });
       
     } finally {
-      setIsAiResponding(false);
+      setIsLoading(false);
       // Voice input state will be reset in InputSection
     }
   };
@@ -158,14 +160,14 @@ export default function ChatContainer() {
         <MessageList 
           messages={messages} 
           messagesEndRef={messagesEndRef}
-          isAiResponding={isAiResponding}
+          isAiResponding={isLoading}
         />
       </div>
       <InputSection
         messages={messages}
         setMessages={setMessages}
-        isAiResponding={isAiResponding}
-        setIsAiResponding={setIsAiResponding}
+        isAiResponding={isLoading}
+        setIsAiResponding={setIsLoading}
         lastInputWasVoice={lastInputWasVoice}
         setLastInputWasVoice={setLastInputWasVoice}
         onNewChat={handleNewChat}

@@ -7,7 +7,6 @@ interface PageLayoutProps {
   isHomePage?: boolean;
   title?: string;
   subtitle?: string;
-  showBackgroundLogo?: boolean;
 }
 
 export default function PageLayout({
@@ -15,7 +14,6 @@ export default function PageLayout({
   isHomePage = false,
   title,
   subtitle,
-  showBackgroundLogo = false
 }: PageLayoutProps) {
   const [isStandalone, setIsStandalone] = useState(false);
   const pathname = usePathname();
@@ -29,11 +27,11 @@ export default function PageLayout({
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className={`min-h-screen ${!isHomePage ? 'bg-gray-950' : ''}`}>
       <Navigation isHomePage={isHomePage} isStandalone={isStandalone} />
-      <main className="relative">
+      <main className="relative pt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-4">
+          <div className="py-8">
             {title && (
               <h1 className="text-2xl font-bold text-white">
                 {title}

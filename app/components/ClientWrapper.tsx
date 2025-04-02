@@ -7,7 +7,6 @@ import BottomNavigation from './BottomNavigation';
 import { useAuth } from '../lib/AuthContext';
 import HomeScreenDetect from './HomeScreenDetect';
 import AppleSplashScreen from './AppleSplashScreen';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Toaster } from 'react-hot-toast';
 
@@ -19,27 +18,15 @@ declare global {
   }
 }
 
-// Create a context for the background logo visibility
-export const BackgroundLogoContext = createContext({
-  showBackgroundLogo: true,
-  setShowBackgroundLogo: (show: boolean) => {}
-});
-
 // Create a context for the standalone mode state
 export const StandaloneModeContext = createContext({
   isStandalone: false
 });
 
-// Hook to use background logo context
-export function useBackgroundLogo() {
-  return useContext(BackgroundLogoContext);
-}
-
 // Create a wrapper component that includes BottomNavigation
 function AppContent({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   const pathname = usePathname();
-  const [showBackgroundLogo, setShowBackgroundLogo] = useState(true);
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
@@ -67,69 +54,46 @@ function AppContent({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Handle background logo visibility based on path
-  useEffect(() => {
-    const shouldShowLogo = pathname === '/';
-    setShowBackgroundLogo(shouldShowLogo);
-  }, [pathname]);
-
   return (
-    <BackgroundLogoContext.Provider value={{ showBackgroundLogo, setShowBackgroundLogo }}>
-      <StandaloneModeContext.Provider value={{ isStandalone }}>
-        <ErrorBoundary>
-          <div className="min-h-screen bg-black relative">
-            {/* Background Logo */}
-            {showBackgroundLogo && (
-              <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
-                <div className="relative w-64 h-64 opacity-5">
-                  <Image
-                    src="/images/logo.png"
-                    alt="Background Logo"
-                    fill
-                    style={{ objectFit: 'contain' }}
-                    priority
-                  />
-                </div>
-              </div>
-            )}
+    <StandaloneModeContext.Provider value={{ isStandalone }}>
+      <ErrorBoundary>
+        <div className="min-h-screen bg-gray-950 relative">
+          {/* Main Content */}
+          <main className="relative">
+            {children}
+          </main>
 
-            {/* Main Content */}
-            <main className="relative z-10">
-              {children}
-            </main>
+          {/* Bottom Navigation */}
+          {currentUser && <BottomNavigation />}
 
-            {/* Bottom Navigation */}
-            {currentUser && <BottomNavigation />}
-
-            {/* Toast Notifications */}
-            <Toaster
-              position="top-center"
-              toastOptions={{
+          {/* Toast Notifications */}
+          <Toaster
+            position="top-center"
+            toastOptions={{
+              duration: 3000,
+              style: {
+                background: '#333',
+                color: '#fff',
+              },
+              success: {
                 duration: 3000,
                 style: {
-                  background: '#333',
+                  background: '#4ade80',
                   color: '#fff',
                 },
-                success: {
-                  duration: 3000,
-                  style: {
-                    background: '#4ade80',
-                    color: '#fff',
-                  },
+              },
+              error: {
+                duration: 4000,
+                style: {
+                  background: '#ff4b4b',
+                  color: '#fff',
                 },
-                error: {
-                  duration: 4000,
-                  style: {
-                    background: '#ff4b4b',
-                    color: '#fff',
-                  },
-                },
-              }}
-            />
-          </div>
-        </ErrorBoundary>
-      </StandaloneModeContext.Provider>
-    </BackgroundLogoContext.Provider>
+              },
+            }}
+          />
+        </div>
+      </ErrorBoundary>
+    </StandaloneModeContext.Provider>
   );
 }
 

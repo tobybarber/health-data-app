@@ -10,6 +10,7 @@ import Navigation from '../components/Navigation';
 import { FaSignOutAlt } from 'react-icons/fa';
 import ProtectedRoute from '../components/ProtectedRoute';
 import PageLayout from '../components/PageLayout';
+import { updateProfile } from 'firebase/auth';
 
 interface UserProfile {
   name: string;
@@ -88,7 +89,13 @@ export default function ProfilePage() {
       setError(null);
       setSaveSuccess(false);
       
+      // Save profile to Firestore
       await setDoc(doc(db, 'profile', currentUser.uid), profile);
+      
+      // Update display name in Firebase Auth
+      await updateProfile(currentUser, {
+        displayName: profile.name
+      });
       
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);

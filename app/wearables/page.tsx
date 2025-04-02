@@ -7,12 +7,12 @@ import Link from 'next/link';
 import Navigation from '../components/Navigation';
 import { WearableDevice, DeviceInfo, connectDevice, disconnectDevice, syncDeviceData, getConnectedDevices, getDeviceDisplayName, getDeviceDescription } from '../lib/wearable-service';
 import toast from 'react-hot-toast';
-import { useBackgroundLogo } from '../components/ClientWrapper';
 import LoadingSpinner from '../components/LoadingSpinner';
 import WearableDataDashboard from '../components/charts/WearableDataDashboard';
 import { getFirestore } from 'firebase/firestore';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import PageLayout from '../components/PageLayout';
+import { FaPlus } from 'react-icons/fa';
 
 // Define all supported devices
 const AVAILABLE_DEVICES: {
@@ -108,7 +108,6 @@ interface DeviceDisplay {
 
 export default function WearablesPage() {
   const { currentUser } = useAuth();
-  const { setShowBackgroundLogo } = useBackgroundLogo();
   const [devices, setDevices] = useState<DeviceDisplay[]>([]);
   
   const [selectedDevice, setSelectedDevice] = useState<DeviceDisplay | null>(null);
@@ -145,14 +144,6 @@ export default function WearablesPage() {
   // Add state to track whether we have visualizations to show
   const [hasVisualizationData, setHasVisualizationData] = useState(false);
 
-  // Hide background logo when component mounts
-  useEffect(() => {
-    setShowBackgroundLogo(false);
-    return () => {
-      setShowBackgroundLogo(true);
-    };
-  }, [setShowBackgroundLogo]);
-  
   // Load synced data from localStorage on initial render
   useEffect(() => {
     if (!currentUser) return;
@@ -834,19 +825,19 @@ export default function WearablesPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Add New Device Button */}
+              {/* Add Device Button */}
               <div className="flex justify-end">
                 <button
                   onClick={() => {
                     setSelectedDevice(null);
                     setShowAuthForm(true);
                   }}
-                  className="px-6 py-3 rounded-md transition-colors text-primary-blue hover:text-primary flex items-center justify-center gap-2 whitespace-nowrap"
+                  className="inline-flex items-center gap-2 text-primary-blue hover:text-primary-blue/80 transition-colors"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                   </svg>
-                  Add New Device
+                  Add Device
                 </button>
               </div>
 

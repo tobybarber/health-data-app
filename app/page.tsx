@@ -8,6 +8,8 @@ import Navigation from './components/Navigation';
 import ChatContainer from './components/chat/ChatContainer';
 import ClientWrapper from './components/ClientWrapper';
 import PageLayout from './components/PageLayout';
+import Image from 'next/image';
+import LoginForm from './components/LoginForm';
 
 export default function Home() {
   const { currentUser, loading, authInitialized } = useAuth();
@@ -49,7 +51,7 @@ export default function Home() {
       <div className="min-h-screen bg-black flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
-            Welcome to Wattle Health
+            Welcome to Elyna Health
           </h2>
           <p className="mt-2 text-center text-sm text-gray-400">
             Your personal health assistant
@@ -86,12 +88,47 @@ export default function Home() {
 
   return (
     <ClientWrapper>
-      <PageLayout 
-        isHomePage={true}
-        showBackgroundLogo={true}
-      >
-        <ChatContainer />
-      </PageLayout>
+      <div className="min-h-screen relative">
+        {/* Background Logo */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="relative w-[15rem] h-[15rem] opacity-[0.03]">
+            <Image
+              src="/images/leaf.png"
+              alt="Background Logo"
+              fill
+              style={{ objectFit: 'contain' }}
+              priority
+            />
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="relative z-10">
+          <PageLayout isHomePage={true}>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="py-4">
+                {!currentUser ? (
+                  <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)]">
+                    <div className="w-full max-w-md space-y-8">
+                      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+                        <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
+                          Welcome to Elyna Health
+                        </h2>
+                        <p className="mt-2 text-center text-sm text-gray-400">
+                          Your personal health assistant
+                        </p>
+                      </div>
+                      <LoginForm />
+                    </div>
+                  </div>
+                ) : (
+                  <ChatContainer />
+                )}
+              </div>
+            </div>
+          </PageLayout>
+        </div>
+      </div>
     </ClientWrapper>
   );
 } 

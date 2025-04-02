@@ -14,7 +14,6 @@ import Navigation from '../components/Navigation';
 import { invalidateRecordsCache } from '../lib/cache-utils';
 import { testFirestoreWrite } from '../lib/test-utils';
 import MicrophoneButton from '../components/MicrophoneButton';
-import { useBackgroundLogo } from '../components/ClientWrapper';
 import ClientWrapper from '../components/ClientWrapper';
 import { processMedicalDocument } from '../lib/fhir-processor';
 import toast from 'react-hot-toast';
@@ -28,6 +27,8 @@ interface ErrorResponse {
 }
 
 export default function Upload() {
+  const { currentUser } = useAuth();
+  const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
   const [recordName, setRecordName] = useState('');
   const [comment, setComment] = useState('');
@@ -38,24 +39,13 @@ export default function Upload() {
   const [error, setError] = useState<string | null>(null);
   const [apiKeyValid, setApiKeyValid] = useState<boolean | null>(null);
   const [apiKeyChecked, setApiKeyChecked] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [myHealthToastShown, setMyHealthToastShown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
-  const { currentUser } = useAuth();
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [analysisStatus, setAnalysisStatus] = useState<string>('');
-  const { setShowBackgroundLogo } = useBackgroundLogo();
-
-  // Hide background logo when component mounts
-  useEffect(() => {
-    setShowBackgroundLogo(false);
-    return () => {
-      setShowBackgroundLogo(true); // Restore when component unmounts
-    };
-  }, [setShowBackgroundLogo]);
 
   // Check if device is mobile
   useEffect(() => {
@@ -413,234 +403,97 @@ export default function Upload() {
   const isUploadDisabled = !(recordName.trim() || comment.trim() || files.length > 0);
 
   return (
-    <ClientWrapper>
-      <ProtectedRoute>
-        <PageLayout 
-          title="Upload Record"
-          subtitle="Upload your medical records for analysis"
-        >
-          {apiKeyValid === false && !isLoading && (
-            <div className="p-4 bg-red-900/30 text-red-400 rounded-md shadow-md">
-              <p className="font-medium">OpenAI API Key Issue</p>
-              <p>The OpenAI API key is invalid or not configured properly. You can still upload files, but analysis may not work correctly.</p>
+    <ProtectedRoute>
+      <PageLayout title="Upload Record">
+        <div className="space-y-6">
+          <p className="text-gray-300">Upload your medical records for analysis</p>
+
+          <div>
+            <button
+              onClick={handleFileUpload}
+              className="bg-primary-blue hover:bg-primary-blue/90 text-white px-4 py-2 rounded-md transition-colors"
+            >
+              Upload File/Photo
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+              multiple
+              accept=".pdf,.jpg,.jpeg,.png"
+            />
+            <p className="mt-2 text-sm text-gray-400">
+              Supported formats: PDF, JPG, PNG (Max 10MB per file)
+            </p>
+            <p className="text-sm text-gray-400">
+              My Health Record Integration coming soon
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <input
+                type="text"
+                value={recordName}
+                onChange={(e) => setRecordName(e.target.value)}
+                placeholder="e.g., Blood Test, MRI, Prescription"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue text-white placeholder-gray-500"
+              />
+              <p className="mt-1 text-sm text-gray-400">Record Type (optional)</p>
             </div>
-          )}
-          
+
+            <div>
+              <div className="relative flex items-center space-x-2">
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Add any comments here..."
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-blue text-white placeholder-gray-500 min-h-[100px]"
+                />
+                <MicrophoneButton 
+                  onTranscription={(text) => setComment(prev => prev ? `${prev} ${text}` : text)}
+                />
+              </div>
+              <p className="mt-1 text-sm text-gray-400">Comment (optional)</p>
+            </div>
+          </div>
+
+          <div className="flex justify-between">
+            <button
+              onClick={() => router.back()}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={isUploading}
+              className={`bg-primary-blue hover:bg-primary-blue/90 text-white px-4 py-2 rounded-md transition-colors ${
+                isUploading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              {isUploading ? 'Uploading...' : 'Upload'}
+            </button>
+          </div>
+
           {error && (
-            <div className="p-4 bg-red-900/30 text-red-400 rounded-md shadow-md">
-              <p className="font-medium">Error</p>
-              <p>{error}</p>
-            </div>
-          )}
-          
-          {uploadStatus === 'success' ? (
-            <div className="bg-gray-950/80 backdrop-blur-sm p-6 rounded-md shadow-lg text-center">
-              <div className="mb-4 text-green-400">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-3">Upload Complete!</h2>
-              <p className="mb-8 text-blue-100">Your health records have been uploaded and are being analyzed.</p>
-              <div className="flex justify-center space-x-6">
-                <Link 
-                  href="/records" 
-                  className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-md shadow-md transition-colors font-medium"
-                >
-                  View Records
-                </Link>
-                <button 
-                  onClick={() => {
-                    setFiles([]);
-                    setRecordName('');
-                    setComment('');
-                    setUploadStatus('idle');
-                    setUploadProgress(0);
-                    setAnalysisProgress(0);
-                  }}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-md shadow-md transition-colors font-medium"
-                >
-                  Upload Another
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-gray-950/80 backdrop-blur-sm p-4 rounded-md shadow-md text-left">
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={handleFileUpload}
-                  className="text-white px-4 py-2 rounded-md border border-primary-blue hover:bg-gray-900/20 transition-colors"
-                >
-                  Upload File/Photo
-                </button>
-              </div>
-              <p className="mt-2 text-sm text-gray-400">
-                Supported formats: PDF, JPG, PNG (Max 10MB per file)
-                <br />
-                <span className="text-xs">My Health Record integration coming soon</span>
-              </p>
-            </div>
+            <div className="text-red-500 whitespace-pre-wrap">{error}</div>
           )}
 
-          {/* Upload Form */}
-          <form onSubmit={handleSubmit} className="mt-6">
-            <div className="bg-gray-950/80 backdrop-blur-sm p-6 rounded-md shadow-md">
-              <div className="space-y-6">
-                <div className="mb-6">
-                  <label htmlFor="recordName" className="block text-sm font-medium text-gray-300 mb-1">
-                    Record Type (optional)
-                  </label>
-                  <div className="relative flex items-center space-x-2">
-                    <div className="flex-1 max-w-[calc(100%-2rem)]">
-                      <input
-                        type="text"
-                        id="recordName"
-                        value={recordName}
-                        onChange={(e) => setRecordName(e.target.value)}
-                        placeholder="e.g., Blood Test, MRI, Prescription"
-                        className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
-                      />
-                    </div>
-                    <div className="w-8"></div>
-                  </div>
-                </div>
-
-                <div className="mb-6">
-                  <label htmlFor="comment" className="block text-sm font-medium text-gray-300 mb-1">
-                    Comment (optional)
-                  </label>
-                  <div className="relative flex items-center space-x-2">
-                    <textarea
-                      id="comment"
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-gray-800 text-white"
-                      placeholder="Add any comments here..."
-                    />
-                    <MicrophoneButton 
-                      onTranscription={(text) => setComment(prev => prev ? `${prev} ${text}` : text)}
-                    />
-                  </div>
-                </div>
-
-                <div className="mb-6">
-                  <div className="mt-1">
-                    <div className="flex flex-wrap gap-3 mb-3">
-                    </div>
-                    
-                    {/* File input for gallery photos/files */}
-                    <input
-                      id="file-upload"
-                      name="file-upload"
-                      type="file"
-                      ref={fileInputRef}
-                      className="hidden"
-                      multiple
-                      onChange={handleFileChange}
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      disabled={isUploading}
-                    />
-                  </div>
-                  {files.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        {files.length} {files.length === 1 ? 'file' : 'files'} selected:
-                      </p>
-                      <ul className="mt-1 text-sm text-gray-500 list-disc list-inside">
-                        {files.map((file: File, index: number) => (
-                          <li key={index}>
-                            {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <Link
-                    href="/records"
-                    className="inline-flex items-center px-4 py-2 border border-gray-700 text-sm font-medium rounded-md text-gray-300 bg-gray-950 hover:bg-gray-900"
-                  >
-                    Cancel
-                  </Link>
-                  <button
-                    type="submit"
-                    className={`inline-flex items-center px-4 py-2 rounded-md text-white border border-primary-blue hover:bg-gray-900/20 transition-colors ${
-                      isUploadDisabled ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                    disabled={isUploadDisabled}
-                  >
-                    {isUploading ? 'Uploading...' : 'Upload'}
-                  </button>
-                </div>
+          {uploadStatus === 'uploading' && (
+            <div className="mt-4">
+              <p className="text-gray-300">Uploading: {uploadProgress}%</p>
+              <div className="w-full bg-gray-700 rounded-full h-2 mt-2">
+                <div
+                  className="bg-primary-blue h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
               </div>
-            </div>
-          </form>
-
-          {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') !== 'idle' && uploadStatus !== 'success' && (
-            <div className="bg-gray-950/80 backdrop-blur-sm shadow-md rounded-lg p-6">
-              {/* Upload Progress Bar */}
-              <div className="mb-4">
-                <div className="relative pt-1">
-                  <div className="flex mb-2 items-center justify-between">
-                    <div>
-                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-blue-100 bg-blue-800">
-                        Uploading Files
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs font-semibold inline-block text-blue-100">
-                        {uploadProgress}%
-                      </span>
-                    </div>
-                  </div>
-                  <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-blue-900">
-                    <div
-                      style={{ width: `${uploadProgress}%` }}
-                      className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${
-                        (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-blue-500'
-                      }`}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Analysis Progress Bar - Only show when analyzing */}
-              {(uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'analyzing' && (
-                <div className="mb-4">
-                  <div className="relative pt-1">
-                    <div className="flex mb-2 items-center justify-between">
-                      <div>
-                        <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-blue-100 bg-indigo-800">
-                          Analyzing Documents
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xs font-semibold inline-block text-blue-100">
-                          {analysisProgress}%
-                        </span>
-                      </div>
-                    </div>
-                    <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-900">
-                      <div
-                        style={{ width: `${analysisProgress}%` }}
-                        className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${
-                          (uploadStatus as 'idle' | 'uploading' | 'analyzing' | 'success' | 'error') === 'error' ? 'bg-red-500' : 'bg-indigo-500'
-                        }`}
-                      ></div>
-                    </div>
-                    {/* Add status message */}
-                    {analysisStatus && (
-                      <p className="text-xs text-blue-200 text-center mb-2">{analysisStatus}</p>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           )}
-        </PageLayout>
-      </ProtectedRoute>
-    </ClientWrapper>
+        </div>
+      </PageLayout>
+    </ProtectedRoute>
   );
 }

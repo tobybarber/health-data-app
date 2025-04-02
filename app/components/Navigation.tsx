@@ -33,19 +33,22 @@ export default function Navigation({ isHomePage = false, isStandalone = false }:
   if (isHomePage) {
     return (
       <>
-        <header className="bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md w-full fixed left-0 right-0 z-20 px-4 standalone-nav-top">
+        <header className="bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md w-full fixed left-0 right-0 z-20 px-4 py-4 standalone-nav-top">
           <div className="flex items-center">
             <StandaloneLink href="/about" className="flex items-center">
               <div className="mr-2 relative w-8 h-8">
                 <Image 
-                  src="/images/logo.png" 
-                  alt="Wattle Logo"
+                  src="/images/leaf.png" 
+                  alt="Elyna Health Logo"
                   fill
                   style={{ objectFit: 'contain' }}
                   priority
                 />
               </div>
-              <span className="text-2xl font-bold text-white">Wattle</span>
+              <div className="flex items-baseline">
+                <span className="text-2xl font-light tracking-wider text-[#16B981]">ELYNA</span>
+                <span className="ml-2 text-2xl font-light tracking-wider text-[#16B981]">HEALTH</span>
+              </div>
             </StandaloneLink>
           </div>
           <div className="flex items-center space-x-4">
@@ -67,19 +70,22 @@ export default function Navigation({ isHomePage = false, isStandalone = false }:
 
   // Standard navigation layout for other pages
   return (
-    <nav className="bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 z-20 px-4 standalone-nav-top">
+    <nav className="bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 z-20 px-4 py-4 standalone-nav-top">
       <div className="flex items-center">
         <StandaloneLink href="/about" className="flex items-center">
           <div className="mr-2 relative w-8 h-8">
             <Image 
-              src="/images/logo.png" 
-              alt="Wattle Logo"
+              src="/images/leaf.png" 
+              alt="Elyna Health Logo"
               fill
               style={{ objectFit: 'contain' }}
               priority
             />
           </div>
-          <span className="text-2xl font-bold text-primary-blue hover:text-gray-300 transition-colors">Wattle</span>
+          <div className="flex items-baseline">
+            <span className="text-2xl font-light tracking-wider text-[#16B981]">ELYNA</span>
+            <span className="ml-2 text-2xl font-light tracking-wider text-[#16B981]">HEALTH</span>
+          </div>
         </StandaloneLink>
       </div>
       <div className="flex items-center space-x-4">
