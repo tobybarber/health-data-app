@@ -3,6 +3,7 @@
 import React, { useCallback, useState } from 'react';
 import { usePreferences } from '../hooks/usePreferences';
 import { FaUpload, FaFile, FaTrash } from 'react-icons/fa';
+import { SiJsonwebtokens } from "react-icons/si";
 
 interface FileUploadProps {
   onFilesSelected: (files: File[]) => void;
@@ -16,6 +17,7 @@ interface FileUploadProps {
 
 interface FileWithPreview extends File {
   preview?: string;
+  isFhir?: boolean;
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({
@@ -34,7 +36,39 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
   const isDark = theme === 'dark' || (theme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-  const validateFile = (file: File): string | null => {
+  // Function to validate FHIR JSON format
+  const validateFhirJson = async (file: File): Promise<boolean> => {
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      
+      // Basic FHIR R4 validation
+      if (json.resourceType === 'Bundle') {
+        // Validate Bundle
+        const isValid = 
+          json.type && // Must have bundle type
+          Array.isArray(json.entry) && // Must have entries array
+          json.entry.every((entry: any) => 
+            entry.resource && 
+            entry.resource.resourceType && 
+            typeof entry.resource.resourceType === 'string'
+          );
+        
+        return isValid;
+      } else {
+        // Validate single resource
+        const isValid = 
+          json.resourceType && // Must have resourceType
+          typeof json.resourceType === 'string';
+        
+        return isValid;
+      }
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const validateFile = async (file: File): Promise<string | null> => {
     if (file.size > maxSize) {
       return `File ${file.name} is too large. Maximum size is ${maxSize / 1024 / 1024}MB.`;
     }
@@ -52,10 +86,19 @@ const FileUpload: React.FC<FileUploadProps> = ({
       }
     }
 
+    // Additional validation for JSON files
+    if (file.type === 'application/json' || file.name.toLowerCase().endsWith('.json')) {
+      const isFhir = await validateFhirJson(file);
+      if (!isFhir) {
+        return `File ${file.name} is not a valid FHIR R4 JSON file.`;
+      }
+      (file as FileWithPreview).isFhir = true;
+    }
+
     return null;
   };
 
-  const handleFiles = useCallback((newFiles: FileList | null) => {
+  const handleFiles = useCallback(async (newFiles: FileList | null) => {
     if (!newFiles) return;
 
     const fileArray = Array.from(newFiles);
@@ -69,8 +112,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
     const validFiles: FileWithPreview[] = [];
     const errors: string[] = [];
 
-    fileArray.forEach(file => {
-      const error = validateFile(file);
+    // Process files sequentially to handle async validation
+    for (const file of fileArray) {
+      const error = await validateFile(file);
       if (error) {
         errors.push(error);
       } else {
@@ -80,7 +124,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
         }
         validFiles.push(fileWithPreview);
       }
-    });
+    }
 
     if (errors.length > 0) {
       setError(errors.join('\n'));
@@ -148,6 +192,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
           <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             Maximum file size: {maxSize / 1024 / 1024}MB
           </p>
+          <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            Supported formats: PDF, JPG, PNG, FHIR R4 JSON
+          </p>
         </div>
       </div>
 
@@ -169,11 +216,20 @@ const FileUpload: React.FC<FileUploadProps> = ({
               <div className="flex items-center space-x-2">
                 {file.preview ? (
                   <img src={file.preview} alt={file.name} className="h-8 w-8 object-cover rounded" />
+                ) : file.isFhir ? (
+                  <SiJsonwebtokens className={`h-6 w-6 ${isDark ? 'text-blue-400' : 'text-blue-500'}`} />
                 ) : (
                   <FaFile className={isDark ? 'text-gray-400' : 'text-gray-500'} />
                 )}
                 <span className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                   {file.name}
+                  {file.isFhir && (
+                    <span className={`ml-2 text-xs px-2 py-1 rounded ${
+                      isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      FHIR R4
+                    </span>
+                  )}
                 </span>
               </div>
               <button

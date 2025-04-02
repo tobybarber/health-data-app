@@ -26,6 +26,7 @@ import { extractFHIRResources } from './analysis-utils';
  * @param documentMetadata Metadata about the document
  * @param fileUrl URL where the document is stored
  * @param patientId ID of the patient this document belongs to
+ * @param directFhirResource Optional FHIR resource to process directly
  * @returns IDs of created FHIR resources
  */
 export async function processMedicalDocument(
@@ -37,7 +38,8 @@ export async function processMedicalDocument(
     comment?: string;
   },
   fileUrl: string,
-  patientId: string = 'default-patient'
+  patientId: string = 'default-patient',
+  directFhirResource?: any
 ): Promise<{
   documentReferenceId?: string;
   procedureId?: string;
@@ -48,6 +50,49 @@ export async function processMedicalDocument(
   summary?: string;
   resourceIds?: Record<string, string[]>;
 }> {
+  // If a direct FHIR resource is provided, process it directly
+  if (directFhirResource) {
+    try {
+      console.log('Processing direct FHIR resource:', directFhirResource.resourceType);
+      
+      // Track created resource IDs by type
+      const resourceIds: Record<string, string[]> = {};
+      
+      // Skip Patient resources as we already have one
+      if (directFhirResource.resourceType === 'Patient') {
+        console.log('Skipping Patient resource as we already have one');
+        return { resourceIds };
+      }
+      
+      // Add patient reference if not already present
+      if (!directFhirResource.subject && !directFhirResource.patient) {
+        // Different FHIR resources use different fields for patient reference
+        if (['Observation', 'DiagnosticReport', 'Procedure', 'Condition', 'Immunization'].includes(directFhirResource.resourceType)) {
+          directFhirResource.subject = { reference: `Patient/${patientId}` };
+        } else if (['MedicationStatement', 'AllergyIntolerance'].includes(directFhirResource.resourceType)) {
+          directFhirResource.patient = { reference: `Patient/${patientId}` };
+        }
+      }
+      
+      // Create the resource
+      const resourceId = await createResource(userId, directFhirResource);
+      
+      // Track created resources by type
+      resourceIds[directFhirResource.resourceType] = [resourceId];
+      
+      console.log(`Created ${directFhirResource.resourceType} resource with ID ${resourceId}`);
+      
+      return {
+        detectedDocumentType: directFhirResource.resourceType,
+        resourceIds
+      };
+    } catch (error) {
+      console.error('Error processing direct FHIR resource:', error);
+      throw error;
+    }
+  }
+
+  // Process document text if no direct FHIR resource
   if (!documentText) {
     console.log('No document text provided, skipping FHIR processing');
     return {};

@@ -44,7 +44,7 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
       <>
         <header 
           className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 h-14 z-50`}
-          style={isDirectStandalone ? { top: '48px' } : { top: '0' }}
+          style={isDirectStandalone ? { top: '55px' } : { top: '0' }}
         >
           <div className="flex items-center px-4">
             <StandaloneLink href="/about" className="flex items-center">
@@ -84,7 +84,7 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
   return (
     <nav 
       className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 h-14 z-50`}
-      style={isDirectStandalone ? { top: '48px' } : { top: '0' }}
+      style={isDirectStandalone ? { top: '55px' } : { top: '0' }}
     >
       <div className="flex items-center px-4">
         <StandaloneLink href="/about" className="flex items-center">

@@ -26,10 +26,14 @@ interface ErrorResponse {
   recordId?: string;
 }
 
+interface FileWithPreview extends File {
+  isFhir?: boolean;
+}
+
 export default function Upload() {
   const { currentUser } = useAuth();
   const router = useRouter();
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [recordName, setRecordName] = useState('');
   const [comment, setComment] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -103,7 +107,7 @@ export default function Upload() {
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const fileArray = Array.from(e.target.files);
-      setFiles(fileArray);
+      setFiles(fileArray.map(file => ({ ...file, isFhir: file.name.toLowerCase().endsWith('.json') }) as FileWithPreview));
       
       setError(null);
       setUploadStatus('idle');
@@ -129,9 +133,10 @@ export default function Upload() {
       return;
     }
 
-    const supportedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
-    if (!files.every((file: File) => supportedTypes.includes(file.type))) {
-      setError('Only PDF, JPG, and PNG files are supported.');
+    // Check for valid file types
+    const supportedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'application/json'];
+    if (!files.every((file: File) => supportedTypes.includes(file.type) || file.name.toLowerCase().endsWith('.json'))) {
+      setError('Only PDF, JPG, PNG, and FHIR R4 JSON files are supported.');
       return;
     }
     
@@ -160,231 +165,308 @@ export default function Upload() {
       // Get the Firebase ID token
       const token = await currentUser.getIdToken();
       
-      // Create form data for the API request
-      const formData = new FormData();
-      files.forEach(file => formData.append('files', file));
-      formData.append('recordName', recordName);
-      formData.append('comment', comment);
+      // Separate FHIR JSON files from other files
+      const fhirFiles = files.filter(file => file.isFhir);
+      const otherFiles = files.filter(file => !file.isFhir);
       
-      try {
-        // Instead of fetch, use XMLHttpRequest to track upload progress
-        const uploadPromise = new Promise<{success: boolean, recordId: string, fileUrls: string[]}>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          
-          // Set up progress tracking with simulated progress for large files
-          let progressInterval: NodeJS.Timeout | null = null;
-          
-          xhr.upload.addEventListener('progress', (event) => {
-            if (event.lengthComputable) {
-              // Calculate the actual progress
-              const actualProgress = Math.round((event.loaded / event.total) * 100);
+      // Process FHIR JSON files directly
+      if (fhirFiles.length > 0) {
+        console.log(`Processing ${fhirFiles.length} FHIR JSON files...`);
+        
+        for (const file of fhirFiles) {
+          try {
+            const fileContent = await file.text();
+            const fhirData = JSON.parse(fileContent);
+            
+            if (fhirData.resourceType === 'Bundle' && Array.isArray(fhirData.entry)) {
+              // Process Bundle
+              console.log(`Processing FHIR Bundle with ${fhirData.entry.length} resources`);
+              let processedCount = 0;
               
-              // Clear any existing interval when we get real progress
+              // Process each resource in the bundle
+              for (const entry of fhirData.entry) {
+                if (entry.resource && entry.resource.resourceType) {
+                  try {
+                    const result = await processMedicalDocument(
+                      currentUser.uid,
+                      '', // No text content needed for direct FHIR resources
+                      {
+                        name: `${entry.resource.resourceType} from ${file.name}`,
+                        recordType: entry.resource.resourceType,
+                        comment: comment
+                      },
+                      '', // No file URL needed for direct FHIR resources
+                      currentUser.uid, // use user ID as patient ID for now
+                      entry.resource // Pass the individual resource
+                    );
+                    
+                    if (Object.keys(result).length > 0) {
+                      processedCount++;
+                    }
+                  } catch (resourceError) {
+                    console.error(`Error processing resource ${entry.resource.resourceType} from bundle:`, resourceError);
+                  }
+                }
+              }
+              
+              toast.success(`Processed ${processedCount} resources from FHIR Bundle ${file.name}`);
+            } else {
+              // Process single resource
+              const result = await processMedicalDocument(
+                currentUser.uid,
+                '', // No text content needed for direct FHIR resources
+                {
+                  name: file.name,
+                  recordType: fhirData.resourceType,
+                  comment: comment
+                },
+                '', // No file URL needed for direct FHIR resources
+                currentUser.uid, // use user ID as patient ID for now
+                fhirData // Pass the FHIR resource directly
+              );
+              
+              if (Object.keys(result).length > 0) {
+                toast.success(`Processed FHIR resource from ${file.name}`);
+              }
+            }
+          } catch (error) {
+            console.error(`Error processing FHIR file ${file.name}:`, error);
+            toast.error(`Failed to process FHIR file ${file.name}`);
+          }
+        }
+      }
+      
+      // Process other files normally
+      if (otherFiles.length > 0) {
+        // Create form data for the API request
+        const formData = new FormData();
+        otherFiles.forEach(file => formData.append('files', file));
+        formData.append('recordName', recordName);
+        formData.append('comment', comment);
+        
+        try {
+          // Instead of fetch, use XMLHttpRequest to track upload progress
+          const uploadPromise = new Promise<{success: boolean, recordId: string, fileUrls: string[]}>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            
+            // Set up progress tracking with simulated progress for large files
+            let progressInterval: NodeJS.Timeout | null = null;
+            
+            xhr.upload.addEventListener('progress', (event) => {
+              if (event.lengthComputable) {
+                // Calculate the actual progress
+                const actualProgress = Math.round((event.loaded / event.total) * 100);
+                
+                // Clear any existing interval when we get real progress
+                if (progressInterval) {
+                  clearInterval(progressInterval);
+                  progressInterval = null;
+                }
+                
+                // If we're getting real progress updates, use them directly up to 95%
+                if (actualProgress < 95) {
+                  setUploadProgress(actualProgress);
+                } else {
+                  // Cap at 95% until fully complete
+                  setUploadProgress(95);
+                }
+                
+                console.log(`Upload progress: ${actualProgress}%`);
+              }
+            });
+            
+            // For large files, particularly on fast connections, simulate progress
+            // This helps provide visual feedback even when the progress event doesn't
+            // fire with intermediate values
+            if (otherFiles.some(file => file.size > 1024 * 1024)) { // If any file is over 1MB
+              let simulatedProgress = 0;
+              
+              progressInterval = setInterval(() => {
+                // Increase by smaller amounts as we get higher
+                let increment = 10;
+                if (simulatedProgress > 50) increment = 5;
+                if (simulatedProgress > 80) increment = 2;
+                
+                simulatedProgress = Math.min(90, simulatedProgress + increment);
+                setUploadProgress(simulatedProgress);
+                
+                console.log(`Simulated progress: ${simulatedProgress}%`);
+                
+                // Stop at 90% and let the real progress take over
+                if (simulatedProgress >= 90) {
+                  if (progressInterval) {
+                    clearInterval(progressInterval);
+                    progressInterval = null;
+                  }
+                }
+              }, 300); // Update every 300ms
+            }
+            
+            // Handle completion
+            xhr.addEventListener('load', () => {
+              // Clean up interval if it exists
               if (progressInterval) {
                 clearInterval(progressInterval);
                 progressInterval = null;
               }
               
-              // If we're getting real progress updates, use them directly up to 95%
-              if (actualProgress < 95) {
-                setUploadProgress(actualProgress);
+              // Set to 100% when truly complete
+              setUploadProgress(100);
+              
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  const response = JSON.parse(xhr.responseText);
+                  resolve(response);
+                } catch (e) {
+                  reject(new Error('Invalid response format'));
+                }
               } else {
-                // Cap at 95% until fully complete
-                setUploadProgress(95);
-              }
-              
-              console.log(`Upload progress: ${actualProgress}%`);
-            }
-          });
-          
-          // For large files, particularly on fast connections, simulate progress
-          // This helps provide visual feedback even when the progress event doesn't
-          // fire with intermediate values
-          if (files.some(file => file.size > 1024 * 1024)) { // If any file is over 1MB
-            let simulatedProgress = 0;
-            
-            progressInterval = setInterval(() => {
-              // Increase by smaller amounts as we get higher
-              let increment = 10;
-              if (simulatedProgress > 50) increment = 5;
-              if (simulatedProgress > 80) increment = 2;
-              
-              simulatedProgress = Math.min(90, simulatedProgress + increment);
-              setUploadProgress(simulatedProgress);
-              
-              console.log(`Simulated progress: ${simulatedProgress}%`);
-              
-              // Stop at 90% and let the real progress take over
-              if (simulatedProgress >= 90) {
-                if (progressInterval) {
-                  clearInterval(progressInterval);
-                  progressInterval = null;
+                try {
+                  const errorData = JSON.parse(xhr.responseText);
+                  reject(new Error(errorData.error || `Upload failed with status: ${xhr.status}`));
+                } catch (e) {
+                  reject(new Error(`Upload failed with status: ${xhr.status}`));
                 }
               }
-            }, 300); // Update every 300ms
+            });
+            
+            // Handle network errors
+            xhr.addEventListener('error', () => {
+              reject(new Error('Network error occurred during upload'));
+            });
+            
+            // Handle timeouts
+            xhr.addEventListener('timeout', () => {
+              reject(new Error('Upload timed out after 5 minutes'));
+            });
+            
+            // Open the request and set timeout
+            xhr.open('POST', '/api/records/upload', true);
+            xhr.timeout = 300000; // 5 minute timeout
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            
+            // Send the form data
+            xhr.send(formData);
+          });
+          
+          // Wait for upload to complete
+          const data = await uploadPromise;
+          
+          if (currentUser.uid) {
+            invalidateRecordsCache(currentUser.uid);
           }
           
-          // Handle completion
-          xhr.addEventListener('load', () => {
-            // Clean up interval if it exists
-            if (progressInterval) {
-              clearInterval(progressInterval);
-              progressInterval = null;
-            }
+          // For multiple files, show better feedback about the analysis process
+          if (otherFiles.length > 1) {
+            setUploadStatus('analyzing');
+            setAnalysisStatus('Processing multiple files individually...');
             
-            // Set to 100% when truly complete
+            // Simulate progress for better UX during multi-file analysis
+            const totalSteps = otherFiles.length + 2; // analyze each file + combination step + final step
+            let currentStep = 0;
+            
+            const updateAnalysisProgress = () => {
+              currentStep++;
+              const percent = Math.min(95, Math.round((currentStep / totalSteps) * 100));
+              setAnalysisProgress(percent);
+              
+              // Update status message based on progress
+              if (currentStep <= otherFiles.length) {
+                setAnalysisStatus(`Analyzing file ${currentStep} of ${otherFiles.length}...`);
+              } else if (currentStep === otherFiles.length + 1) {
+                setAnalysisStatus('Combining analysis results...');
+              }
+            };
+            
+            // Start progress simulation
+            const progressInterval = setInterval(() => {
+              updateAnalysisProgress();
+              
+              // When complete, clear interval and finish
+              if (currentStep >= totalSteps) {
+                clearInterval(progressInterval);
+                setAnalysisProgress(100);
+                setAnalysisStatus('Analysis complete!');
+                setTimeout(() => {
+                  setUploadStatus('success');
+                  setUploadProgress(100);
+                }, 1000);
+              }
+            }, otherFiles.length > 5 ? 4000 : 3000); // Pace depends on number of files
+            
+            // Clear interval if component unmounts
+            return () => clearInterval(progressInterval);
+          } else {
+            // For single file, just show success immediately
+            setUploadStatus('success');
             setUploadProgress(100);
-            
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                const response = JSON.parse(xhr.responseText);
-                resolve(response);
-              } catch (e) {
-                reject(new Error('Invalid response format'));
-              }
-            } else {
-              try {
-                const errorData = JSON.parse(xhr.responseText);
-                reject(new Error(errorData.error || `Upload failed with status: ${xhr.status}`));
-              } catch (e) {
-                reject(new Error(`Upload failed with status: ${xhr.status}`));
-              }
-            }
-          });
-          
-          // Handle network errors
-          xhr.addEventListener('error', () => {
-            reject(new Error('Network error occurred during upload'));
-          });
-          
-          // Handle timeouts
-          xhr.addEventListener('timeout', () => {
-            reject(new Error('Upload timed out after 5 minutes'));
-          });
-          
-          // Open the request and set timeout
-          xhr.open('POST', '/api/records/upload', true);
-          xhr.timeout = 300000; // 5 minute timeout
-          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-          
-          // Send the form data
-          xhr.send(formData);
-        });
-        
-        // Wait for upload to complete
-        const data = await uploadPromise;
-        
-        if (currentUser.uid) {
-          invalidateRecordsCache(currentUser.uid);
-        }
-        
-        // For multiple files, show better feedback about the analysis process
-        if (files.length > 1) {
-          setUploadStatus('analyzing');
-          setAnalysisStatus('Processing multiple files individually...');
-          
-          // Simulate progress for better UX during multi-file analysis
-          const totalSteps = files.length + 2; // analyze each file + combination step + final step
-          let currentStep = 0;
-          
-          const updateAnalysisProgress = () => {
-            currentStep++;
-            const percent = Math.min(95, Math.round((currentStep / totalSteps) * 100));
-            setAnalysisProgress(percent);
-            
-            // Update status message based on progress
-            if (currentStep <= files.length) {
-              setAnalysisStatus(`Analyzing file ${currentStep} of ${files.length}...`);
-            } else if (currentStep === files.length + 1) {
-              setAnalysisStatus('Combining analysis results...');
-            }
-          };
-          
-          // Start progress simulation
-          const progressInterval = setInterval(() => {
-            updateAnalysisProgress();
-            
-            // When complete, clear interval and finish
-            if (currentStep >= totalSteps) {
-              clearInterval(progressInterval);
-              setAnalysisProgress(100);
-              setAnalysisStatus('Analysis complete!');
-              setTimeout(() => {
-                setUploadStatus('success');
-                setUploadProgress(100);
-              }, 1000);
-            }
-          }, files.length > 5 ? 4000 : 3000); // Pace depends on number of files
-          
-          // Clear interval if component unmounts
-          return () => clearInterval(progressInterval);
-        } else {
-          // For single file, just show success immediately
-          setUploadStatus('success');
-          setUploadProgress(100);
-        }
-        
-        // Reset form
-        setFiles([]);
-        setRecordName('');
-        setComment('');
-        
-        // After OpenAI API analysis is complete, process the document into FHIR resources
-        if (data.recordId) {
-          try {
-            console.log('Processing document into FHIR resources...');
-            
-            // Use the Firebase SDK methods we're already importing
-            const recordDocRef = doc(db, `users/${currentUser.uid}/records/${data.recordId}`);
-            const recordDocSnap = await getDoc(recordDocRef);
-            
-            if (recordDocSnap.exists()) {
-              const recordData = recordDocSnap.data();
-              const analysisText = typeof recordData.analysis === 'string' ? recordData.analysis : '';
-              
-              const fhirResources = await processMedicalDocument(
-                currentUser.uid,
-                analysisText,
-                {
-                  name: recordName,
-                  recordType: recordData.recordType || '',
-                  comment: comment
-                },
-                data.fileUrls[0],
-                currentUser.uid // use user ID as patient ID for now
-              );
-              
-              console.log('FHIR resources created:', fhirResources);
-              
-              // Update the UI to show that FHIR resources were created
-              if (Object.keys(fhirResources).length > 0) {
-                toast.success(`Created ${Object.keys(fhirResources).filter(k => 
-                  k !== 'summary' && k !== 'detectedDocumentType').length} FHIR resources from your document.`);
-              }
-            }
-          } catch (error) {
-            console.error('Error processing document into FHIR resources:', error);
-            // Don't show an error to the user, just log it
           }
-        }
-        
-      } catch (uploadError: any) {
-        // Handle errors
-        console.error('Error uploading files:', uploadError);
-        setError(`Error uploading files: ${uploadError.message || 'Unknown error'}`);
-        setUploadStatus('error');
-        
-        // Test Firestore write to check if that's working
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Testing Firestore write...');
-          try {
-            const testResult = await testFirestoreWrite(currentUser.uid);
-            console.log('Firestore test result:', testResult);
-          } catch (testError) {
-            console.error('Firestore test failed:', testError);
+          
+          // After OpenAI API analysis is complete, process the document into FHIR resources
+          if (data.recordId) {
+            try {
+              console.log('Processing document into FHIR resources...');
+              
+              // Use the Firebase SDK methods we're already importing
+              const recordDocRef = doc(db, `users/${currentUser.uid}/records/${data.recordId}`);
+              const recordDocSnap = await getDoc(recordDocRef);
+              
+              if (recordDocSnap.exists()) {
+                const recordData = recordDocSnap.data();
+                const analysisText = typeof recordData.analysis === 'string' ? recordData.analysis : '';
+                
+                const fhirResources = await processMedicalDocument(
+                  currentUser.uid,
+                  analysisText,
+                  {
+                    name: recordName,
+                    recordType: recordData.recordType || '',
+                    comment: comment
+                  },
+                  data.fileUrls[0],
+                  currentUser.uid // use user ID as patient ID for now
+                );
+                
+                console.log('FHIR resources created:', fhirResources);
+                
+                // Update the UI to show that FHIR resources were created
+                if (Object.keys(fhirResources).length > 0) {
+                  toast.success(`Created ${Object.keys(fhirResources).filter(k => 
+                    k !== 'summary' && k !== 'detectedDocumentType').length} FHIR resources from your document.`);
+                }
+              }
+            } catch (error) {
+              console.error('Error processing document into FHIR resources:', error);
+              // Don't show an error to the user, just log it
+            }
+          }
+          
+        } catch (uploadError: any) {
+          // Handle errors
+          console.error('Error uploading files:', uploadError);
+          setError(`Error uploading files: ${uploadError.message || 'Unknown error'}`);
+          setUploadStatus('error');
+          
+          // Test Firestore write to check if that's working
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Testing Firestore write...');
+            try {
+              const testResult = await testFirestoreWrite(currentUser.uid);
+              console.log('Firestore test result:', testResult);
+            } catch (testError) {
+              console.error('Firestore test failed:', testError);
+            }
           }
         }
       }
+      
+      // Reset form
+      setFiles([]);
+      setRecordName('');
+      setComment('');
+      
+      // Show success message
+      toast.success('Upload complete!');
       
     } catch (err: any) {
       // Only log errors in development mode
@@ -406,7 +488,7 @@ export default function Upload() {
     <ProtectedRoute>
       <PageLayout title="Upload Record">
         <div className="space-y-6">
-          <p className="text-gray-300">Upload your medical records for analysis</p>
+          <p className="text-gray-300">Upload your medical records or FHIR R4 JSON files for analysis</p>
 
           <div>
             <button
@@ -421,10 +503,10 @@ export default function Upload() {
               onChange={handleFileChange}
               className="hidden"
               multiple
-              accept=".pdf,.jpg,.jpeg,.png"
+              accept=".pdf,.jpg,.jpeg,.png,.json,application/json"
             />
             <p className="mt-2 text-sm text-gray-400">
-              Supported formats: PDF, JPG, PNG (Max 10MB per file)
+              Supported formats: PDF, JPG, PNG, FHIR R4 JSON (Max 10MB per file)
             </p>
             <p className="text-sm text-gray-400">
               My Health Record Integration coming soon
