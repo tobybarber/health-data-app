@@ -874,23 +874,21 @@ export default function Records() {
       >
         {/* Header with Upload, Search, and Filter */}
         <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3">
-            <Link 
-              href="/upload" 
-              className="text-blue-400 hover:text-blue-300 flex items-center"
-            >
-              <FaPlus className="mr-2" /> Upload
-            </Link>
-            <div className="flex items-center gap-2">
-              <FaSearch 
-                className={`text-gray-400 cursor-pointer hover:text-gray-300 ${searchTerm ? 'text-blue-400' : ''}`}
-                onClick={() => setShowSearchModal(true)}
-              />
-              <FaFilter 
-                className={`text-gray-400 cursor-pointer hover:text-gray-300 ${filterType ? 'text-blue-400' : ''}`}
-                onClick={() => setShowFilterModal(true)}
-              />
-            </div>
+          <Link 
+            href="/upload" 
+            className="text-blue-400 hover:text-blue-300 flex items-center"
+          >
+            <FaPlus className="mr-2" /> Upload
+          </Link>
+          <div className="flex items-center gap-2">
+            <FaSearch 
+              className={`text-gray-400 cursor-pointer hover:text-gray-300 ${searchTerm ? 'text-blue-400' : ''}`}
+              onClick={() => setShowSearchModal(true)}
+            />
+            <FaFilter 
+              className={`text-gray-400 cursor-pointer hover:text-gray-300 ${filterType ? 'text-blue-400' : ''}`}
+              onClick={() => setShowFilterModal(true)}
+            />
           </div>
         </div>
         
