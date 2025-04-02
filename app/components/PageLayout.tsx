@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode } from 'react';
 import Navigation from './Navigation';
 import { usePathname } from 'next/navigation';
 
@@ -15,16 +15,7 @@ export default function PageLayout({
   title,
   subtitle,
 }: PageLayoutProps) {
-  const [isStandalone, setIsStandalone] = useState(false);
   const pathname = usePathname();
-
-  useEffect(() => {
-    // Check if the app is running in standalone mode
-    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || 
-                            (window.navigator as any).standalone || 
-                            document.referrer.includes('android-app://');
-    setIsStandalone(isStandaloneMode);
-  }, []);
 
   return (
     <div className={`min-h-screen ${!isHomePage ? 'bg-gray-950' : ''}`}>
