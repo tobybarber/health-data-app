@@ -786,7 +786,7 @@ export default function Analysis() {
           title="My Analysis"
         >
           {/* Analysis Content Section */}
-          <div className="bg-gray-950/80 backdrop-blur-sm rounded-lg shadow p-6">
+          <div className="bg-gray-950/80 backdrop-blur-sm rounded-lg shadow py-6">
             <div className="flex justify-end mb-3 px-1">
               <div className="flex items-center gap-3">
                 <div className="flex flex-col items-end gap-2">
