@@ -91,7 +91,7 @@ export default function Home() {
       <div className="min-h-screen relative">
         {/* Background Logo */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none -translate-x-4 -translate-y-4">
-          <div className="relative w-[15rem] h-[15rem] opacity-[0.03]">
+          <div className="relative w-[15rem] h-[15rem] opacity-[0.06]">
             <Image
               src="/images/leaf.png"
               alt="Background Logo"

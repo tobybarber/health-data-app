@@ -65,7 +65,7 @@ body.standalone-mode .standalone-nav {
 
 /* Main content in standalone mode */
 body.standalone-mode main {
-  padding-top: calc(60px + env(safe-area-inset-top) + 48px);
+  padding-top: calc(60px + env(safe-area-inset-top));
   padding-bottom: calc(60px + env(safe-area-inset-bottom));
   min-height: calc(100vh - 48px - 60px);
   overflow-y: auto !important;
