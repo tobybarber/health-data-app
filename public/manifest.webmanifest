@@ -1,6 +1,6 @@
 {
   "name": "Elyna Health",
-  "short_name": "Elyna",
+  "short_name": "Elyna Health",
   "description": "Personal health assistant powered by AI",
   "start_url": "/",
   "display": "standalone",

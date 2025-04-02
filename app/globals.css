@@ -43,25 +43,11 @@ body.standalone-mode {
   height: 100%;
   min-height: 100vh;
   min-height: -webkit-fill-available;
-  min-height: calc(var(--vh, 1vh) * 100);
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
   overscroll-behavior: none;
-}
-
-/* Fixed navigation in standalone mode */
-body.standalone-mode .standalone-nav-top {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  height: 60px;
-  background-color: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 /* Fixed bottom navigation in standalone mode */
@@ -79,28 +65,7 @@ body.standalone-mode .standalone-nav {
 
 /* Main content in standalone mode */
 body.standalone-mode main {
-  position: relative;
-  padding-top: 60px; /* Fixed padding for nav height only */
   padding-bottom: calc(60px + env(safe-area-inset-bottom));
-  min-height: calc(100vh - 60px - env(safe-area-inset-bottom));
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-}
-
-/* Standalone mode specific content adjustments */
-body.standalone-mode .page-content {
-  margin-top: 60px; /* Only account for nav height, status bar is handled by nav margin */
-}
-
-/* Scrollable containers in standalone mode */
-body.standalone-mode .scrollable-container {
-  position: relative;
-  height: 100%;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-  overscroll-behavior: contain;
 }
 
 /* iOS select element styling */

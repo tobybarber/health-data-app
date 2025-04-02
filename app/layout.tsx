@@ -75,7 +75,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-touch-fullscreen" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="Elyna" />
+        <meta name="apple-mobile-web-app-title" content="Elyna Health" />
         <meta name="theme-color" content="#000000" />
         <meta name="mobile-web-app-capable" content="yes" />
         <link rel="apple-touch-icon" href="/images/leaf.png" />

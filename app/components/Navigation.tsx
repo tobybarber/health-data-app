@@ -33,8 +33,8 @@ export default function Navigation({ isHomePage = false, isStandalone = false }:
   if (isHomePage) {
     return (
       <>
-        <header className="bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md w-full fixed left-0 right-0 z-20 px-4 py-4">
-          <div className="flex items-center">
+        <header className="bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed top-0 left-0 right-0 h-14">
+          <div className="flex items-center px-4">
             <StandaloneLink href="/about" className="flex items-center">
               <div className="mr-2 relative w-8 h-8">
                 <Image 
@@ -53,7 +53,7 @@ export default function Navigation({ isHomePage = false, isStandalone = false }:
           </div>
           <div className="flex items-center space-x-4">
             {currentUser && (
-              <StandaloneLink href="/profile" className="text-white flex items-center border border-gray-600 rounded-full py-1 px-3 hover:border-gray-400 transition-colors">
+              <StandaloneLink href="/profile" className="text-white flex items-center py-1 px-3 hover:bg-gray-800/50 rounded-full transition-colors">
                 <FaUserCircle size={22} />
                 {firstName && (
                   <span className="ml-2 text-white">
@@ -70,8 +70,8 @@ export default function Navigation({ isHomePage = false, isStandalone = false }:
 
   // Standard navigation layout for other pages
   return (
-    <nav className="bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 z-20 px-4 py-4">
-      <div className="flex items-center">
+    <nav className="bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed top-0 left-0 right-0 h-14">
+      <div className="flex items-center px-4">
         <StandaloneLink href="/about" className="flex items-center">
           <div className="mr-2 relative w-8 h-8">
             <Image 
@@ -92,7 +92,7 @@ export default function Navigation({ isHomePage = false, isStandalone = false }:
         {currentUser ? (
           <StandaloneLink 
             href="/profile" 
-            className="text-primary-blue flex items-center border border-gray-600 rounded-full py-1 px-3 hover:border-gray-400 transition-colors"
+            className="text-primary-blue flex items-center py-1 px-3 hover:bg-gray-800/50 rounded-full transition-colors"
             title="Profile"
           >
             <FaUserCircle size={22} />
