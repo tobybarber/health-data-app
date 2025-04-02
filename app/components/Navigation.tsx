@@ -33,7 +33,7 @@ export default function Navigation({ isHomePage = false, isStandalone = false }:
   if (isHomePage) {
     return (
       <>
-        <header className="bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md w-full fixed left-0 right-0 z-20 px-4 py-4 standalone-nav-top">
+        <header className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md w-full fixed left-0 right-0 z-20 px-4 py-4 ${isStandalone ? 'pt-safe' : ''}`}>
           <div className="flex items-center">
             <StandaloneLink href="/about" className="flex items-center">
               <div className="mr-2 relative w-8 h-8">
@@ -70,7 +70,7 @@ export default function Navigation({ isHomePage = false, isStandalone = false }:
 
   // Standard navigation layout for other pages
   return (
-    <nav className="bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 z-20 px-4 py-4 standalone-nav-top">
+    <nav className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 z-20 px-4 py-4 ${isStandalone ? 'pt-safe' : ''}`}>
       <div className="flex items-center">
         <StandaloneLink href="/about" className="flex items-center">
           <div className="mr-2 relative w-8 h-8">

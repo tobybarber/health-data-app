@@ -847,8 +847,8 @@ export default function WearablesPage() {
                   <div key={device.id} className="bg-secondary backdrop-blur-sm p-4 rounded-lg shadow-md flex flex-col gap-3 border border-gray-800/50">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-gray-900/50 rounded-full flex items-center justify-center">
-                          <span className="text-base font-medium text-gray-400">{device.name.charAt(0)}</span>
+                        <div className="w-9 h-9 bg-primary-blue/20 rounded-full flex items-center justify-center">
+                          <span className="text-base font-medium text-primary-blue">{device.name.charAt(0)}</span>
                         </div>
                         <div>
                           <h3 className="font-medium text-primary-blue leading-none mb-1">{device.name}</h3>

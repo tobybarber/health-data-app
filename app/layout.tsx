@@ -20,6 +20,10 @@ export const metadata: Metadata = {
   title: 'Elyna Health',
   description: 'Personal health assistant powered by AI',
   manifest: '/manifest.webmanifest',
+  icons: {
+    icon: '/images/leaf.png',
+    apple: '/images/leaf.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

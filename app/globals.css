@@ -164,7 +164,13 @@ select {
 }
 
 .pt-safe {
-  padding-top: 60px;
+  padding-top: env(safe-area-inset-top);
+}
+
+@supports not (padding: env(safe-area-inset-top)) {
+  .pt-safe {
+    padding-top: 3rem;
+  }
 }
 
 /* iOS scrolling utilities */
