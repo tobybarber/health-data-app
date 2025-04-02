@@ -24,7 +24,23 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
   const pathname = usePathname();
   const { currentUser, loading, authInitialized } = useAuth();
   const firstName = currentUser?.displayName?.split(' ')[0];
-  const { isStandalone } = useContext(StandaloneModeContext);
+  const [isDirectStandalone, setIsDirectStandalone] = useState(false);
+
+  useEffect(() => {
+    // Direct check for standalone mode
+    const checkStandalone = () => {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      
+      const inStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                          (isIOS && (window.navigator as any).standalone);
+      
+      console.log('Standalone check:', { isIOS, inStandalone });
+      setIsDirectStandalone(inStandalone);
+    };
+
+    checkStandalone();
+  }, []);
 
   const isActive = (path: string) => {
     return pathname === path ? 'bg-white/20' : '';
@@ -36,7 +52,7 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
       <>
         <header 
           className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 h-14 z-50`}
-          style={isStandalone ? { top: '48px' } : { top: '0' }}
+          style={isDirectStandalone ? { top: '48px' } : { top: '0' }}
         >
           <div className="flex items-center px-4">
             <StandaloneLink href="/about" className="flex items-center">
@@ -76,7 +92,7 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
   return (
     <nav 
       className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 h-14 z-50`}
-      style={isStandalone ? { top: '48px' } : { top: '0' }}
+      style={isDirectStandalone ? { top: '48px' } : { top: '0' }}
     >
       <div className="flex items-center px-4">
         <StandaloneLink href="/about" className="flex items-center">
