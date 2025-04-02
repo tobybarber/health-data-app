@@ -844,6 +844,12 @@ export default function Analysis() {
             {/* Bottom buttons */}
             <div className="mt-8 pt-4 border-t border-gray-800">
               <div className="flex justify-end items-center gap-4">
+                <Link
+                  href="/test-home"
+                  className="text-sm text-secondary hover:text-primary transition-colors"
+                >
+                  Try New Home
+                </Link>
                 <button
                   onClick={() => setShowSettingsModal(true)}
                   className="text-sm text-secondary hover:text-primary transition-colors"

@@ -3,16 +3,16 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../lib/AuthContext';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useContext } from 'react';
 import { FaUserCircle } from 'react-icons/fa';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import Image from 'next/image';
 import StandaloneLink from './StandaloneLink';
+import { StandaloneModeContext } from './ClientWrapper';
 
 interface NavigationProps {
   isHomePage?: boolean;
-  isStandalone?: boolean;
 }
 
 interface UserProfile {
@@ -20,10 +20,11 @@ interface UserProfile {
   // Other profile fields not needed for this component
 }
 
-export default function Navigation({ isHomePage = false, isStandalone = false }: NavigationProps) {
+export default function Navigation({ isHomePage = false }: NavigationProps) {
   const pathname = usePathname();
   const { currentUser, loading, authInitialized } = useAuth();
   const firstName = currentUser?.displayName?.split(' ')[0];
+  const { isStandalone } = useContext(StandaloneModeContext);
 
   const isActive = (path: string) => {
     return pathname === path ? 'bg-white/20' : '';
@@ -33,7 +34,7 @@ export default function Navigation({ isHomePage = false, isStandalone = false }:
   if (isHomePage) {
     return (
       <>
-        <header className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 ${isStandalone ? 'pt-[calc(env(safe-area-inset-top)+8px)]' : ''} top-0 h-14`}>
+        <header className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 ${isStandalone ? 'standalone-nav-top' : ''} top-0 h-14 z-50`}>
           <div className="flex items-center px-4">
             <StandaloneLink href="/about" className="flex items-center">
               <div className="mr-2 relative w-8 h-8">
@@ -70,7 +71,7 @@ export default function Navigation({ isHomePage = false, isStandalone = false }:
 
   // Standard navigation layout for other pages
   return (
-    <nav className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 ${isStandalone ? 'pt-[calc(env(safe-area-inset-top)+8px)]' : ''} top-0 h-14`}>
+    <nav className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 ${isStandalone ? 'standalone-nav-top' : ''} top-0 h-14 z-50`}>
       <div className="flex items-center px-4">
         <StandaloneLink href="/about" className="flex items-center">
           <div className="mr-2 relative w-8 h-8">
