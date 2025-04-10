@@ -22,7 +22,7 @@ export default function PageLayout({
   return (
     <div className={`min-h-screen ${!isHomePage ? 'bg-gray-950' : ''}`}>
       <Navigation isHomePage={isHomePage} />
-      <main className={`relative ${isStandalone ? 'pt-2' : 'pt-16'}`}>
+      <main className={`relative ${isStandalone ? 'pt-0' : 'pt-16'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-8">
             {title && (
