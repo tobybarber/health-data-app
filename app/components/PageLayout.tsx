@@ -1,7 +1,8 @@
-import { ReactNode, useContext } from 'react';
+import { ReactNode, useContext, useEffect } from 'react';
 import Navigation from './Navigation';
 import { usePathname } from 'next/navigation';
 import { StandaloneModeContext } from './ClientWrapper';
+import { useAuth } from '../lib/AuthContext';
 
 interface PageLayoutProps {
   children: ReactNode;
@@ -18,6 +19,15 @@ export default function PageLayout({
 }: PageLayoutProps) {
   const pathname = usePathname();
   const { isStandalone } = useContext(StandaloneModeContext);
+  const { currentUser } = useAuth();
+  
+  useEffect(() => {
+    if (currentUser) {
+      console.log('Current user UID:', currentUser.uid);
+    } else {
+      console.log('No user is currently signed in');
+    }
+  }, [currentUser]);
 
   return (
     <div className={`min-h-screen ${!isHomePage ? 'bg-gray-950' : ''}`}>
