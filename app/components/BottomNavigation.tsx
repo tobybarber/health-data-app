@@ -22,6 +22,11 @@ export default function BottomNavigation() {
     return pathname === path ? 'text-primary-blue' : 'text-gray-400';
   };
 
+  // Special case for home which could be either / or /test-home
+  const isHomeActive = () => {
+    return pathname === '/' || pathname === '/test-home' ? 'text-primary-blue' : 'text-gray-400';
+  };
+
   return (
     <nav 
       className={`fixed bottom-0 left-0 right-0 bg-gray-950/80 backdrop-blur-md z-50 ${
@@ -35,7 +40,7 @@ export default function BottomNavigation() {
       <div className="flex justify-around items-center h-full max-w-7xl mx-auto px-4">
         <Link 
           href="/" 
-          className={`flex flex-col items-center ${isActive('/') ? 'text-primary-blue' : 'text-gray-400'} hover:text-white transition-colors`}
+          className={`flex flex-col items-center ${isHomeActive()} hover:text-white transition-colors`}
         >
           <FaHome className="text-xl" />
           <span className="text-xs mt-1">Home</span>
