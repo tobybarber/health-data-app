@@ -22,15 +22,7 @@ export default function Navigation({}: NavigationProps) {
   const pathname = usePathname();
   const { currentUser, loading, authInitialized } = useAuth();
   const firstName = currentUser?.displayName?.split(' ')[0];
-  const [isDirectStandalone, setIsDirectStandalone] = useState(false);
-
-  useEffect(() => {
-    // Using exact same detection as BottomNavigation
-    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || 
-                            (window.navigator as any).standalone || 
-                            document.referrer.includes('android-app://');
-    setIsDirectStandalone(isStandaloneMode);
-  }, []);
+  const { isStandalone } = useContext(StandaloneModeContext);
 
   const isActive = (path: string) => {
     return pathname === path ? 'bg-white/20' : '';
@@ -39,7 +31,7 @@ export default function Navigation({}: NavigationProps) {
   return (
     <nav 
       className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 h-14 z-50`}
-      style={isDirectStandalone ? { top: '55px' } : { top: '0' }}
+      style={isStandalone ? { top: '55px' } : { top: '0' }}
     >
       <div className="flex items-center px-4">
         <StandaloneLink href="/about" className="flex items-center">
