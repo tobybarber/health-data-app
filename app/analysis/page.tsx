@@ -781,109 +781,107 @@ export default function Analysis() {
 
   return (
     <ProtectedRoute>
-      <ClientWrapper>
-        <PageLayout 
-          title="My Analysis"
-        >
-          <div className="analysis-content">
-            {/* Header with Refresh Button */}
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-medium text-primary-blue">Analysis Results</h2>
-              <div className="flex items-center gap-3">
-                <button
-                  className={`px-4 py-2 rounded text-white flex items-center space-x-1 ${
-                    isUpdating ? 'bg-tertiary' : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-                  onClick={handleUpdate}
-                  disabled={isUpdating}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>{isUpdating ? 'Updating...' : needsUpdate ? 'Update' : 'Refresh'}</span>
-                </button>
-              </div>
-            </div>
-            
-            {/* Analysis display */}
-            {isLoading ? (
-              <div className="flex justify-center items-center h-64">
-                <div className="animate-pulse text-secondary">Loading analysis...</div>
-              </div>
-            ) : (
-              <div className="bg-gray-950/40 rounded-lg p-4">
-                {updateError ? (
-                  <div className="bg-error text-error p-4 rounded">
-                    {updateError}
-                  </div>
-                ) : (
-                  <div className="prose text-primary max-w-none">
-                    <div className="mb-2">
-                      {lastUpdated && (
-                        <div className="text-xs text-secondary">
-                          Last updated: {lastUpdated} {recordCount > 0 && `• ${recordCount} record${recordCount === 1 ? '' : 's'}`}
-                        </div>
-                      )}
-                    </div>
-                    {formatAnalysisText(holisticAnalysis)}
-                    
-                    {/* Display info about analysis source */}
-                    {analysisSource && (
-                      <div className="mt-4 text-xs text-secondary">
-                        <p>Analysis generated using: {
-                          analysisSource.includes('structured') 
-                            ? `Structured health data${analysisSource.includes('wearables') ? ' with wearables integration' : ''}` 
-                            : 'Text summaries from health records'
-                        }</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Bottom buttons */}
-            <div className="mt-6 pt-2 border-t border-gray-800">
-              <div className="flex justify-end items-center gap-4">
-                <Link
-                  href="/test-home"
-                  className="text-sm text-secondary hover:text-primary transition-colors"
-                >
-                  Try New Home
-                </Link>
-                <button
-                  onClick={() => setShowSettingsModal(true)}
-                  className="text-sm text-secondary hover:text-primary transition-colors"
-                >
-                  Settings
-                </button>
-                <button
-                  onClick={handleBuildIndex}
-                  disabled={isBuildingIndex || indexStatus === 'building'}
-                  className="text-sm text-gray-400 hover:text-gray-300 transition-colors"
-                >
-                  Build Vector Index
-                </button>
-              </div>
+      <PageLayout 
+        title="My Analysis"
+      >
+        <div className="analysis-content">
+          {/* Header with Refresh Button */}
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-medium text-primary-blue">Analysis Results</h2>
+            <div className="flex items-center gap-3">
+              <button
+                className={`px-4 py-2 rounded text-white flex items-center space-x-1 ${
+                  isUpdating ? 'bg-tertiary' : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+                onClick={handleUpdate}
+                disabled={isUpdating}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>{isUpdating ? 'Updating...' : needsUpdate ? 'Update' : 'Refresh'}</span>
+              </button>
             </div>
           </div>
           
-          {/* Settings Modal */}
-          {showSettingsModal && (
-            <div className="fixed inset-0 bg-overlay flex items-center justify-center z-50 p-4">
-              <div className="bg-tertiary p-4 rounded-lg shadow-md max-w-xs w-full border border-primary">
-                <AnalysisSettings onChange={handleSettingsChange} />
-                <button
-                  onClick={() => setShowSettingsModal(false)}
-                  className="mt-3 w-full px-3 py-1.5 text-sm bg-blue-600 text-primary rounded hover:bg-blue-700"
-                >
-                  Close
-                </button>
-              </div>
+          {/* Analysis display */}
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-pulse text-secondary">Loading analysis...</div>
+            </div>
+          ) : (
+            <div className="bg-gray-950/40 rounded-lg p-4">
+              {updateError ? (
+                <div className="bg-error text-error p-4 rounded">
+                  {updateError}
+                </div>
+              ) : (
+                <div className="prose text-primary max-w-none">
+                  <div className="mb-2">
+                    {lastUpdated && (
+                      <div className="text-xs text-secondary">
+                        Last updated: {lastUpdated} {recordCount > 0 && `• ${recordCount} record${recordCount === 1 ? '' : 's'}`}
+                      </div>
+                    )}
+                  </div>
+                  {formatAnalysisText(holisticAnalysis)}
+                  
+                  {/* Display info about analysis source */}
+                  {analysisSource && (
+                    <div className="mt-4 text-xs text-secondary">
+                      <p>Analysis generated using: {
+                        analysisSource.includes('structured') 
+                          ? `Structured health data${analysisSource.includes('wearables') ? ' with wearables integration' : ''}` 
+                          : 'Text summaries from health records'
+                      }</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
-        </PageLayout>
-      </ClientWrapper>
+
+          {/* Bottom buttons */}
+          <div className="mt-6 pt-2 border-t border-gray-800">
+            <div className="flex justify-end items-center gap-4">
+              <Link
+                href="/test-home"
+                className="text-sm text-secondary hover:text-primary transition-colors"
+              >
+                Try New Home
+              </Link>
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="text-sm text-secondary hover:text-primary transition-colors"
+              >
+                Settings
+              </button>
+              <button
+                onClick={handleBuildIndex}
+                disabled={isBuildingIndex || indexStatus === 'building'}
+                className="text-sm text-gray-400 hover:text-gray-300 transition-colors"
+              >
+                Build Vector Index
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Settings Modal */}
+        {showSettingsModal && (
+          <div className="fixed inset-0 bg-overlay flex items-center justify-center z-50 p-4">
+            <div className="bg-tertiary p-4 rounded-lg shadow-md max-w-xs w-full border border-primary">
+              <AnalysisSettings onChange={handleSettingsChange} />
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="mt-3 w-full px-3 py-1.5 text-sm bg-blue-600 text-primary rounded hover:bg-blue-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </PageLayout>
     </ProtectedRoute>
   );
 } 
