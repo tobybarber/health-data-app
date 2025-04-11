@@ -127,7 +127,6 @@ export default function ProfilePage() {
     <ProtectedRoute>
       <PageLayout 
         title="My Profile"
-        isHomePage={true}
       >
         <div className="flex justify-between items-center mb-6">
           <button 

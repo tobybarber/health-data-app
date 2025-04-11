@@ -163,7 +163,6 @@ export default function ObservationPage() {
     <ProtectedRoute>
       <PageLayout 
         title={observation ? getFormattedTestName(observation) : 'Loading...'}
-        isHomePage={true}
       >
         <button 
           onClick={() => router.back()}
