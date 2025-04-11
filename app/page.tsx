@@ -104,7 +104,7 @@ export default function Home() {
 
         {/* Main Content */}
         <div className="relative z-10">
-          <PageLayout isHomePage={true}>
+          <PageLayout>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="py-4">
                 {!currentUser ? (

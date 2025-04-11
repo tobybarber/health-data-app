@@ -812,7 +812,6 @@ export default function WearablesPage() {
     <ProtectedRoute>
       <PageLayout 
         title="My Wearables"
-        isHomePage={true}
       >
         <div className="space-y-4">
           <p className="text-gray-300">

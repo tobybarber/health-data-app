@@ -784,7 +784,6 @@ export default function Analysis() {
       <ClientWrapper>
         <PageLayout 
           title="My Analysis"
-          isHomePage={true}
         >
           <div className="analysis-content">
             {/* Header with Refresh Button */}

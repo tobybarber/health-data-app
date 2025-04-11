@@ -11,16 +11,14 @@ import Image from 'next/image';
 import StandaloneLink from './StandaloneLink';
 import { StandaloneModeContext } from './ClientWrapper';
 
-interface NavigationProps {
-  isHomePage?: boolean;
-}
+interface NavigationProps {}
 
 interface UserProfile {
   name: string;
   // Other profile fields not needed for this component
 }
 
-export default function Navigation({ isHomePage = false }: NavigationProps) {
+export default function Navigation({}: NavigationProps) {
   const pathname = usePathname();
   const { currentUser, loading, authInitialized } = useAuth();
   const firstName = currentUser?.displayName?.split(' ')[0];
@@ -38,49 +36,6 @@ export default function Navigation({ isHomePage = false }: NavigationProps) {
     return pathname === path ? 'bg-white/20' : '';
   };
 
-  // Home page navigation layout
-  if (isHomePage) {
-    return (
-      <>
-        <header 
-          className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 h-14 z-50`}
-          style={isDirectStandalone ? { top: '55px' } : { top: '0' }}
-        >
-          <div className="flex items-center px-4">
-            <StandaloneLink href="/about" className="flex items-center">
-              <div className="mr-2 relative w-8 h-8">
-                <Image 
-                  src="/images/leaf.png" 
-                  alt="Elyna Health Logo"
-                  fill
-                  style={{ objectFit: 'contain' }}
-                  priority
-                />
-              </div>
-              <div className="flex items-baseline">
-                <span className="text-2xl font-light tracking-wider text-[#16B981]">ELYNA</span>
-                <span className="ml-2 text-2xl font-light tracking-wider text-[#16B981]">HEALTH</span>
-              </div>
-            </StandaloneLink>
-          </div>
-          <div className="flex items-center space-x-4">
-            {currentUser && (
-              <StandaloneLink href="/profile" className="text-white flex items-center py-1 px-3 hover:bg-gray-800/50 rounded-full transition-colors">
-                <FaUserCircle size={22} />
-                {firstName && (
-                  <span className="ml-2 text-white">
-                    {firstName}
-                  </span>
-                )}
-              </StandaloneLink>
-            )}
-          </div>
-        </header>
-      </>
-    );
-  }
-
-  // Standard navigation layout for other pages
   return (
     <nav 
       className={`bg-gray-950/80 backdrop-blur-sm flex justify-between items-center shadow-md fixed left-0 right-0 h-14 z-50`}

@@ -870,7 +870,6 @@ export default function Records() {
     <ProtectedRoute>
       <PageLayout 
         title="My Records"
-        isHomePage={true}
       >
         {/* Header with Upload, Search, and Filter */}
         <div className="flex justify-between items-center mb-6">

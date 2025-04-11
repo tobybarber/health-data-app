@@ -212,286 +212,288 @@ export default function TestHomePage() {
   };
 
   return (
-    <PageLayout isHomePage={true}>
-      <div className="relative z-0">
-        <div className="space-y-8">
-          {/* Health Records Section */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-white">Health Records</h2>
-              <Link href="/records" className="text-primary-blue hover:text-blue-400 transition-colors">
-                See All
-              </Link>
-            </div>
-            
-            <div className="relative">
-              <div 
-                {...healthRecordsScroll}
-                className="overflow-x-auto pb-4 -mx-4 px-4 hide-scrollbar select-none"
-              >
-                <div className="flex space-x-4">
-                  {isLoadingRecords ? (
-                    // Loading skeleton
-                    Array(3).fill(0).map((_, i) => (
-                      <div 
-                        key={i}
-                        className="flex-shrink-0 w-72 h-32 bg-gray-800/50 rounded-xl animate-pulse"
-                      />
-                    ))
-                  ) : records.length > 0 ? (
-                    // Record cards
-                    records.map((record) => {
-                      const { icon, color } = getRecordTypeStyles(record.recordType);
-                      return (
-                        <Link
-                          key={record.id}
-                          href={`/records/${record.id}`}
-                          className={`flex-shrink-0 w-72 bg-gradient-to-br ${color} backdrop-blur-sm rounded-xl p-4 border border-gray-800/50 hover:bg-gray-800/10 transition-all cursor-pointer`}
-                        >
-                          <div className="flex items-start space-x-3">
-                            <div className="p-2 rounded-full bg-gray-900/30">
-                              {icon}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-medium text-white truncate">
-                                {record.recordType || 'Document'}
-                              </h3>
-                              <p className="text-sm text-gray-300">
-                                {formatRecordDate(record.recordDate)}
-                              </p>
-                              {record.name && (
-                                <p className="mt-2 text-sm text-gray-300 line-clamp-2">
-                                  {record.name}
+    <PageLayout>
+      <div className="space-y-6 max-w-2xl mx-auto">
+        <div className="relative z-0">
+          <div className="space-y-8">
+            {/* Chats Section */}
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-white">Chats</h2>
+                <Link href="/?chat=true" className="text-primary-blue hover:text-blue-400 transition-colors">
+                  See All
+                </Link>
+              </div>
+              
+              <div className="relative">
+                <div 
+                  {...chatsScroll}
+                  className="overflow-x-auto pb-4 -mx-4 px-4 hide-scrollbar select-none"
+                >
+                  <div className="flex space-x-4">
+                    {sampleChats.map((chat) => (
+                      <Link
+                        key={chat.id}
+                        href={chat.id === 'new' ? '/?chat=true' : `/?chat=${chat.id}`}
+                        className={`flex-shrink-0 w-72 bg-gradient-to-br ${
+                          chat.id === 'new' 
+                            ? 'from-blue-500/20 to-blue-600/20 hover:from-blue-500/30 hover:to-blue-600/30' 
+                            : 'from-gray-800/50 to-gray-700/50 hover:from-gray-800/60 hover:to-gray-700/60'
+                        } backdrop-blur-sm rounded-xl p-4 border border-gray-800/50 transition-all cursor-pointer`}
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className={`p-2 rounded-full ${
+                            chat.id === 'new' ? 'bg-blue-500/30' : 'bg-gray-900/30'
+                          }`}>
+                            {chat.id === 'new' ? (
+                              <FaPlus className="w-5 h-5 text-blue-400" />
+                            ) : (
+                              <FaComments className="w-5 h-5 text-gray-400" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-white">
+                              {chat.title}
+                            </h3>
+                            <p className="text-sm text-gray-300 line-clamp-2 mt-1">
+                              {chat.preview}
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Fade effect for scroll indication */}
+                <div className="absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-gray-950 to-transparent pointer-events-none" />
+              </div>
+            </section>
+
+            {/* Health Metrics Section */}
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-white">Health Metrics</h2>
+                <button className="text-primary-blue hover:text-blue-400 transition-colors">
+                  See All
+                </button>
+              </div>
+              
+              <div className="relative">
+                <div 
+                  {...metricsScroll}
+                  className="overflow-x-auto pb-4 -mx-4 px-4 hide-scrollbar select-none"
+                >
+                  <div className="flex space-x-4">
+                    {sampleMetrics.map((metric) => (
+                      <div
+                        key={metric.id}
+                        className={`flex-shrink-0 w-64 bg-gradient-to-br ${metric.color} backdrop-blur-sm rounded-xl p-4 border border-gray-800/50 cursor-pointer hover:bg-gray-800/10 transition-colors`}
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className="p-2 rounded-full bg-gray-900/30">
+                            {metric.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-white">
+                              {metric.title}
+                            </h3>
+                            <div className="mt-1">
+                              <div className="flex items-baseline space-x-1">
+                                <span className="text-lg font-semibold text-white">
+                                  {metric.value}
+                                </span>
+                                {metric.unit && (
+                                  <span className="text-sm text-gray-300">
+                                    {metric.unit}
+                                  </span>
+                                )}
+                              </div>
+                              {metric.target && (
+                                <p className="text-sm text-gray-300 mt-0.5">
+                                  Target: {metric.target}
                                 </p>
                               )}
                             </div>
                           </div>
-                        </Link>
-                      );
-                    })
-                  ) : (
-                    // No records message
-                    <div className="flex-shrink-0 w-full bg-gray-900/50 backdrop-blur-sm rounded-xl p-6 border border-gray-800 text-center">
-                      <div className="flex flex-col items-center space-y-2">
-                        <FaFileAlt className="w-8 h-8 text-gray-400" />
-                        <p className="text-gray-400">No health records found</p>
-                        <Link href="/upload" className="text-primary-blue hover:text-blue-400 transition-colors mt-2">
-                          Upload Records
-                        </Link>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Fade effect for scroll indication */}
-              {records.length > 2 && (
-                <div className="absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-gray-950 to-transparent pointer-events-none" />
-              )}
-            </div>
-          </section>
-
-          {/* Devices Section */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-white">Devices</h2>
-              <Link href="/wearables" className="text-primary-blue hover:text-blue-400 transition-colors">
-                See All
-              </Link>
-            </div>
-            
-            <div className="relative">
-              <div 
-                {...devicesScroll}
-                className="overflow-x-auto pb-4 -mx-4 px-4 hide-scrollbar select-none"
-              >
-                <div className="flex space-x-4">
-                  {isLoadingDevices ? (
-                    // Loading skeleton
-                    Array(3).fill(0).map((_, i) => (
-                      <div 
-                        key={i}
-                        className="flex-shrink-0 w-64 h-32 bg-gray-800/50 rounded-xl animate-pulse"
-                      />
-                    ))
-                  ) : connectedDevices.length > 0 ? (
-                    // Device cards
-                    connectedDevices.map((device) => (
-                      <Link
-                        key={device.deviceId}
-                        href="/wearables"
-                        className="flex-shrink-0 w-64 bg-gray-900/50 backdrop-blur-sm rounded-xl p-4 border border-gray-800 hover:bg-gray-800/10 transition-all cursor-pointer"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className={`p-2 rounded-full ${getStatusColor(device)} bg-gray-800/50`}>
-                              <FaHeartbeat className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <h3 className="font-medium text-white">{device.name}</h3>
-                              <p className="text-sm text-gray-400">
-                                Last sync: {formatLastSync(device.lastSync)}
-                              </p>
-                            </div>
-                          </div>
-                          {device.lastSync && (
-                            <div 
-                              className="text-primary-blue"
-                              title="Sync device"
-                            >
-                              <FaSync className="w-4 h-4" />
-                            </div>
-                          )}
                         </div>
                         
-                        <div className="mt-4 flex items-center justify-between text-sm">
-                          <span className={`${getStatusColor(device)}`}>
-                            {device.connected ? 'Connected' : 'Not Connected'}
-                          </span>
-                          <span className="text-primary-blue">
-                            Details
+                        <div className="mt-2 flex justify-end text-sm">
+                          <span className={metric.color}>
+                            {metric.trend}
                           </span>
                         </div>
-                      </Link>
-                    ))
-                  ) : (
-                    // No devices message
-                    <div className="flex-shrink-0 w-full bg-gray-900/50 backdrop-blur-sm rounded-xl p-6 border border-gray-800 text-center">
-                      <div className="flex flex-col items-center space-y-2">
-                        <FaExclamationCircle className="w-8 h-8 text-gray-400" />
-                        <p className="text-gray-400">No devices connected</p>
-                        <Link href="/wearables" className="text-primary-blue hover:text-blue-400 transition-colors mt-2">
-                          Connect a Device
-                        </Link>
                       </div>
-                    </div>
-                  )}
+                    ))}
+                  </div>
                 </div>
-              </div>
-              
-              {/* Fade effect for scroll indication */}
-              {connectedDevices.length > 2 && (
+                
+                {/* Fade effect for scroll indication */}
                 <div className="absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-gray-950 to-transparent pointer-events-none" />
-              )}
-            </div>
-          </section>
-
-          {/* Chats Section */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-white">Chats</h2>
-              <Link href="/?chat=true" className="text-primary-blue hover:text-blue-400 transition-colors">
-                See All
-              </Link>
-            </div>
+              </div>
+            </section>
             
-            <div className="relative">
-              <div 
-                {...chatsScroll}
-                className="overflow-x-auto pb-4 -mx-4 px-4 hide-scrollbar select-none"
-              >
-                <div className="flex space-x-4">
-                  {sampleChats.map((chat) => (
-                    <Link
-                      key={chat.id}
-                      href={chat.id === 'new' ? '/?chat=true' : `/?chat=${chat.id}`}
-                      className={`flex-shrink-0 w-72 bg-gradient-to-br ${
-                        chat.id === 'new' 
-                          ? 'from-blue-500/20 to-blue-600/20 hover:from-blue-500/30 hover:to-blue-600/30' 
-                          : 'from-gray-800/50 to-gray-700/50 hover:from-gray-800/60 hover:to-gray-700/60'
-                      } backdrop-blur-sm rounded-xl p-4 border border-gray-800/50 transition-all cursor-pointer`}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div className={`p-2 rounded-full ${
-                          chat.id === 'new' ? 'bg-blue-500/30' : 'bg-gray-900/30'
-                        }`}>
-                          {chat.id === 'new' ? (
-                            <FaPlus className="w-5 h-5 text-blue-400" />
-                          ) : (
-                            <FaComments className="w-5 h-5 text-gray-400" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-white">
-                            {chat.title}
-                          </h3>
-                          <p className="text-sm text-gray-300 line-clamp-2 mt-1">
-                            {chat.preview}
-                          </p>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
+            {/* Health Records Section */}
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-white">Health Records</h2>
+                <Link href="/records" className="text-primary-blue hover:text-blue-400 transition-colors">
+                  See All
+                </Link>
               </div>
               
-              {/* Fade effect for scroll indication */}
-              <div className="absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-gray-950 to-transparent pointer-events-none" />
-            </div>
-          </section>
-
-          {/* Health Metrics Section */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-white">Health Metrics</h2>
-              <button className="text-primary-blue hover:text-blue-400 transition-colors">
-                See All
-              </button>
-            </div>
-            
-            <div className="relative">
-              <div 
-                {...metricsScroll}
-                className="overflow-x-auto pb-4 -mx-4 px-4 hide-scrollbar select-none"
-              >
-                <div className="flex space-x-4">
-                  {sampleMetrics.map((metric) => (
-                    <div
-                      key={metric.id}
-                      className={`flex-shrink-0 w-64 bg-gradient-to-br ${metric.color} backdrop-blur-sm rounded-xl p-4 border border-gray-800/50 cursor-pointer hover:bg-gray-800/10 transition-colors`}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div className="p-2 rounded-full bg-gray-900/30">
-                          {metric.icon}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-white">
-                            {metric.title}
-                          </h3>
-                          <div className="mt-1">
-                            <div className="flex items-baseline space-x-1">
-                              <span className="text-lg font-semibold text-white">
-                                {metric.value}
-                              </span>
-                              {metric.unit && (
-                                <span className="text-sm text-gray-300">
-                                  {metric.unit}
-                                </span>
-                              )}
+              <div className="relative">
+                <div 
+                  {...healthRecordsScroll}
+                  className="overflow-x-auto pb-4 -mx-4 px-4 hide-scrollbar select-none"
+                >
+                  <div className="flex space-x-4">
+                    {isLoadingRecords ? (
+                      // Loading skeleton
+                      Array(3).fill(0).map((_, i) => (
+                        <div 
+                          key={i}
+                          className="flex-shrink-0 w-72 h-32 bg-gray-800/50 rounded-xl animate-pulse"
+                        />
+                      ))
+                    ) : records.length > 0 ? (
+                      // Record cards
+                      records.map((record) => {
+                        const { icon, color } = getRecordTypeStyles(record.recordType);
+                        return (
+                          <Link
+                            key={record.id}
+                            href={`/records/${record.id}`}
+                            className={`flex-shrink-0 w-72 bg-gradient-to-br ${color} backdrop-blur-sm rounded-xl p-4 border border-gray-800/50 hover:bg-gray-800/10 transition-all cursor-pointer`}
+                          >
+                            <div className="flex items-start space-x-3">
+                              <div className="p-2 rounded-full bg-gray-900/30">
+                                {icon}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-medium text-white truncate">
+                                  {record.recordType || 'Document'}
+                                </h3>
+                                <p className="text-sm text-gray-300">
+                                  {formatRecordDate(record.recordDate)}
+                                </p>
+                                {record.name && (
+                                  <p className="mt-2 text-sm text-gray-300 line-clamp-2">
+                                    {record.name}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                            {metric.target && (
-                              <p className="text-sm text-gray-300 mt-0.5">
-                                Target: {metric.target}
-                              </p>
+                          </Link>
+                        );
+                      })
+                    ) : (
+                      // No records message
+                      <div className="flex-shrink-0 w-full bg-gray-900/50 backdrop-blur-sm rounded-xl p-6 border border-gray-800 text-center">
+                        <div className="flex flex-col items-center space-y-2">
+                          <FaFileAlt className="w-8 h-8 text-gray-400" />
+                          <p className="text-gray-400">No health records found</p>
+                          <Link href="/upload" className="text-primary-blue hover:text-blue-400 transition-colors mt-2">
+                            Upload Records
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Fade effect for scroll indication */}
+                {records.length > 2 && (
+                  <div className="absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-gray-950 to-transparent pointer-events-none" />
+                )}
+              </div>
+            </section>
+
+            {/* Devices Section */}
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-white">Devices</h2>
+                <Link href="/wearables" className="text-primary-blue hover:text-blue-400 transition-colors">
+                  See All
+                </Link>
+              </div>
+              
+              <div className="relative">
+                <div 
+                  {...devicesScroll}
+                  className="overflow-x-auto pb-4 -mx-4 px-4 hide-scrollbar select-none"
+                >
+                  <div className="flex space-x-4">
+                    {isLoadingDevices ? (
+                      // Loading skeleton
+                      Array(3).fill(0).map((_, i) => (
+                        <div 
+                          key={i}
+                          className="flex-shrink-0 w-64 h-32 bg-gray-800/50 rounded-xl animate-pulse"
+                        />
+                      ))
+                    ) : connectedDevices.length > 0 ? (
+                      // Device cards
+                      connectedDevices.map((device) => (
+                        <Link
+                          key={device.deviceId}
+                          href="/wearables"
+                          className="flex-shrink-0 w-64 bg-gray-900/50 backdrop-blur-sm rounded-xl p-4 border border-gray-800 hover:bg-gray-800/10 transition-all cursor-pointer"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className={`p-2 rounded-full ${getStatusColor(device)} bg-gray-800/50`}>
+                                <FaHeartbeat className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <h3 className="font-medium text-white">{device.name}</h3>
+                                <p className="text-sm text-gray-400">
+                                  Last sync: {formatLastSync(device.lastSync)}
+                                </p>
+                              </div>
+                            </div>
+                            {device.lastSync && (
+                              <div 
+                                className="text-primary-blue"
+                                title="Sync device"
+                              >
+                                <FaSync className="w-4 h-4" />
+                              </div>
                             )}
                           </div>
+                          
+                          <div className="mt-4 flex items-center justify-between text-sm">
+                            <span className={`${getStatusColor(device)}`}>
+                              {device.connected ? 'Connected' : 'Not Connected'}
+                            </span>
+                            <span className="text-primary-blue">
+                              Details
+                            </span>
+                          </div>
+                        </Link>
+                      ))
+                    ) : (
+                      // No devices message
+                      <div className="flex-shrink-0 w-full bg-gray-900/50 backdrop-blur-sm rounded-xl p-6 border border-gray-800 text-center">
+                        <div className="flex flex-col items-center space-y-2">
+                          <FaExclamationCircle className="w-8 h-8 text-gray-400" />
+                          <p className="text-gray-400">No devices connected</p>
+                          <Link href="/wearables" className="text-primary-blue hover:text-blue-400 transition-colors mt-2">
+                            Connect a Device
+                          </Link>
                         </div>
                       </div>
-                      
-                      <div className="mt-2 flex justify-end text-sm">
-                        <span className={metric.color}>
-                          {metric.trend}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    )}
+                  </div>
                 </div>
+                
+                {/* Fade effect for scroll indication */}
+                {connectedDevices.length > 2 && (
+                  <div className="absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-gray-950 to-transparent pointer-events-none" />
+                )}
               </div>
-              
-              {/* Fade effect for scroll indication */}
-              <div className="absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-gray-950 to-transparent pointer-events-none" />
-            </div>
-          </section>
+            </section>
+          </div>
         </div>
       </div>
     </PageLayout>

@@ -9,20 +9,14 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/images/apple-touch-icon.png",
-      "sizes": "180x180",
+      "src": "/images/black leaf.png",
+      "sizes": "192x192",
       "type": "image/png",
-      "purpose": "apple-touch-icon"
+      "purpose": "any"
     },
     {
       "src": "/images/leaf.png",
-      "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/images/leaf.png",
-      "sizes": "256x256",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     }
