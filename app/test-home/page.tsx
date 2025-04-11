@@ -380,7 +380,7 @@ export default function TestHomePage() {
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-white">Chats</h2>
-              <Link href="/page" className="text-primary-blue hover:text-blue-400 transition-colors">
+              <Link href="/?chat=true" className="text-primary-blue hover:text-blue-400 transition-colors">
                 See All
               </Link>
             </div>
@@ -394,7 +394,7 @@ export default function TestHomePage() {
                   {sampleChats.map((chat) => (
                     <Link
                       key={chat.id}
-                      href="/page"
+                      href={chat.id === 'new' ? '/?chat=true' : `/?chat=${chat.id}`}
                       className={`flex-shrink-0 w-72 bg-gradient-to-br ${
                         chat.id === 'new' 
                           ? 'from-blue-500/20 to-blue-600/20 hover:from-blue-500/30 hover:to-blue-600/30' 

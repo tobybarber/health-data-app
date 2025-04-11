@@ -5,8 +5,8 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
   
-  // Only redirect if the path is exactly the root
-  if (url.pathname === '/') {
+  // Only redirect if the path is exactly the root and not coming from a chat link
+  if (url.pathname === '/' && !url.searchParams.get('chat')) {
     url.pathname = '/test-home';
     return NextResponse.redirect(url);
   }
