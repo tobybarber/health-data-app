@@ -186,7 +186,7 @@ export default function Analysis() {
       if (!currentUser) return;
 
       try {
-        const profileDoc = await getDoc(doc(db, 'profile', 'user'));
+        const profileDoc = await getDoc(doc(db, 'profile', currentUser.uid));
         if (profileDoc.exists()) {
           const profileData = profileDoc.data();
           setProfileInfo(`Name: ${profileData.name || 'Not specified'}, Age: ${profileData.age || 'Not specified'}`);
