@@ -160,6 +160,27 @@ select {
   }
 }
 
+/* Chat container specific iOS handling */
+.chat-container-ios {
+  height: 100%;
+  min-height: -webkit-fill-available;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-container-ios .chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.chat-container-ios .chat-input {
+  position: relative;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 /* Additional iOS scrolling fix for smooth momentum scrolling */
 @supports (-webkit-touch-callout: none) {
   /* iOS specific styles */

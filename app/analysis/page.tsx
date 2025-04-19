@@ -84,6 +84,7 @@ export default function Analysis() {
       if (!currentUser) return;
       
       try {
+        console.log('Fetching analysis for user:', currentUser.uid);
         // Set loading state
         setDataLoaded(false);
         setIsLoading(true);
@@ -91,6 +92,7 @@ export default function Analysis() {
         // Check localStorage first for cached analysis data
         const cachedData = localStorage.getItem(`analysis_${currentUser.uid}`);
         if (cachedData) {
+          console.log('Using cached analysis data');
           const parsedData = JSON.parse(cachedData);
           setHolisticAnalysis(parsedData.text || 'No analysis available yet.');
           setAnalysisSource(parsedData.generatedBy || '');
@@ -105,12 +107,15 @@ export default function Analysis() {
         }
         
         // Fetch holistic analysis from Firestore
+        console.log('Fetching holistic analysis from Firestore');
         const analysisDoc = await getDoc(doc(db, `users/${currentUser.uid}/analysis`, 'holistic'));
         if (analysisDoc.exists()) {
+          console.log('Holistic analysis document found');
           const analysisData = analysisDoc.data();
           
           // Only update state if there's actual text content
           if (analysisData.text) {
+            console.log('Updating analysis state with Firestore data');
             setHolisticAnalysis(analysisData.text);
             
             // Set the analysis source if available
@@ -148,6 +153,7 @@ export default function Analysis() {
             }
             
             // Cache the analysis data in localStorage
+            console.log('Caching analysis data in localStorage');
             localStorage.setItem(`analysis_${currentUser.uid}`, JSON.stringify({
               text: analysisData.text,
               generatedBy: analysisData.generatedBy || '',
@@ -159,6 +165,7 @@ export default function Analysis() {
             }));
           }
         } else if (!cachedData) {
+          console.log('No analysis document found and no cached data');
           // Only set default message if we don't have cached data
           setHolisticAnalysis('No analysis available yet. Please upload some medical records first.');
           setNeedsUpdate(false);

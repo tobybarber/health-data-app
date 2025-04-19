@@ -16,7 +16,19 @@ const saveSessionMessages = (userId: string, messages: Message[]): void => {
   if (typeof window === 'undefined') return;
   
   if (messages.length > 0) {
-    sessionStorage.setItem(`chat_messages_${userId}`, JSON.stringify(messages));
+    try {
+      // Create a copy of messages without audioData to save storage space
+      const messagesForStorage = messages.map(msg => ({
+        ...msg,
+        audioData: undefined // Remove audio data before storing
+      }));
+      
+      sessionStorage.setItem(`chat_messages_${userId}`, JSON.stringify(messagesForStorage));
+    } catch (error) {
+      console.error('Error saving chat messages to session storage:', error);
+      // If storage fails, try clearing sessionStorage
+      sessionStorage.removeItem(`chat_messages_${userId}`);
+    }
   } else {
     sessionStorage.removeItem(`chat_messages_${userId}`);
   }
@@ -101,6 +113,7 @@ export default function ChatContainer() {
   // Handle sending messages
   const handleSendMessage = async (text: string, wasVoice: boolean) => {
     setIsLoading(true);
+    const uiStartTime = performance.now();
     
     try {
       const userId = currentUser?.uid || 'guest-user';
@@ -109,6 +122,9 @@ export default function ChatContainer() {
       // User message should already be added by InputSection
       // Just get the AI response
       const response = await sendMessage(text, messages, userId, wasVoice);
+      
+      const apiCompletionTime = performance.now() - uiStartTime;
+      console.log(`API communication completed in ${Math.round(apiCompletionTime)}ms`);
       
       // Find the user message and add AI response
       setMessages(prevMessages => {
@@ -131,6 +147,9 @@ export default function ChatContainer() {
         
         return updatedMessages;
       });
+      
+      const totalTime = performance.now() - uiStartTime;
+      console.log(`Total conversation flow completed in ${Math.round(totalTime)}ms`);
       
     } catch (error) {
       console.error('Error getting AI response:', error);
@@ -155,24 +174,26 @@ export default function ChatContainer() {
   };
 
   return (
-    <div className="flex flex-col h-full" ref={chatRef}>
-      <div className="flex-1 overflow-y-auto ios-scrollable pb-28">
+    <div className="flex flex-col h-full chat-container-ios" ref={chatRef}>
+      <div className="flex-1 overflow-y-auto ios-scrollable pb-28 chat-messages">
         <MessageList 
           messages={messages} 
           messagesEndRef={messagesEndRef}
           isAiResponding={isLoading}
         />
       </div>
-      <InputSection
-        messages={messages}
-        setMessages={setMessages}
-        isAiResponding={isLoading}
-        setIsAiResponding={setIsLoading}
-        lastInputWasVoice={lastInputWasVoice}
-        setLastInputWasVoice={setLastInputWasVoice}
-        onNewChat={handleNewChat}
-        onSendMessage={handleSendMessage}
-      />
+      <div className="chat-input">
+        <InputSection
+          messages={messages}
+          setMessages={setMessages}
+          isAiResponding={isLoading}
+          setIsAiResponding={setIsLoading}
+          lastInputWasVoice={lastInputWasVoice}
+          setLastInputWasVoice={setLastInputWasVoice}
+          onNewChat={handleNewChat}
+          onSendMessage={handleSendMessage}
+        />
+      </div>
     </div>
   );
 } 

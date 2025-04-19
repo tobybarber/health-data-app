@@ -166,15 +166,22 @@ export async function POST(request: NextRequest) {
         fileBatches.push(files.slice(i, i + batchSize));
       }
       
+      console.log('Starting file upload process...');
+      console.log(`User ID: ${userId}`);
+      console.log(`Number of files to upload: ${files.length}`);
+      
       // Process each batch sequentially
       for (const batch of fileBatches) {
+        console.log(`Processing batch of size: ${batch.length}`);
         // Process files within a batch concurrently
         const batchResults = await Promise.all(
           batch.map(async (file, batchIndex) => {
             try {
+              console.log(`Uploading file: ${file.name}`);
               const safeRecordName = recordName.replace(/[^a-zA-Z0-9.-]/g, '_');
               const index = fileUrls.length; // Use current file count for indexing
               const filePath = `users/${userId}/records/${safeRecordName}_${timestamp}_${index}_${file.name}`;
+              console.log(`File path: ${filePath}`);
               
               // Convert file to buffer
               const arrayBuffer = await file.arrayBuffer();
@@ -190,9 +197,11 @@ export async function POST(request: NextRequest) {
                   }
                 }
               });
+              console.log(`File uploaded successfully: ${file.name}`);
               
               // Get the download URL
               const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${storage.bucket().name}/o/${encodeURIComponent(filePath)}?alt=media&token=${timestamp}`;
+              console.log(`Download URL: ${downloadUrl}`);
               
               return { url: downloadUrl, type: file.type, success: true };
             } catch (error) {
@@ -246,7 +255,15 @@ export async function POST(request: NextRequest) {
       recordData.url = fileUrls[0];
     }
     
+    console.log(`Creating new record in Firestore: ${JSON.stringify({
+      name: recordData.name,
+      recordType: recordData.recordType,
+      analysisInProgress: recordData.analysisInProgress,
+      fileCount: recordData.fileCount
+    })}`);
+    
     const docRef = await db.collection('users').doc(userId).collection('records').add(recordData);
+    console.log(`✅ Record created with ID: ${docRef.id}`);
     
     // Update the analysis document to indicate that an update is needed
     const analysisRef = db.collection('users').doc(userId).collection('analysis').doc('holistic');
@@ -254,6 +271,7 @@ export async function POST(request: NextRequest) {
       needsUpdate: true,
       lastRecordAdded: new Date()
     }, { merge: true });
+    console.log(`✅ Analysis document updated to indicate update needed`);
     
     // Update index status to indicate it needs rebuilding, but don't rebuild automatically
     console.log(`Setting needsRebuild flag for vector index after record upload`);
@@ -278,7 +296,9 @@ export async function POST(request: NextRequest) {
     // If we have text content, analyze it to determine document type and extract data
     if (documentText) {
       try {
+        console.log(`Starting document analysis for ${recordName || 'Medical Record'}`);
         const analysis = await analyzeDocumentText(documentText, recordName, fileUrls[0]);
+        console.log(`✅ Document analysis complete. Record type: ${analysis.recordType}`);
         
         // Create document metadata for FHIR resource creation
         const documentData = {
@@ -291,6 +311,15 @@ export async function POST(request: NextRequest) {
           createdAt: new Date().toISOString(),
           provider: analysis.extractedData?.provider || ''
         };
+        
+        // Once analysis is complete, update the record to indicate analysis is no longer in progress
+        await db.collection('users').doc(userId).collection('records').doc(docRef.id).update({
+          analysisInProgress: false,
+          briefSummary: analysis.summary || '',
+          detailedAnalysis: analysis.summary || '', // Use summary as detailed analysis if not available
+          recordType: analysis.recordType || recordData.recordType
+        });
+        console.log(`✅ Record updated with analysis results`);
         
         // Try to extract a date from the analysis
         if (analysis.extractedData && analysis.extractedData.date) {

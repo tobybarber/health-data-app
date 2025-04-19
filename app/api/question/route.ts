@@ -24,11 +24,39 @@ type ConversationMessage = {
   content: string;
 };
 
+// Add performance tracking interface
+interface ChatPerformance {
+  total: number;
+  parseRequest: number;
+  apiKeyValidation: number;
+  historyFetch: number;
+  profileFetch: number;
+  recordsFetch: number;
+  openAICall: number;
+  audioGeneration: number;
+  firestoreSave: number;
+}
+
 export async function POST(request: NextRequest) {
   console.log('API question route called');
   
+  // Track performance metrics
+  const startTime = Date.now();
+  const chatPerformance: ChatPerformance = {
+    total: 0,
+    parseRequest: 0,
+    apiKeyValidation: 0,
+    historyFetch: 0,
+    profileFetch: 0,
+    recordsFetch: 0,
+    openAICall: 0,
+    audioGeneration: 0,
+    firestoreSave: 0
+  };
+  
   try {
     console.log('Parsing request body');
+    const parseStartTime = Date.now();
     const body = await request.json();
     const { 
       question, 
@@ -38,6 +66,7 @@ export async function POST(request: NextRequest) {
       voicePreference = 'alloy' as const,
       isGuest = false
     } = body as QuestionRequest;
+    chatPerformance.parseRequest = Date.now() - parseStartTime;
     
     console.log('Request received:', {
       question: question?.substring(0, 15) + '...',
@@ -50,23 +79,29 @@ export async function POST(request: NextRequest) {
     
     // Validate OpenAI API key
     console.log('Validating OpenAI API key');
+    const apiKeyStartTime = Date.now();
     
     try {
       await openai.models.list();
       console.log('OpenAI API key validation successful');
     } catch (validationError) {
       console.error('OpenAI API key validation failed:', validationError);
+      chatPerformance.apiKeyValidation = Date.now() - apiKeyStartTime;
+      chatPerformance.total = Date.now() - startTime;
       return NextResponse.json({ 
         success: false, 
-        error: 'Invalid OpenAI API key. Please check your API key and try again.' 
+        error: 'Invalid OpenAI API key. Please check your API key and try again.',
+        performance: process.env.NODE_ENV === 'development' ? chatPerformance : undefined
       }, { status: 401 });
     }
+    chatPerformance.apiKeyValidation = Date.now() - apiKeyStartTime;
 
     // If we have a previousResponseId, fetch the conversation history
     let conversationHistory: ConversationMessage[] = [];
     let cachedUserInfo = '';
     let cachedRecordsData = '';
     
+    const historyStartTime = Date.now();
     if (previousResponseId && previousResponseId !== 'Not provided') {
       try {
         const conversationDoc = await db.collection('users').doc(userId).collection('conversations').doc(previousResponseId).get();
@@ -86,10 +121,12 @@ export async function POST(request: NextRequest) {
         console.error('Error fetching conversation history:', historyError);
       }
     }
+    chatPerformance.historyFetch = Date.now() - historyStartTime;
     
     // If guest mode is enabled, proceed with a basic chat
     if (isGuest) {
       console.log('Using guest mode');
+      const guestOpenAIStartTime = Date.now();
       try {
         const response = await openai.chat.completions.create({
           model: 'gpt-4-turbo-preview',
@@ -103,21 +140,27 @@ export async function POST(request: NextRequest) {
           ],
           temperature: 0.7,
         });
+        chatPerformance.openAICall = Date.now() - guestOpenAIStartTime;
         
         const answer = response.choices[0]?.message?.content || 'I apologize, but I was unable to generate a response.';
         
+        chatPerformance.total = Date.now() - startTime;
         return NextResponse.json({
           success: true,
           answer,
           audioUrl: null,
-          id: uuidv4()
+          id: uuidv4(),
+          performance: process.env.NODE_ENV === 'development' ? chatPerformance : undefined
         });
       } catch (openaiError) {
         console.error('Error communicating with OpenAI:', openaiError);
+        chatPerformance.openAICall = Date.now() - guestOpenAIStartTime;
+        chatPerformance.total = Date.now() - startTime;
         return NextResponse.json(
           { 
             success: false, 
-            error: `Error communicating with OpenAI: ${(openaiError as Error).message}` 
+            error: `Error communicating with OpenAI: ${(openaiError as Error).message}`,
+            performance: process.env.NODE_ENV === 'development' ? chatPerformance : undefined
           },
           { status: 500 }
         );
@@ -133,6 +176,7 @@ export async function POST(request: NextRequest) {
     
     if (!userInfo || !recordsData) {
       console.log('Fetching fresh user data and health records');
+      const dataFetchStartTime = Date.now();
       try {
         const [userDoc, recordsSnapshot] = await Promise.all([
           !userInfo ? db.collection('users').doc(userId).get() : Promise.resolve(null),
@@ -191,9 +235,11 @@ export async function POST(request: NextRequest) {
             }
           }
           console.log('User data retrieved successfully');
+          chatPerformance.profileFetch = Date.now() - dataFetchStartTime;
         }
 
         // Process records if needed
+        const recordsFetchStartTime = !recordsData && recordsSnapshot ? Date.now() : 0;
         if (!recordsData && recordsSnapshot) {
           const records = recordsSnapshot.docs.map(doc => doc.data());
           console.log(`Records query returned: ${records.length} RECORDS FOUND`);
@@ -210,6 +256,7 @@ Comment: ${record.comment || 'No comment'}\n\n`;
           }).join('');
           
           console.log(`Processed ${records.length} health records`);
+          chatPerformance.recordsFetch = Date.now() - recordsFetchStartTime;
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -235,6 +282,7 @@ Guidelines:
     
     try {
       console.log('Making OpenAI API request');
+      const openAIStartTime = Date.now();
       const response = await openai.chat.completions.create({
         model: 'gpt-4-turbo-preview',
         messages: [
@@ -247,6 +295,7 @@ Guidelines:
         presence_penalty: 0, // Reduce repetition
         frequency_penalty: 0 // Reduce repetition
       });
+      chatPerformance.openAICall = Date.now() - openAIStartTime;
       
       console.log('OpenAI API response received successfully');
       const answer = response.choices[0]?.message?.content || 'I apologize, but I was unable to generate a response.';
@@ -259,6 +308,7 @@ Guidelines:
       if (generateAudio) {
         try {
           console.log('Generating audio for response');
+          const audioStartTime = Date.now();
           const audioResponse = await openai.audio.speech.create({
             model: 'tts-1',
             voice: voicePreference,
@@ -272,6 +322,7 @@ Guidelines:
           // Create data URL
           audioUrl = `data:audio/mp3;base64,${base64Audio}`;
           console.log('Audio generation successful');
+          chatPerformance.audioGeneration = Date.now() - audioStartTime;
         } catch (audioError) {
           console.error('Error generating audio:', audioError);
           // Continue without audio if there's an error
@@ -279,6 +330,7 @@ Guidelines:
       }
       
       // Save the conversation to Firestore with cached data
+      const firestoreStartTime = Date.now();
       try {
         await db.collection('users').doc(userId).collection('conversations').doc(responseId).set({
           question,
@@ -289,34 +341,42 @@ Guidelines:
           userInfo, // Cache the user info
           recordsData // Cache the records data
         });
+        chatPerformance.firestoreSave = Date.now() - firestoreStartTime;
       } catch (saveError) {
         console.error('Error saving conversation:', saveError);
+        chatPerformance.firestoreSave = Date.now() - firestoreStartTime;
         // Continue even if saving fails
       }
       
+      chatPerformance.total = Date.now() - startTime;
       return NextResponse.json({
         success: true,
         answer,
         audioUrl,
-        id: responseId
+        id: responseId,
+        performance: process.env.NODE_ENV === 'development' ? chatPerformance : undefined
       });
       
     } catch (openaiError) {
       console.error('Error communicating with OpenAI:', openaiError);
+      chatPerformance.total = Date.now() - startTime;
       return NextResponse.json(
         { 
           success: false, 
-          error: `Error communicating with OpenAI: ${(openaiError as Error).message}` 
+          error: `Error communicating with OpenAI: ${(openaiError as Error).message}`,
+          performance: process.env.NODE_ENV === 'development' ? chatPerformance : undefined
         },
         { status: 500 }
       );
     }
   } catch (error) {
     console.error('API error:', error);
+    const chatPerformance = { total: Date.now() - startTime };
     return NextResponse.json(
       { 
         success: false, 
-        error: `API error: ${(error as Error).message}` 
+        error: `API error: ${(error as Error).message}`,
+        performance: process.env.NODE_ENV === 'development' ? chatPerformance : undefined
       },
       { status: 500 }
     );

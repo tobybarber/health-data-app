@@ -107,8 +107,18 @@ export default function Upload() {
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const fileArray = Array.from(e.target.files);
-      setFiles(fileArray.map(file => ({ ...file, isFhir: file.name.toLowerCase().endsWith('.json') }) as FileWithPreview));
+      // Don't destructure the File object
+      const filesWithMeta = fileArray.map(file => {
+        // Add properties to the file object without breaking its prototype
+        Object.defineProperty(file, 'isFhir', {
+          value: file.name.toLowerCase().endsWith('.json'),
+          writable: true,
+          enumerable: true
+        });
+        return file as FileWithPreview;
+      });
       
+      setFiles(filesWithMeta);
       setError(null);
       setUploadStatus('idle');
     }
@@ -512,6 +522,27 @@ export default function Upload() {
               My Health Record Integration coming soon
             </p>
           </div>
+
+          {files.length > 0 && (
+            <div className="mt-2">
+              <div className="text-blue-400 text-sm">
+                {files.map((file, index) => (
+                  <div key={`${file.name || 'unknown'}-${index}`} className="flex items-center justify-between my-1">
+                    <span>{file.name || 'Unknown file'}</span>
+                    <button
+                      onClick={() => {
+                        setFiles(prev => prev.filter((_, i) => i !== index));
+                      }}
+                      className="text-red-500 hover:text-red-600 transition-colors ml-2 text-xs"
+                      aria-label="Remove file"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             <div>

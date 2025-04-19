@@ -106,6 +106,9 @@ export async function PUT(
       updatedAt: new Date()
     });
     
+    console.log(`✅ Record ${recordId} updated for user ${userId}`);
+    console.log(`Updated fields: ${Object.keys(updateData).join(', ')}`);
+    
     return NextResponse.json({ 
       success: true,
       recordId

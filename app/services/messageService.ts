@@ -56,7 +56,19 @@ export const saveMessages = (userId: string, messages: Message[]): void => {
   if (typeof window === 'undefined') return;
   
   if (messages.length > 0) {
-    localStorage.setItem(`chat_messages_${userId}`, JSON.stringify(messages));
+    try {
+      // Create a copy of messages without audioData to save storage space
+      const messagesForStorage = messages.map(msg => ({
+        ...msg,
+        audioData: undefined // Remove audio data before storing
+      }));
+      
+      localStorage.setItem(`chat_messages_${userId}`, JSON.stringify(messagesForStorage));
+    } catch (error) {
+      console.error('Error saving chat messages to local storage:', error);
+      // If storage fails, try clearing localStorage
+      localStorage.removeItem(`chat_messages_${userId}`);
+    }
   } else {
     localStorage.removeItem(`chat_messages_${userId}`);
   }
@@ -66,6 +78,7 @@ interface MessageResponse {
   message: string;
   responseId?: string;
   audioData?: string;
+  performance?: any;
 }
 
 /**
@@ -77,9 +90,13 @@ export async function sendMessage(
   userId: string, 
   wasVoiceInput: boolean
 ): Promise<MessageResponse> {
+  const requestStartTime = performance.now();
+  
   try {
     // Get the previous response ID if it exists in the last message
     const previousResponseId = previousMessages.length > 0 ? previousMessages[previousMessages.length - 1].responseId : undefined;
+    
+    console.log('Sending message to API, request start time:', requestStartTime);
     
     // Make the API call to the question endpoint
     const response = await fetch('/api/question', {
@@ -97,6 +114,10 @@ export async function sendMessage(
       }),
     });
 
+    const responseEndTime = performance.now();
+    const roundTripTime = responseEndTime - requestStartTime;
+    console.log(`Message round-trip time: ${Math.round(roundTripTime)}ms`);
+
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
     }
@@ -107,10 +128,16 @@ export async function sendMessage(
       throw new Error(data.error || 'Failed to get AI response');
     }
     
+    // Log performance data if available
+    if (data.performance) {
+      console.log('API Performance metrics:', data.performance);
+    }
+    
     return {
       message: processChatResponse(data.answer),
       responseId: data.id,
       audioData: data.audioUrl,
+      performance: data.performance
     };
   } catch (error) {
     console.error('Error in message service:', error);

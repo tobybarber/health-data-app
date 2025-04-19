@@ -46,7 +46,7 @@ const nextConfig = {
   },
   env: {
     // Disable console logging in browser
-    NEXT_PUBLIC_DISABLE_LOGS: 'true',
+    NEXT_PUBLIC_DISABLE_LOGS: 'false',
   },
 }
 
